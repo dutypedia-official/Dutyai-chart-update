@@ -1533,6 +1533,10 @@ class ChartCtx {
   // Signal to clear PVT groups when incremented
   clearRocGroups;
   // Signal to clear ROC groups when incremented
+  clearVolGroups;
+  // Signal to clear VOL groups when incremented
+  clearWrGroups;
+  // Signal to clear WR groups when incremented
   constructor() {
     this.editPaneId = "";
     this.editIndName = "";
@@ -1555,6 +1559,8 @@ class ChartCtx {
     this.clearPsyGroups = 0;
     this.clearPvtGroups = 0;
     this.clearRocGroups = 0;
+    this.clearVolGroups = 0;
+    this.clearWrGroups = 0;
     for (let name of local_mains) {
       const title = `${name} (${m[name]()})`;
       this.allInds.push({ name, title, cloud: false, is_main: true });
@@ -1587,7 +1593,7 @@ class ChartSave {
     this.showDrawBar = true;
     this.showSidebar = true;
     this.symbol = { name: "Grameen Phone Limited", ticker: "GP", market: "stock", exchange: "DSEBD", type: "stock", priceCurrency: "BDT" };
-    this.period = { multiplier: 4, timespan: "hour", timeframe: "4h", secs: 14400 };
+    this.period = { multiplier: 1, timespan: "day", timeframe: "1d", secs: 86400 };
     const timeEnd = getUTCStamp();
     this.dateEnd = getDateStr(timeEnd, "YYYYMMDD");
     const timeStart = timeEnd - this.period.secs * 1e3 * 500;
@@ -1928,72 +1934,117 @@ const fibonacciCircle = {
     return [];
   }
 };
+const DEFAULT_FIBONACCI_LEVELS = [
+  { value: 0, color: "#FF6B6B", visible: true },
+  // Red
+  { value: 0.236, color: "#4ECDC4", visible: true },
+  // Teal
+  { value: 0.382, color: "#45B7D1", visible: true },
+  // Blue
+  { value: 0.5, color: "#96CEB4", visible: true },
+  // Green
+  { value: 0.618, color: "#FFEAA7", visible: true },
+  // Yellow
+  { value: 1, color: "#98D8C8", visible: true },
+  // Mint
+  { value: 1.618, color: "#85C1E9", visible: true }
+  // Light Blue
+];
 const fibonacciSegment = {
   name: "fibonacciSegment",
   totalStep: 3,
   needDefaultPointFigure: true,
   needDefaultXAxisFigure: true,
   needDefaultYAxisFigure: true,
+  styles: {
+    line: {
+      size: 1,
+      color: "#1e88e5"
+    },
+    polygon: {
+      color: "rgba(30, 136, 229, 0.1)"
+    }
+  },
   createPointFigures: ({ chart, coordinates, overlay, yAxis }) => {
     const precision = getPrecision(chart, overlay, yAxis);
-    const lines = [];
-    const texts = [];
+    const figures2 = [];
     if (coordinates.length > 1) {
-      const leftmostX = Math.min(coordinates[0].x, coordinates[1].x);
-      const textX = leftmostX - 16;
-      const percents = [2.618, 1.618, 1, 0.786, 0.618, 0.5, 0.382, 0.236, 0];
-      const yDif = coordinates[0].y - coordinates[1].y;
       const points = overlay.points;
-      const valueDif = points[0].value - points[1].value;
-      percents.forEach((percent) => {
-        const y = coordinates[1].y + yDif * percent;
-        const price = (points[1].value + valueDif * percent).toFixed(precision);
-        lines.push({ coordinates: [{ x: coordinates[0].x, y }, { x: coordinates[1].x, y }] });
-        texts.push({
-          x: textX,
+      const valueDif = points[1].value - points[0].value;
+      const yDif = coordinates[1].y - coordinates[0].y;
+      const fibonacciLevels = overlay.extendData?.fibonacciLevels || overlay.fibonacciLevels || DEFAULT_FIBONACCI_LEVELS;
+      const visibleLevels = fibonacciLevels.filter((level) => level.visible);
+      for (let i = 0; i < visibleLevels.length - 1; i++) {
+        const currentLevel = visibleLevels[i];
+        const nextLevel = visibleLevels[i + 1];
+        const y1 = coordinates[0].y + yDif * currentLevel.value;
+        const y2 = coordinates[0].y + yDif * nextLevel.value;
+        figures2.push({
+          type: "polygon",
+          attrs: {
+            coordinates: [
+              { x: coordinates[0].x, y: y1 },
+              { x: coordinates[1].x, y: y1 },
+              { x: coordinates[1].x, y: y2 },
+              { x: coordinates[0].x, y: y2 }
+            ]
+          },
+          styles: {
+            style: "fill",
+            color: currentLevel.color + "40"
+            // Add transparency
+          }
+        });
+      }
+      const levelLines = [];
+      const levelTexts = [];
+      visibleLevels.forEach((level) => {
+        const y = coordinates[0].y + yDif * level.value;
+        const price = (points[0].value + valueDif * level.value).toFixed(precision);
+        levelLines.push({
+          coordinates: [
+            { x: coordinates[0].x, y },
+            { x: coordinates[1].x, y }
+          ]
+        });
+        levelTexts.push({
+          x: coordinates[1].x + 5,
           y,
-          text: `${price} (${(percent * 100).toFixed(1)}%)`,
+          text: `${price} (${(level.value * 100).toFixed(1)}%)`,
           baseline: "middle",
-          align: "right"
+          align: "left"
         });
       });
-      const trendLine = {
+      figures2.push({
         type: "line",
-        attrs: { coordinates: [coordinates[0], coordinates[1]] },
+        attrs: levelLines,
+        styles: {
+          size: overlay.styles?.line?.size || 1,
+          color: overlay.styles?.line?.color || "#1e88e5"
+        }
+      });
+      figures2.push({
+        type: "text",
+        ignoreEvent: true,
+        attrs: levelTexts,
+        styles: {
+          color: overlay.styles?.text?.color || "#666666",
+          backgroundColor: "transparent"
+        }
+      });
+      figures2.push({
+        type: "line",
+        attrs: {
+          coordinates: [coordinates[0], coordinates[1]]
+        },
         styles: {
           style: "dashed",
-          size: 0.5,
-          color: overlay.styles?.line?.color ?? "#1677FF",
-          dashedValue: [2, 2]
+          size: overlay.styles?.line?.size || 1,
+          color: overlay.styles?.line?.color || "#1e88e5"
         }
-      };
-      return [
-        trendLine,
-        {
-          type: "line",
-          attrs: lines,
-          styles: {
-            size: overlay.styles?.line?.size ?? 1,
-            color: overlay.styles?.line?.color ?? "#1677FF",
-            style: overlay.styles?.line?.style ?? "solid",
-            dashedValue: overlay.styles?.line?.dashedValue ?? [2, 2]
-          }
-        },
-        {
-          type: "text",
-          ignoreEvent: true,
-          attrs: texts,
-          styles: {
-            color: overlay.styles?.line?.color ?? "#666666",
-            backgroundColor: "transparent",
-            backgroundOpacity: 0,
-            borderSize: 0,
-            borderColor: "transparent"
-          }
-        }
-      ];
+      });
     }
-    return [];
+    return figures2;
   }
 };
 const fibonacciSpiral = {
@@ -3165,131 +3216,6 @@ const textBox = {
 const figures = [
   textBox
 ];
-const rsi = {
-  name: "RSI",
-  shortName: "RSI",
-  precision: 2,
-  calcParams: [14, 70, 50, 30],
-  // period, overbought, middle, oversold
-  shouldOhlc: false,
-  shouldFormatBigNumber: false,
-  visible: true,
-  zLevel: 0,
-  extendData: void 0,
-  figures: [
-    // RSI line
-    {
-      key: "rsi",
-      title: "RSI: ",
-      type: "line"
-    }
-  ],
-  // Define the three horizontal levels
-  minValue: 0,
-  maxValue: 100,
-  styles: {
-    lines: [
-      {
-        color: "#8B5CF6",
-        // Default purple color for RSI line
-        size: 2,
-        // Default thickness
-        style: kc.LineType.Solid,
-        smooth: false,
-        dashedValue: [2, 2]
-      }
-    ]
-  },
-  calc: (dataList, indicator2) => {
-    const period2 = indicator2.calcParams[0] || 14;
-    const result = [];
-    if (dataList.length < period2 + 1) {
-      return dataList.map(() => ({}));
-    }
-    let gains = [];
-    let losses = [];
-    for (let i = 1; i <= period2; i++) {
-      const change = dataList[i].close - dataList[i - 1].close;
-      if (change > 0) {
-        gains.push(change);
-        losses.push(0);
-      } else {
-        gains.push(0);
-        losses.push(Math.abs(change));
-      }
-    }
-    let avgGain = gains.reduce((sum, gain) => sum + gain, 0) / period2;
-    let avgLoss = losses.reduce((sum, loss) => sum + loss, 0) / period2;
-    for (let i = 0; i < period2; i++) {
-      result.push({});
-    }
-    let rs = avgGain / (avgLoss || 1);
-    let rsi2 = 100 - 100 / (1 + rs);
-    result.push({ rsi: rsi2 });
-    for (let i = period2 + 1; i < dataList.length; i++) {
-      const change = dataList[i].close - dataList[i - 1].close;
-      const gain = change > 0 ? change : 0;
-      const loss = change < 0 ? Math.abs(change) : 0;
-      avgGain = (avgGain * (period2 - 1) + gain) / period2;
-      avgLoss = (avgLoss * (period2 - 1) + loss) / period2;
-      rs = avgGain / (avgLoss || 1);
-      rsi2 = 100 - 100 / (1 + rs);
-      result.push({ rsi: rsi2 });
-    }
-    return result;
-  },
-  // Custom draw function to add colored zones and level lines
-  draw: ({ ctx, chart, indicator: indicator2, bounding, xAxis, yAxis }) => {
-    if (!indicator2.result || indicator2.result.length === 0) return false;
-    chart.getVisibleRange();
-    const overboughtLevel = indicator2.calcParams[1] || 70;
-    const middleLevel = indicator2.calcParams[2] || 50;
-    const oversoldLevel = indicator2.calcParams[3] || 30;
-    ctx.save();
-    const overboughtTop = yAxis.convertToPixel(100);
-    const overboughtBottom = yAxis.convertToPixel(overboughtLevel);
-    ctx.fillStyle = "rgba(255, 99, 132, 0.08)";
-    ctx.fillRect(bounding.left, overboughtTop, bounding.width, overboughtBottom - overboughtTop);
-    const neutralTop = yAxis.convertToPixel(overboughtLevel);
-    const neutralBottom = yAxis.convertToPixel(oversoldLevel);
-    ctx.fillStyle = "rgba(156, 163, 175, 0.03)";
-    ctx.fillRect(bounding.left, neutralTop, bounding.width, neutralBottom - neutralTop);
-    const oversoldTop = yAxis.convertToPixel(oversoldLevel);
-    const oversoldBottom = yAxis.convertToPixel(0);
-    ctx.fillStyle = "rgba(34, 197, 94, 0.08)";
-    ctx.fillRect(bounding.left, oversoldTop, bounding.width, oversoldBottom - oversoldTop);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "#EF4444";
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(bounding.left, overboughtBottom);
-    ctx.lineTo(bounding.left + bounding.width, overboughtBottom);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(107, 114, 128, 0.6)";
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    const middleY = yAxis.convertToPixel(middleLevel);
-    ctx.moveTo(bounding.left, middleY);
-    ctx.lineTo(bounding.left + bounding.width, middleY);
-    ctx.stroke();
-    ctx.strokeStyle = "#22C55E";
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(bounding.left, oversoldTop);
-    ctx.lineTo(bounding.left + bounding.width, oversoldTop);
-    ctx.stroke();
-    ctx.font = "11px Arial";
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#EF4444";
-    ctx.fillText(overboughtLevel.toString(), bounding.left + bounding.width + 5, overboughtBottom + 4);
-    ctx.fillStyle = "rgba(107, 114, 128, 0.8)";
-    ctx.fillText(middleLevel.toString(), bounding.left + bounding.width + 5, middleY + 4);
-    ctx.fillStyle = "#22C55E";
-    ctx.fillText(oversoldLevel.toString(), bounding.left + bounding.width + 5, oversoldTop + 4);
-    ctx.restore();
-    return false;
-  }
-};
 const bias = {
   name: "BIAS",
   shortName: "BIAS",
@@ -3642,6 +3568,257 @@ const pvt = {
     return result;
   }
 };
+const rsiInstances = /* @__PURE__ */ new Map();
+const createDefaultRSIInstance = (id) => ({
+  id,
+  period: 14,
+  lineColor: "#8B5CF6",
+  lineThickness: 2,
+  lineStyle: "solid",
+  showLevels: true,
+  showZones: true,
+  yAxisSync: true,
+  // Dynamic coloring defaults
+  enableDynamicColoring: true,
+  overboughtColor: "#EF4444",
+  oversoldColor: "#10B981",
+  overboughtThreshold: 70,
+  oversoldThreshold: 30,
+  levels: [
+    {
+      id: "overbought",
+      value: 70,
+      color: "#EF4444",
+      lineStyle: "solid",
+      thickness: 1,
+      label: "Overbought",
+      visible: true
+    },
+    {
+      id: "middle",
+      value: 50,
+      color: "#6B7280",
+      lineStyle: "dashed",
+      thickness: 1,
+      label: "Middle",
+      visible: true
+    },
+    {
+      id: "oversold",
+      value: 30,
+      color: "#10B981",
+      lineStyle: "solid",
+      thickness: 1,
+      label: "Oversold",
+      visible: true
+    }
+  ],
+  zones: [
+    {
+      id: "overbought_zone",
+      topLevel: 100,
+      bottomLevel: 70,
+      fillColor: "#EF4444",
+      fillOpacity: 0.1,
+      visible: true,
+      type: "overbought"
+    },
+    {
+      id: "oversold_zone",
+      topLevel: 30,
+      bottomLevel: 0,
+      fillColor: "#10B981",
+      fillOpacity: 0.1,
+      visible: true,
+      type: "oversold"
+    }
+  ]
+});
+const calculateRSI = (dataList, period2) => {
+  const result = [];
+  if (dataList.length < period2 + 1) {
+    return dataList.map(() => NaN);
+  }
+  let gains = [];
+  let losses = [];
+  for (let i = 1; i <= period2; i++) {
+    const change = dataList[i].close - dataList[i - 1].close;
+    gains.push(change > 0 ? change : 0);
+    losses.push(change < 0 ? Math.abs(change) : 0);
+  }
+  let avgGain = gains.reduce((sum, gain) => sum + gain, 0) / period2;
+  let avgLoss = losses.reduce((sum, loss) => sum + loss, 0) / period2;
+  for (let i = 0; i < period2; i++) {
+    result.push(NaN);
+  }
+  let rs = avgGain / (avgLoss || 1);
+  let rsi2 = 100 - 100 / (1 + rs);
+  result.push(rsi2);
+  for (let i = period2 + 1; i < dataList.length; i++) {
+    const change = dataList[i].close - dataList[i - 1].close;
+    const gain = change > 0 ? change : 0;
+    const loss = change < 0 ? Math.abs(change) : 0;
+    avgGain = (avgGain * (period2 - 1) + gain) / period2;
+    avgLoss = (avgLoss * (period2 - 1) + loss) / period2;
+    rs = avgGain / (avgLoss || 1);
+    rsi2 = 100 - 100 / (1 + rs);
+    result.push(rsi2);
+  }
+  return result;
+};
+const rsi = {
+  name: "RSI",
+  shortName: "RSI",
+  precision: 2,
+  calcParams: [14],
+  // Default period
+  shouldOhlc: false,
+  // RSI is displayed in a separate pane
+  shouldFormatBigNumber: false,
+  visible: true,
+  zLevel: 0,
+  extendData: void 0,
+  minValue: 0,
+  maxValue: 100,
+  figures: [
+    {
+      key: "rsi",
+      title: "RSI: ",
+      type: "line"
+    }
+  ],
+  styles: {
+    lines: [
+      {
+        color: "#8B5CF6",
+        size: 2,
+        style: kc.LineType.Solid,
+        smooth: false,
+        dashedValue: [2, 2]
+      }
+    ]
+  },
+  calc: (dataList, indicator2) => {
+    const period2 = indicator2.calcParams[0] || 14;
+    const rsiValues = calculateRSI(dataList, period2);
+    return rsiValues.map((value) => ({
+      rsi: isNaN(value) ? null : value
+    }));
+  },
+  draw: ({ ctx, chart, indicator: indicator2, bounding, xAxis, yAxis }) => {
+    const instanceId = indicator2.paneId || "default";
+    let instance = rsiInstances.get(instanceId);
+    if (!instance) {
+      instance = createDefaultRSIInstance(instanceId);
+      rsiInstances.set(instanceId, instance);
+    }
+    const { left, top, width, height } = bounding;
+    const visibleRange = chart.getVisibleRange();
+    ctx.save();
+    if (instance.showZones) {
+      instance.zones.forEach((zone) => {
+        if (!zone.visible) return;
+        const topY = yAxis.convertToPixel(zone.topLevel);
+        const bottomY = yAxis.convertToPixel(zone.bottomLevel);
+        if (topY !== null && bottomY !== null) {
+          ctx.save();
+          const zoneHeight = Math.abs(topY - bottomY);
+          const zoneTop = Math.min(topY, bottomY);
+          const gradient = ctx.createLinearGradient(left, zoneTop, left, zoneTop + zoneHeight);
+          const baseColor = zone.fillColor;
+          const rgb = baseColor.match(/\w\w/g);
+          if (rgb) {
+            const r = parseInt(rgb[0], 16);
+            const g = parseInt(rgb[1], 16);
+            const b = parseInt(rgb[2], 16);
+            gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.8})`);
+            gradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.6})`);
+            gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.3})`);
+            gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.1})`);
+          } else {
+            gradient.addColorStop(0, zone.fillColor + Math.floor(zone.fillOpacity * 255).toString(16).padStart(2, "0"));
+            gradient.addColorStop(0.5, zone.fillColor + Math.floor(zone.fillOpacity * 128).toString(16).padStart(2, "0"));
+            gradient.addColorStop(1, zone.fillColor + Math.floor(zone.fillOpacity * 32).toString(16).padStart(2, "0"));
+          }
+          ctx.fillStyle = gradient;
+          ctx.fillRect(left, zoneTop, width, zoneHeight);
+          ctx.strokeStyle = zone.fillColor + "40";
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(left, zoneTop, width, zoneHeight);
+          ctx.restore();
+        }
+      });
+    }
+    if (instance.showLevels) {
+      instance.levels.forEach((level) => {
+        if (!level.visible) return;
+        const levelY = yAxis.convertToPixel(level.value);
+        if (levelY === null) return;
+        ctx.save();
+        ctx.strokeStyle = level.color;
+        ctx.lineWidth = level.thickness;
+        if (level.lineStyle === "dashed") {
+          ctx.setLineDash([4, 4]);
+        } else if (level.lineStyle === "dotted") {
+          ctx.setLineDash([2, 2]);
+        } else {
+          ctx.setLineDash([]);
+        }
+        ctx.beginPath();
+        ctx.moveTo(left, levelY);
+        ctx.lineTo(left + width, levelY);
+        ctx.stroke();
+        ctx.fillStyle = level.color;
+        ctx.font = "11px Arial";
+        ctx.textAlign = "left";
+        ctx.fillText(`${level.value}`, left + 5, levelY - 3);
+        ctx.restore();
+      });
+    }
+    if (indicator2.result && indicator2.result.length > 0 && instance.enableDynamicColoring) {
+      ctx.save();
+      const overboughtLevel = instance.overboughtThreshold;
+      const oversoldLevel = instance.oversoldThreshold;
+      const normalColor = instance.lineColor;
+      const overboughtColor = instance.overboughtColor;
+      const oversoldColor = instance.oversoldColor;
+      ctx.lineWidth = instance.lineThickness;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const rsiResults = indicator2.result;
+      for (let i = visibleRange.from; i < visibleRange.to && i < rsiResults.length - 1; i++) {
+        const currentData = rsiResults[i];
+        const nextData = rsiResults[i + 1];
+        if (!currentData || !nextData || currentData.rsi === null || currentData.rsi === void 0 || nextData.rsi === null || nextData.rsi === void 0) {
+          continue;
+        }
+        const currentX = xAxis.convertToPixel(i);
+        const nextX = xAxis.convertToPixel(i + 1);
+        const currentY = yAxis.convertToPixel(currentData.rsi);
+        const nextY = yAxis.convertToPixel(nextData.rsi);
+        if (currentX === null || nextX === null || currentY === null || nextY === null) {
+          continue;
+        }
+        let lineColor = normalColor;
+        if (currentData.rsi > overboughtLevel) {
+          lineColor = overboughtColor;
+        } else if (currentData.rsi < oversoldLevel) {
+          lineColor = oversoldColor;
+        }
+        ctx.strokeStyle = lineColor;
+        ctx.beginPath();
+        ctx.moveTo(currentX, currentY);
+        ctx.lineTo(nextX, nextY);
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.restore();
+      return true;
+    }
+    ctx.restore();
+    return false;
+  }
+};
 const sar = {
   name: "SAR",
   shortName: "SAR",
@@ -3755,35 +3932,124 @@ const sar = {
     return true;
   }
 };
+const wrInstances = /* @__PURE__ */ new Map();
+const createDefaultWRInstance = (id) => ({
+  id,
+  period: 14,
+  lineColor: "#2563eb",
+  lineThickness: 1,
+  lineStyle: "solid",
+  showLevels: true,
+  showZones: true,
+  yAxisSync: true,
+  // Dynamic coloring defaults
+  enableDynamicColoring: true,
+  overboughtColor: "#EF4444",
+  oversoldColor: "#10B981",
+  overboughtThreshold: -20,
+  oversoldThreshold: -80,
+  levels: [
+    {
+      id: "overbought",
+      value: -20,
+      color: "#EF4444",
+      lineStyle: "solid",
+      thickness: 1,
+      label: "Overbought",
+      visible: true
+    },
+    {
+      id: "middle",
+      value: -50,
+      color: "#6B7280",
+      lineStyle: "dashed",
+      thickness: 1,
+      label: "Middle",
+      visible: true
+    },
+    {
+      id: "oversold",
+      value: -80,
+      color: "#10B981",
+      lineStyle: "solid",
+      thickness: 1,
+      label: "Oversold",
+      visible: true
+    }
+  ],
+  zones: [
+    {
+      id: "overbought_zone",
+      topLevel: 0,
+      bottomLevel: -20,
+      fillColor: "#EF4444",
+      fillOpacity: 0.1,
+      visible: true,
+      type: "overbought"
+    },
+    {
+      id: "oversold_zone",
+      topLevel: -80,
+      bottomLevel: -100,
+      fillColor: "#10B981",
+      fillOpacity: 0.1,
+      visible: true,
+      type: "oversold"
+    }
+  ]
+});
+const calculateWR = (dataList, period2) => {
+  const result = [];
+  if (dataList.length < period2) {
+    return dataList.map(() => NaN);
+  }
+  for (let i = 0; i < dataList.length; i++) {
+    if (i < period2 - 1) {
+      result.push(NaN);
+      continue;
+    }
+    let highestHigh = dataList[i - period2 + 1].high;
+    let lowestLow = dataList[i - period2 + 1].low;
+    for (let j = i - period2 + 2; j <= i; j++) {
+      if (dataList[j].high > highestHigh) {
+        highestHigh = dataList[j].high;
+      }
+      if (dataList[j].low < lowestLow) {
+        lowestLow = dataList[j].low;
+      }
+    }
+    const currentClose = dataList[i].close;
+    const wr2 = (highestHigh - currentClose) / (highestHigh - lowestLow) * -100;
+    result.push(isNaN(wr2) ? 0 : wr2);
+  }
+  return result;
+};
 const wr = {
   name: "WR",
   shortName: "WR",
   precision: 2,
-  calcParams: [14, -20, -50, -80],
-  // period, overbought, middle, oversold
+  calcParams: [14],
+  // Default period
   shouldOhlc: false,
+  // WR is displayed in a separate pane
   shouldFormatBigNumber: false,
   visible: true,
   zLevel: 0,
   extendData: void 0,
+  minValue: -100,
+  maxValue: 0,
   figures: [
-    // Williams %R line
     {
       key: "wr",
       title: "WR: ",
       type: "line"
     }
   ],
-  // Define the range for Williams %R (0 to -100)
-  minValue: -100,
-  maxValue: 0,
   styles: {
     lines: [
       {
-        color: "#FF6B35",
-        // Default orange color for Williams %R line
-        size: 2,
-        // Default thickness
+        color: "#2563eb",
+        size: 1,
         style: kc.LineType.Solid,
         smooth: false,
         dashedValue: [2, 2]
@@ -3792,81 +4058,274 @@ const wr = {
   },
   calc: (dataList, indicator2) => {
     const period2 = indicator2.calcParams[0] || 14;
-    const result = [];
-    if (dataList.length < period2) {
-      return dataList.map(() => ({}));
-    }
-    for (let i = 0; i < dataList.length; i++) {
-      if (i < period2 - 1) {
-        result.push({});
-        continue;
-      }
-      let highestHigh = dataList[i - period2 + 1].high;
-      let lowestLow = dataList[i - period2 + 1].low;
-      for (let j = i - period2 + 2; j <= i; j++) {
-        if (dataList[j].high > highestHigh) {
-          highestHigh = dataList[j].high;
-        }
-        if (dataList[j].low < lowestLow) {
-          lowestLow = dataList[j].low;
-        }
-      }
-      const currentClose = dataList[i].close;
-      const wr2 = (highestHigh - currentClose) / (highestHigh - lowestLow) * -100;
-      result.push({ wr: isNaN(wr2) ? 0 : wr2 });
-    }
-    return result;
+    const wrValues = calculateWR(dataList, period2);
+    return wrValues.map((value) => ({
+      wr: isNaN(value) ? null : value
+    }));
   },
-  // Custom draw function to add colored zones and level lines (similar to RSI)
   draw: ({ ctx, chart, indicator: indicator2, bounding, xAxis, yAxis }) => {
-    if (!indicator2.result || indicator2.result.length === 0) return false;
-    chart.getVisibleRange();
-    const overboughtLevel = indicator2.calcParams[1] || -20;
-    const middleLevel = indicator2.calcParams[2] || -50;
-    const oversoldLevel = indicator2.calcParams[3] || -80;
+    const instanceId = indicator2.paneId || "default";
+    let instance = wrInstances.get(instanceId);
+    if (!instance) {
+      instance = createDefaultWRInstance(instanceId);
+      wrInstances.set(instanceId, instance);
+    }
+    const { left, top, width, height } = bounding;
+    const visibleRange = chart.getVisibleRange();
     ctx.save();
-    const overboughtTop = yAxis.convertToPixel(0);
-    const overboughtBottom = yAxis.convertToPixel(overboughtLevel);
-    ctx.fillStyle = "rgba(255, 99, 132, 0.08)";
-    ctx.fillRect(bounding.left, overboughtTop, bounding.width, overboughtBottom - overboughtTop);
-    const neutralTop = yAxis.convertToPixel(overboughtLevel);
-    const neutralBottom = yAxis.convertToPixel(oversoldLevel);
-    ctx.fillStyle = "rgba(156, 163, 175, 0.03)";
-    ctx.fillRect(bounding.left, neutralTop, bounding.width, neutralBottom - neutralTop);
-    const oversoldTop = yAxis.convertToPixel(oversoldLevel);
-    const oversoldBottom = yAxis.convertToPixel(-100);
-    ctx.fillStyle = "rgba(34, 197, 94, 0.08)";
-    ctx.fillRect(bounding.left, oversoldTop, bounding.width, oversoldBottom - oversoldTop);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "#EF4444";
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(bounding.left, overboughtBottom);
-    ctx.lineTo(bounding.left + bounding.width, overboughtBottom);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(107, 114, 128, 0.6)";
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    const middleY = yAxis.convertToPixel(middleLevel);
-    ctx.moveTo(bounding.left, middleY);
-    ctx.lineTo(bounding.left + bounding.width, middleY);
-    ctx.stroke();
-    ctx.strokeStyle = "#22C55E";
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(bounding.left, oversoldTop);
-    ctx.lineTo(bounding.left + bounding.width, oversoldTop);
-    ctx.stroke();
-    ctx.font = "11px Arial";
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#EF4444";
-    ctx.fillText(overboughtLevel.toString(), bounding.left + bounding.width + 5, overboughtBottom + 4);
-    ctx.fillStyle = "rgba(107, 114, 128, 0.8)";
-    ctx.fillText(middleLevel.toString(), bounding.left + bounding.width + 5, middleY + 4);
-    ctx.fillStyle = "#22C55E";
-    ctx.fillText(oversoldLevel.toString(), bounding.left + bounding.width + 5, oversoldTop + 4);
+    if (instance.showZones) {
+      instance.zones.forEach((zone) => {
+        if (!zone.visible) return;
+        const topY = yAxis.convertToPixel(zone.topLevel);
+        const bottomY = yAxis.convertToPixel(zone.bottomLevel);
+        if (topY !== null && bottomY !== null) {
+          ctx.save();
+          const zoneHeight = Math.abs(topY - bottomY);
+          const zoneTop = Math.min(topY, bottomY);
+          const gradient = ctx.createLinearGradient(left, zoneTop, left, zoneTop + zoneHeight);
+          const baseColor = zone.fillColor;
+          const rgb = baseColor.match(/\w\w/g);
+          if (rgb) {
+            const r = parseInt(rgb[0], 16);
+            const g = parseInt(rgb[1], 16);
+            const b = parseInt(rgb[2], 16);
+            gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.8})`);
+            gradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.6})`);
+            gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.3})`);
+            gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, ${zone.fillOpacity * 0.1})`);
+          } else {
+            gradient.addColorStop(0, zone.fillColor + Math.floor(zone.fillOpacity * 255).toString(16).padStart(2, "0"));
+            gradient.addColorStop(0.5, zone.fillColor + Math.floor(zone.fillOpacity * 128).toString(16).padStart(2, "0"));
+            gradient.addColorStop(1, zone.fillColor + Math.floor(zone.fillOpacity * 32).toString(16).padStart(2, "0"));
+          }
+          ctx.fillStyle = gradient;
+          ctx.fillRect(left, zoneTop, width, zoneHeight);
+          ctx.strokeStyle = zone.fillColor + "40";
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(left, zoneTop, width, zoneHeight);
+          ctx.restore();
+        }
+      });
+    }
+    if (instance.showLevels) {
+      instance.levels.forEach((level) => {
+        if (!level.visible) return;
+        const levelY = yAxis.convertToPixel(level.value);
+        if (levelY === null) return;
+        ctx.save();
+        ctx.strokeStyle = level.color;
+        ctx.lineWidth = level.thickness;
+        if (level.lineStyle === "dashed") {
+          ctx.setLineDash([4, 4]);
+        } else if (level.lineStyle === "dotted") {
+          ctx.setLineDash([2, 2]);
+        } else {
+          ctx.setLineDash([]);
+        }
+        ctx.beginPath();
+        ctx.moveTo(left, levelY);
+        ctx.lineTo(left + width, levelY);
+        ctx.stroke();
+        if (instance.yAxisSync) {
+          ctx.font = "11px Arial";
+          ctx.textAlign = "left";
+          ctx.fillStyle = level.color;
+          ctx.fillText(`WR ${level.value}`, left + width + 5, levelY + 4);
+        }
+        ctx.restore();
+      });
+    }
+    if (instance.enableDynamicColoring && indicator2.result) {
+      const { from, to } = visibleRange;
+      for (let i = from; i < to; i++) {
+        const dataIndex = i;
+        if (dataIndex >= 0 && dataIndex < indicator2.result.length) {
+          const wrValue = indicator2.result[dataIndex]?.wr;
+          if (wrValue !== null && wrValue !== void 0) {
+            const x = xAxis.convertToPixel(i);
+            const y = yAxis.convertToPixel(wrValue);
+            if (x !== null && y !== null) {
+              ctx.save();
+              let pointColor = instance.lineColor;
+              if (wrValue > instance.overboughtThreshold) {
+                pointColor = instance.overboughtColor;
+              } else if (wrValue < instance.oversoldThreshold) {
+                pointColor = instance.oversoldColor;
+              }
+              ctx.fillStyle = pointColor;
+              ctx.beginPath();
+              ctx.arc(x, y, 1, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+        }
+      }
+    }
     ctx.restore();
     return false;
+  }
+};
+const WRManager = {
+  createInstance: (id, config) => {
+    const instance = createDefaultWRInstance(id);
+    if (config) {
+      Object.assign(instance, config);
+    }
+    wrInstances.set(id, instance);
+    return instance;
+  },
+  getInstance: (id) => {
+    return wrInstances.get(id);
+  },
+  updateInstance: (id, updates) => {
+    const instance = wrInstances.get(id);
+    if (!instance) return false;
+    Object.assign(instance, updates);
+    wrInstances.set(id, instance);
+    return true;
+  },
+  deleteInstance: (id) => {
+    return wrInstances.delete(id);
+  },
+  addLevel: (instanceId, level) => {
+    const instance = wrInstances.get(instanceId);
+    if (!instance) throw new Error(`WR instance ${instanceId} not found`);
+    const levelId = `level_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newLevel = {
+      ...level,
+      id: levelId,
+      value: Math.max(-100, Math.min(0, level.value))
+      // Clamp between -100 to 0
+    };
+    instance.levels.push(newLevel);
+    return levelId;
+  },
+  removeLevel: (instanceId, levelId) => {
+    const instance = wrInstances.get(instanceId);
+    if (!instance) return false;
+    const index = instance.levels.findIndex((level) => level.id === levelId);
+    if (index === -1) return false;
+    instance.levels.splice(index, 1);
+    return true;
+  },
+  updateLevel: (instanceId, levelId, updates) => {
+    const instance = wrInstances.get(instanceId);
+    if (!instance) return false;
+    const level = instance.levels.find((l) => l.id === levelId);
+    if (!level) return false;
+    if (updates.value !== void 0) {
+      updates.value = Math.max(-100, Math.min(0, updates.value));
+    }
+    if (updates.thickness !== void 0) {
+      updates.thickness = Math.max(1, Math.min(5, updates.thickness));
+    }
+    Object.assign(level, updates);
+    return true;
+  },
+  addZone: (instanceId, zone) => {
+    const instance = wrInstances.get(instanceId);
+    if (!instance) throw new Error(`WR instance ${instanceId} not found`);
+    const top = Math.max(-100, Math.min(0, Math.max(zone.topLevel, zone.bottomLevel)));
+    const bottom = Math.max(-100, Math.min(0, Math.min(zone.topLevel, zone.bottomLevel)));
+    const zoneId = `zone_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const newZone = {
+      ...zone,
+      id: zoneId,
+      topLevel: top,
+      bottomLevel: bottom,
+      fillOpacity: Math.max(0, Math.min(1, zone.fillOpacity || 0.15))
+      // Validate opacity
+    };
+    instance.zones.push(newZone);
+    return zoneId;
+  },
+  removeZone: (instanceId, zoneId) => {
+    const instance = wrInstances.get(instanceId);
+    if (!instance) return false;
+    const index = instance.zones.findIndex((zone) => zone.id === zoneId);
+    if (index === -1) return false;
+    instance.zones.splice(index, 1);
+    return true;
+  },
+  updateZone: (instanceId, zoneId, updates) => {
+    const instance = wrInstances.get(instanceId);
+    if (!instance) return false;
+    const zone = instance.zones.find((z) => z.id === zoneId);
+    if (!zone) return false;
+    if (updates.topLevel !== void 0) {
+      updates.topLevel = Math.max(-100, Math.min(0, updates.topLevel));
+    }
+    if (updates.bottomLevel !== void 0) {
+      updates.bottomLevel = Math.max(-100, Math.min(0, updates.bottomLevel));
+    }
+    if (updates.fillOpacity !== void 0) {
+      updates.fillOpacity = Math.max(0, Math.min(1, updates.fillOpacity));
+    }
+    Object.assign(zone, updates);
+    if (zone.topLevel < zone.bottomLevel) {
+      const temp = zone.topLevel;
+      zone.topLevel = zone.bottomLevel;
+      zone.bottomLevel = temp;
+    }
+    return true;
+  },
+  getInstanceConfig: (instanceId) => {
+    return wrInstances.get(instanceId) || null;
+  },
+  resetInstance: (instanceId) => {
+    const defaultInstance = createDefaultWRInstance(instanceId);
+    wrInstances.set(instanceId, defaultInstance);
+  },
+  exportInstanceConfig: (instanceId) => {
+    const instance = wrInstances.get(instanceId);
+    if (instance) {
+      return {
+        id: instanceId,
+        period: instance.period,
+        lineColor: instance.lineColor,
+        lineThickness: instance.lineThickness,
+        lineStyle: instance.lineStyle,
+        showLevels: instance.showLevels,
+        showZones: instance.showZones,
+        yAxisSync: instance.yAxisSync,
+        levels: instance.levels.map((level) => ({ ...level })),
+        zones: instance.zones.map((zone) => ({ ...zone }))
+      };
+    }
+    return null;
+  },
+  importInstanceConfig: (config) => {
+    try {
+      const instance = {
+        id: config.id,
+        period: config.period || 14,
+        lineColor: config.lineColor || "#FF6B35",
+        lineThickness: config.lineThickness || 2,
+        lineStyle: config.lineStyle || "solid",
+        showLevels: config.showLevels ?? true,
+        showZones: config.showZones ?? true,
+        yAxisSync: config.yAxisSync ?? true,
+        enableDynamicColoring: config.enableDynamicColoring ?? true,
+        overboughtColor: config.overboughtColor || "#EF4444",
+        oversoldColor: config.oversoldColor || "#10B981",
+        overboughtThreshold: config.overboughtThreshold || -20,
+        oversoldThreshold: config.oversoldThreshold || -80,
+        levels: config.levels || [],
+        zones: config.zones || []
+      };
+      wrInstances.set(config.id, instance);
+      return true;
+    } catch (error) {
+      console.error("Failed to import WR instance config:", error);
+      return false;
+    }
+  },
+  getAllInstances: () => {
+    return new Map(wrInstances);
+  },
+  clearAllInstances: () => {
+    wrInstances.clear();
   }
 };
 const vr = {
@@ -4191,11 +4650,11 @@ const obv = {
         obvValue = 0;
       } else {
         const previous = dataList[i - 1];
-        const volume = current.volume || 0;
+        const volume2 = current.volume || 0;
         if (current.close > previous.close) {
-          obvValue += volume;
+          obvValue += volume2;
         } else if (current.close < previous.close) {
-          obvValue -= volume;
+          obvValue -= volume2;
         }
       }
       obvValues.push(obvValue);
@@ -4936,10 +5395,10 @@ const emv = {
       const previousMidpoint = (previous.high + previous.low) / 2;
       const distanceMoved = currentMidpoint - previousMidpoint;
       const priceRange = current.high - current.low;
-      const volume = current.volume || 0;
+      const volume2 = current.volume || 0;
       let emvValue = 0;
-      if (priceRange > 0 && volume > 0) {
-        const boxRatio = volume / priceRange;
+      if (priceRange > 0 && volume2 > 0) {
+        const boxRatio = volume2 / priceRange;
         emvValue = distanceMoved / boxRatio;
       }
       emvValues.push(emvValue);
@@ -5025,7 +5484,264 @@ const mtm = {
     return result;
   }
 };
-const indicators = [rsi, bias, cci, ichimoku, pvt, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm];
+const trix = {
+  name: "TRIX",
+  shortName: "TRIX",
+  precision: 4,
+  calcParams: [14, 9],
+  // [TRIX period, Signal period]
+  shouldOhlc: false,
+  shouldFormatBigNumber: false,
+  visible: true,
+  zLevel: 0,
+  extendData: void 0,
+  figures: [
+    { key: "trix", title: "TRIX: ", type: "line" },
+    { key: "signal", title: "Signal: ", type: "line" }
+  ],
+  minValue: void 0,
+  maxValue: void 0,
+  styles: {
+    lines: [
+      {
+        color: "#2563eb",
+        // Default blue color for TRIX line
+        size: 2,
+        style: kc.LineType.Solid,
+        smooth: false,
+        dashedValue: [2, 2]
+      },
+      {
+        color: "#dc2626",
+        // Default red color for Signal line
+        size: 2,
+        style: kc.LineType.Solid,
+        smooth: false,
+        dashedValue: [2, 2]
+      }
+    ]
+  },
+  calc: (dataList, indicator2) => {
+    const { calcParams } = indicator2;
+    const [trixPeriod, signalPeriod] = calcParams;
+    const trixValues = calculateTRIX(dataList, trixPeriod);
+    const signalValues = calculateEMA(trixValues, signalPeriod);
+    return dataList.map((_2, i) => {
+      return {
+        trix: trixValues[i],
+        signal: signalValues[i]
+      };
+    });
+  }
+};
+function calculateTRIX(dataList, period2) {
+  const prices = dataList.map((d) => d.close);
+  const ema1 = calculateEMA(prices, period2);
+  const ema2 = calculateEMA(ema1, period2);
+  const ema3 = calculateEMA(ema2, period2);
+  const trixValues = [];
+  for (let i = 0; i < ema3.length; i++) {
+    if (i === 0 || ema3[i] === null || ema3[i - 1] === null || ema3[i - 1] === 0) {
+      trixValues.push(null);
+    } else {
+      const trix2 = (ema3[i] - ema3[i - 1]) / ema3[i - 1] * 1e4;
+      trixValues.push(trix2);
+    }
+  }
+  return trixValues;
+}
+function calculateEMA(values, period2) {
+  const result = [];
+  const multiplier = 2 / (period2 + 1);
+  let ema = null;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] === null) {
+      result.push(null);
+      continue;
+    }
+    if (ema === null) {
+      if (i >= period2 - 1) {
+        let sum = 0;
+        let count = 0;
+        for (let j = i - period2 + 1; j <= i; j++) {
+          if (values[j] !== null) {
+            sum += values[j];
+            count++;
+          }
+        }
+        ema = count > 0 ? sum / count : null;
+      }
+    } else {
+      ema = values[i] * multiplier + ema * (1 - multiplier);
+    }
+    result.push(ema);
+  }
+  return result;
+}
+const volume = {
+  name: "VOL",
+  shortName: "VOL",
+  precision: 0,
+  calcParams: [20],
+  // EMA period
+  shouldOhlc: false,
+  shouldFormatBigNumber: true,
+  visible: true,
+  zLevel: 0,
+  extendData: void 0,
+  figures: [
+    // Volume bars
+    {
+      key: "volume",
+      title: "Volume: ",
+      type: "bar",
+      baseValue: 0
+    },
+    // EMA line
+    {
+      key: "ema",
+      title: "EMA: ",
+      type: "line"
+    }
+  ],
+  styles: {
+    bars: [
+      {
+        upColor: "#26a69a",
+        // Green for up volume
+        downColor: "#ef5350",
+        // Red for down volume
+        noChangeColor: "#26a69a"
+      }
+    ],
+    lines: [
+      {
+        color: "#8B5CF6",
+        // Purple for EMA line
+        size: 1,
+        // 1 pixel thickness as requested
+        style: kc.LineType.Solid,
+        smooth: false,
+        dashedValue: [2, 2]
+      }
+    ]
+  },
+  calc: (dataList, indicator2) => {
+    const params = indicator2.calcParams;
+    const period2 = params[0] || 20;
+    const result = [];
+    for (let i = 0; i < dataList.length; i++) {
+      const kLineData = dataList[i];
+      const volume2 = kLineData.volume || 0;
+      let ema = 0;
+      if (i === 0) {
+        ema = volume2;
+      } else {
+        const multiplier = 2 / (period2 + 1);
+        const prevEma = result[i - 1]?.ema || volume2;
+        ema = volume2 * multiplier + prevEma * (1 - multiplier);
+      }
+      result.push({
+        volume: volume2,
+        ema
+      });
+    }
+    return result;
+  },
+  // Custom draw function for volume bars with proper color logic
+  draw: ({ ctx, chart, indicator: indicator2, bounding, xAxis, yAxis }) => {
+    if (!indicator2.result || indicator2.result.length === 0) return false;
+    const visibleRange = chart.getVisibleRange();
+    if (!visibleRange) return false;
+    const { from, to } = visibleRange;
+    const dataList = chart.getDataList();
+    if (!dataList || dataList.length === 0) return false;
+    const upColor = indicator2.styles?.bars?.[0]?.upColor || "#26a69a";
+    const downColor = indicator2.styles?.bars?.[0]?.downColor || "#ef5350";
+    const noChangeColor = indicator2.styles?.bars?.[0]?.noChangeColor || "#26a69a";
+    const emaColor = indicator2.styles?.lines?.[0]?.color || "#8B5CF6";
+    console.log("Volume indicator colors:", {
+      upColor,
+      downColor,
+      noChangeColor,
+      emaColor,
+      styles: indicator2.styles
+    });
+    ctx.save();
+    for (let i = from; i <= to && i < indicator2.result.length; i++) {
+      const data = indicator2.result[i];
+      if (!data || data.volume === void 0) continue;
+      const currentCandle = dataList[i];
+      const previousCandle = i > 0 ? dataList[i - 1] : null;
+      let barColor = noChangeColor;
+      if (previousCandle) {
+        if (currentCandle.close > previousCandle.close) {
+          barColor = upColor;
+        } else if (currentCandle.close < previousCandle.close) {
+          barColor = downColor;
+        }
+      }
+      const x = xAxis.convertToPixel(i);
+      const volumeY = yAxis.convertToPixel(data.volume);
+      const baseY = yAxis.convertToPixel(0);
+      const barWidth = Math.max(1, (xAxis.convertToPixel(1) - xAxis.convertToPixel(0)) * 0.8);
+      ctx.fillStyle = barColor;
+      ctx.fillRect(x - barWidth / 2, volumeY, barWidth, baseY - volumeY);
+    }
+    ctx.fillStyle = emaColor + "40";
+    ctx.strokeStyle = emaColor;
+    const lineStyle = indicator2.styles?.lines?.[0]?.style || kc.LineType.Solid;
+    const lineSize = indicator2.styles?.lines?.[0]?.size || 1;
+    const dashedValue = indicator2.styles?.lines?.[0]?.dashedValue || [2, 2];
+    ctx.lineWidth = lineSize;
+    if (lineStyle === kc.LineType.Dashed) {
+      ctx.setLineDash(dashedValue);
+    } else {
+      ctx.setLineDash([]);
+    }
+    ctx.beginPath();
+    let firstPoint = true;
+    let lastX = 0;
+    const zeroLineY = yAxis.convertToPixel(0);
+    for (let i = from; i <= to && i < indicator2.result.length; i++) {
+      const data = indicator2.result[i];
+      if (!data || data.ema === void 0) continue;
+      const x = xAxis.convertToPixel(i);
+      const y = yAxis.convertToPixel(data.ema);
+      if (firstPoint) {
+        ctx.moveTo(x, zeroLineY);
+        ctx.lineTo(x, y);
+        firstPoint = false;
+      } else {
+        ctx.lineTo(x, y);
+      }
+      lastX = x;
+    }
+    if (!firstPoint) {
+      ctx.lineTo(lastX, zeroLineY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      firstPoint = true;
+      for (let i = from; i <= to && i < indicator2.result.length; i++) {
+        const data = indicator2.result[i];
+        if (!data || data.ema === void 0) continue;
+        const x = xAxis.convertToPixel(i);
+        const y = yAxis.convertToPixel(data.ema);
+        if (firstPoint) {
+          ctx.moveTo(x, y);
+          firstPoint = false;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+    return true;
+  }
+};
+const indicators = [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume];
 const transformApiDataToKLineData = (apiData) => {
   console.log("transformApiDataToKLineData called with:", apiData);
   console.log("First few items:", apiData.slice(0, 3));
@@ -22001,6 +22717,37 @@ function EmojiPicker($$payload, $$props) {
   bind_props($$props, { show, position });
   pop();
 }
+function FibonacciSettingsModal($$payload, $$props) {
+  push();
+  let visible = fallback($$props["visible"], false);
+  let levels = fallback($$props["levels"], () => [], true);
+  let theme = fallback($$props["theme"], "dark");
+  if (visible) {
+    $$payload.out += "<!--[-->";
+    const each_array = ensure_array_like(levels);
+    $$payload.out += `<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] modal-backdrop"><div${attr("class", `relative ${stringify(theme === "dark" ? "bg-[#1a1a1a] border-[#404040]" : "bg-white border-gray-200")} rounded-lg shadow-xl border max-w-md w-full mx-4 max-h-[80vh] overflow-hidden sm:max-w-lg md:max-w-xl lg:max-w-2xl svelte-ah2kky`)}><div${attr("class", `flex items-center justify-between p-4 border-b ${stringify(theme === "dark" ? "border-[#404040]" : "border-gray-200")}`)}><h3${attr("class", `text-lg font-semibold ${stringify(theme === "dark" ? "text-white" : "text-gray-900")}`)}>Fibonacci Settings</h3> <button${attr("class", `w-8 h-8 rounded-full ${stringify(theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-100")} flex items-center justify-center transition-colors`)} title="Close"><svg${attr("class", `w-5 h-5 ${stringify(theme === "dark" ? "text-gray-400" : "text-gray-600")}`)} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div> <div class="p-4 max-h-[60vh] overflow-y-auto svelte-ah2kky"><div class="space-y-3"><!--[-->`;
+    for (let index = 0, $$length = each_array.length; index < $$length; index++) {
+      let level = each_array[index];
+      $$payload.out += `<div${attr("class", `flex items-center gap-3 p-3 rounded-lg ${stringify(theme === "dark" ? "bg-[#2a2a2a]" : "bg-gray-50")} sm:gap-4 sm:p-4`)}><input type="checkbox"${attr("checked", level.visible, true)} class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 focus:ring-2 sm:w-4 sm:h-4 touch-manipulation"> <input type="number"${attr("value", level.value)} step="0.001" min="0" max="10"${attr("class", `w-24 px-3 py-2 text-sm rounded border touch-manipulation sm:w-20 sm:px-2 sm:py-1 ${stringify(theme === "dark" ? "bg-[#3a3a3a] border-[#555] text-white focus:border-blue-500" : "bg-white border-gray-300 text-gray-900 focus:border-blue-500")} focus:outline-none focus:ring-1 focus:ring-blue-500`)}> <button class="w-10 h-10 rounded border-2 border-gray-300 hover:border-gray-400 transition-colors sm:w-8 sm:h-8 touch-manipulation"${attr("style", `background-color: ${stringify(level.color)}`)} title="Change color"></button> <span${attr("class", `text-sm ${stringify(theme === "dark" ? "text-gray-300" : "text-gray-700")} flex-1 sm:text-sm`)}>${escape_html(level.value === 0 ? "Start" : level.value === 1 ? "End" : `${(level.value * 100).toFixed(1)}%`)}</span></div>`;
+    }
+    $$payload.out += `<!--]--></div></div> <div${attr("class", `flex items-center justify-between p-4 border-t ${stringify(theme === "dark" ? "border-[#404040]" : "border-gray-200")} sm:flex-row flex-col gap-3 sm:gap-0`)}><button${attr("class", `px-6 py-3 text-sm rounded ${stringify(theme === "dark" ? "bg-gray-600 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700")} transition-colors touch-manipulation min-h-[44px] w-full sm:w-auto sm:px-4 sm:py-2 sm:min-h-[36px]`)}>🔁 Reset</button> <div class="flex gap-3 w-full sm:w-auto sm:gap-2"><button${attr("class", `px-6 py-3 text-sm rounded ${stringify(theme === "dark" ? "bg-gray-600 hover:bg-gray-700 text-white" : "bg-gray-200 hover:bg-gray-300 text-gray-700")} transition-colors touch-manipulation min-h-[44px] flex-1 sm:flex-none sm:px-4 sm:py-2 sm:min-h-[36px]`)}>❌ Cancel</button> <button class="px-6 py-3 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white transition-colors touch-manipulation min-h-[44px] flex-1 sm:flex-none sm:px-4 sm:py-2 sm:min-h-[36px]">✅ Confirm</button></div></div></div></div>`;
+  } else {
+    $$payload.out += "<!--[!-->";
+  }
+  $$payload.out += `<!--]--> `;
+  {
+    $$payload.out += "<!--[!-->";
+  }
+  $$payload.out += `<!--]-->`;
+  bind_props($$props, { visible, levels, theme });
+  pop();
+}
+function normalizeSymbolKey$1(symbol) {
+  if (symbol.exchange && symbol.ticker) {
+    return `${symbol.exchange.toUpperCase()}:${symbol.ticker.toUpperCase()}`;
+  }
+  return (symbol.ticker || symbol.name || "UNKNOWN").toUpperCase();
+}
 function DrawBar($$payload, $$props) {
   push();
   var $$store_subs;
@@ -22032,6 +22779,87 @@ function DrawBar($$payload, $$props) {
   let showEmojiPicker = false;
   let emojiPickerPosition = { x: 0, y: 0 };
   let colorPickerPosition = { x: 0, y: 0 };
+  let showFibonacciSettings = false;
+  let fibonacciLevels = [
+    // Standard levels (visible by default)
+    { value: 0, visible: true, color: "#FF6B6B" },
+    {
+      value: 0.236,
+      visible: true,
+      color: "#4ECDC4"
+    },
+    {
+      value: 0.382,
+      visible: true,
+      color: "#45B7D1"
+    },
+    { value: 0.5, visible: true, color: "#96CEB4" },
+    {
+      value: 0.618,
+      visible: true,
+      color: "#FFEAA7"
+    },
+    { value: 1, visible: true, color: "#98D8C8" },
+    {
+      value: 1.618,
+      visible: true,
+      color: "#85C1E9"
+    },
+    // Additional levels (hidden by default)
+    {
+      value: 0.786,
+      visible: false,
+      color: "#DDA0DD"
+    },
+    {
+      value: 1.272,
+      visible: false,
+      color: "#F7DC6F"
+    },
+    {
+      value: 1.414,
+      visible: false,
+      color: "#BB8FCE"
+    },
+    { value: 2, visible: false, color: "#FFB6C1" },
+    {
+      value: 2.272,
+      visible: false,
+      color: "#98FB98"
+    },
+    {
+      value: 2.414,
+      visible: false,
+      color: "#F0E68C"
+    },
+    {
+      value: 2.618,
+      visible: false,
+      color: "#F8C471"
+    },
+    { value: 3, visible: false, color: "#DEB887" },
+    {
+      value: 3.618,
+      visible: false,
+      color: "#CD853F"
+    },
+    { value: 4, visible: false, color: "#D2691E" },
+    {
+      value: 4.236,
+      visible: false,
+      color: "#A0522D"
+    },
+    {
+      value: 4.272,
+      visible: false,
+      color: "#8B4513"
+    },
+    {
+      value: 4.618,
+      visible: false,
+      color: "#654321"
+    }
+  ];
   let chartContainer = null;
   function getChartContainerBounds() {
     if (!chartContainer) {
@@ -22088,6 +22916,7 @@ function DrawBar($$payload, $$props) {
   const ctx = getContext("ctx");
   const chart = getContext("chart");
   const overlays2 = persisted(store_get($$store_subs ??= {}, "$save", save).key + "_overlays", {});
+  const drawingManagerContext = getContext("drawingManager");
   undoRedoManager.getState();
   function getOverlayKey(overlayId) {
     const sym = store_get($$store_subs ??= {}, "$save", save).symbol;
@@ -22299,6 +23128,15 @@ function DrawBar($$payload, $$props) {
           delete ol[getOverlayKey(event.overlay.id)];
           return ol;
         });
+        const drawingManager = drawingManagerContext.get();
+        if (drawingManager) {
+          try {
+            drawingManager.removeDrawing(event.overlay.id);
+            console.log("🗑️ Removed drawing from DrawingManager:", event.overlay.id);
+          } catch (error) {
+            console.error("Error removing drawing from DrawingManager:", error);
+          }
+        }
         return true;
       }
     };
@@ -22602,6 +23440,28 @@ function DrawBar($$payload, $$props) {
       ol[oid] = Object.fromEntries(keys.map((k) => [k, overlay[k]]));
       return ol;
     });
+    const drawingManager = drawingManagerContext.get();
+    if (drawingManager && overlay.points && overlay.points.length > 0) {
+      try {
+        const symbolKey = normalizeSymbolKey$1(store_get($$store_subs ??= {}, "$save", save).symbol);
+        const drawing = {
+          id: overlay.id,
+          symbolKey,
+          // CRITICAL: Add symbolKey for symbol isolation
+          type: overlay.name || "unknown",
+          points: overlay.points.map((point) => ({
+            time: point.timestamp || point.t || 0,
+            price: point.value || point.p || 0
+          })),
+          styles: overlay.styles || {},
+          locked: Boolean(overlay.lock),
+          visible: overlay.visible !== false
+        };
+        drawingManager.addDrawing(drawing);
+      } catch (error) {
+        console.error("Error syncing overlay to DrawingManager:", error);
+      }
+    }
   }
   function openEmojiPicker() {
     showEmojiPicker = !showEmojiPicker;
@@ -22767,6 +23627,13 @@ function DrawBar($$payload, $$props) {
         $$payload2.out += `<div class="flex items-center gap-3 svelte-1l90jhy"><div class="flex items-center justify-center w-8 h-8 text-lg svelte-1l90jhy">${escape_html(selectedOverlay?.extendData?.emoji || "😀")}</div> <div class="flex items-center gap-1 sm:gap-2 min-w-[100px] sm:min-w-[120px] svelte-1l90jhy"><span class="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline svelte-1l90jhy">Size:</span> <input type="range" min="16" max="64"${attr("value", selectedOverlay?.extendData?.size || 24)} class="flex-1 h-2 sm:h-1 bg-gray-200 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer slider touch-manipulation svelte-1l90jhy"${attr("title", `Emoji size: ${stringify(selectedOverlay?.extendData?.size || 24)}px`)}> <span class="text-xs text-gray-500 dark:text-gray-400 w-6 text-right svelte-1l90jhy">${escape_html(selectedOverlay?.extendData?.size || 24)}</span></div></div>`;
       }
       $$payload2.out += `<!--]--> `;
+      if (selectedOverlay?.name === "fibonacciSegment") {
+        $$payload2.out += "<!--[-->";
+        $$payload2.out += `<button${attr("class", `w-8 h-8 rounded ${stringify(store_get($$store_subs ??= {}, "$save", save).theme === "dark" ? "hover:bg-blue-900" : "hover:bg-blue-100")} transition-colors duration-200 flex items-center justify-center svelte-1l90jhy`)} title="Fibonacci Settings"><svg${attr("class", `w-4 h-4 ${stringify(store_get($$store_subs ??= {}, "$save", save).theme === "dark" ? "text-gray-300" : "text-gray-600")} hover:text-blue-500 svelte-1l90jhy`)} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" class="svelte-1l90jhy"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" class="svelte-1l90jhy"></path></svg></button>`;
+      } else {
+        $$payload2.out += "<!--[!-->";
+      }
+      $$payload2.out += `<!--]--> `;
       if (selectedOverlay?.name !== "emoji") {
         $$payload2.out += "<!--[-->";
         $$payload2.out += `<div class="relative svelte-1l90jhy"><button${attr("class", `w-8 h-8 rounded ${stringify(store_get($$store_subs ??= {}, "$save", save).theme === "dark" ? "hover:bg-gray-700" : "hover:bg-gray-100")} transition-colors duration-200 flex items-center justify-center svelte-1l90jhy`)} title="More options"><svg${attr("class", `w-4 h-4 ${stringify(store_get($$store_subs ??= {}, "$save", save).theme === "dark" ? "text-gray-300" : "text-gray-600")} svelte-1l90jhy`)} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" class="svelte-1l90jhy"></path></svg></button> `;
@@ -22831,6 +23698,24 @@ function DrawBar($$payload, $$props) {
         emojiPickerPosition = $$value;
         $$settled = false;
       }
+    });
+    $$payload2.out += `<!----> `;
+    FibonacciSettingsModal($$payload2, {
+      get visible() {
+        return showFibonacciSettings;
+      },
+      set visible($$value) {
+        showFibonacciSettings = $$value;
+        $$settled = false;
+      },
+      get levels() {
+        return fibonacciLevels;
+      },
+      set levels($$value) {
+        fibonacciLevels = $$value;
+        $$settled = false;
+      },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme
     });
     $$payload2.out += `<!---->`;
   }
@@ -23702,7 +24587,7 @@ function getThemeStyles(theme) {
           const pricePrecision = GetNumberDotOffset(minProce) + 2;
           const volumePrecision = 3;
           const volPrecision = formatPrecision(current.volume ?? defVal, volumePrecision);
-          const volume = formatThousands(formatBigNumber(volPrecision), thousandsSeparator);
+          const volume2 = formatThousands(formatBigNumber(volPrecision), thousandsSeparator);
           const change = prevClose === 0 ? defVal : `${formatPrecision(changeValue / prevClose * 100)}%`;
           const isUp = changeValue > 0;
           const isDown = changeValue < 0;
@@ -23734,7 +24619,7 @@ function getThemeStyles(theme) {
             { title: /* @__PURE__ */ high_(), value: formatThousands(formatPrecision(current.high, pricePrecision), thousandsSeparator), color: "#00C851" },
             { title: /* @__PURE__ */ low_(), value: formatThousands(formatPrecision(current.low, pricePrecision), thousandsSeparator), color: "#FF4444" },
             { title: /* @__PURE__ */ close_(), value: formatThousands(formatPrecision(current.close, pricePrecision), thousandsSeparator), color: priceColor },
-            { title: /* @__PURE__ */ volume_(), value: volume, color: "#9C27B0" },
+            { title: /* @__PURE__ */ volume_(), value: volume2, color: "#9C27B0" },
             { title: /* @__PURE__ */ change_(), value: change, color: changeColor }
           ];
         }
@@ -23805,6 +24690,12 @@ function getThemeStyles(theme) {
         },
         margin: yAxisMargin
       }
+    },
+    separator: {
+      size: 1,
+      color: theme === "dark" ? "rgba(85, 85, 85, 0.3)" : "rgba(221, 221, 221, 0.3)",
+      fill: true,
+      activeBackgroundColor: theme === "dark" ? "rgba(85, 85, 85, 0.1)" : "rgba(221, 221, 221, 0.1)"
     }
   };
 }
@@ -23885,12 +24776,12 @@ const IndFieldsMap = {
     { title: param + "2", precision: 0, min: 1, default: 6 }
   ],
   RSI: [
-    { title: /* @__PURE__ */ period(), precision: 0, min: 1, default: 14 },
-    { title: "Overbought Level", precision: 0, min: 50, max: 100, default: 70 },
-    { title: "Middle Level", precision: 0, min: 30, max: 70, default: 50 },
-    { title: "Oversold Level", precision: 0, min: 0, max: 50, default: 30 },
-    { title: "Line Color", type: "color", styleKey: "lines[0].color", default: "#8B5CF6" },
-    { title: "Line Thickness", precision: 0, min: 1, max: 5, styleKey: "lines[0].size", default: 2 }
+    { title: "Period", precision: 0, min: 1, default: 14 },
+    { title: "Overbought", precision: 0, min: 50, max: 100, default: 70 },
+    { title: "Middle", precision: 0, min: 30, max: 70, default: 50 },
+    { title: "Oversold", precision: 0, min: 0, max: 50, default: 30 },
+    { title: "Line Color", type: "color", styleKey: "lines[0].color", default: "#FF6B35" },
+    { title: "Line Thickness", precision: 0, min: 1, max: 5, styleKey: "lines[0].size", default: 1 }
   ],
   SMA: [
     { title: param + "1", precision: 0, min: 1, default: 12 },
@@ -23921,7 +24812,9 @@ const IndFieldsMap = {
     { title: param + "3", precision: 0, min: 1, default: 12 }
   ],
   WR: [
-    { title: "WR1", precision: 0, min: 1, styleKey: "lines[0].color", default: 14 }
+    { title: "Period", precision: 0, min: 1, default: 14 },
+    { title: "Line Color", type: "color", styleKey: "lines[0].color", default: "#2563eb" },
+    { title: "Line Thickness", precision: 0, min: 1, max: 5, styleKey: "lines[0].size", default: 1 }
   ],
   ZIGZAG: [
     { title: "Deviation (%)", precision: 1, min: 1, max: 50, default: 5 },
@@ -24113,7 +25006,7 @@ function Modal($$payload, $$props) {
   }
   if (show) {
     $$payload.out += "<!--[-->";
-    $$payload.out += `<div class="fixed inset-0 z-50 flex items-center justify-center px-4 animate-in fade-in duration-200 svelte-baj2y9"><div class="relative bg-base-100 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden flex flex-col svelte-baj2y9"${attr("style", `width: ${stringify(typeof width === "string" ? width : width + "px")}; max-width: 90vw; max-height: ${stringify(maxHeight)}; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);`)}><div class="relative px-6 py-5 border-b border-base-300/50 bg-gradient-to-r from-base-200/30 to-base-300/20"><div class="flex justify-between items-center"><h3 class="font-semibold text-xl tracking-tight text-base-content">${escape_html(title)}</h3> <button class="btn btn-sm btn-ghost btn-circle hover:bg-base-300/50 hover:rotate-90 transition-all duration-300 svelte-baj2y9"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div> <div${attr("class", `flex-1 overflow-y-auto custom-scrollbar ${stringify(center ? "flex justify-center items-center" : "")} px-6 py-4 svelte-baj2y9`)}>`;
+    $$payload.out += `<div class="fixed inset-0 z-[70] flex items-center justify-center px-4 animate-in fade-in duration-200 svelte-baj2y9"><div class="relative bg-base-100 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden flex flex-col svelte-baj2y9"${attr("style", `width: ${stringify(typeof width === "string" ? width : width + "px")}; max-width: 90vw; max-height: ${stringify(maxHeight)}; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);`)}><div class="relative px-6 py-5 border-b border-base-300/50 bg-gradient-to-r from-base-200/30 to-base-300/20"><div class="flex justify-between items-center"><h3 class="font-semibold text-xl tracking-tight text-base-content">${escape_html(title)}</h3> <button class="btn btn-sm btn-ghost btn-circle hover:bg-base-300/50 hover:rotate-90 transition-all duration-300 svelte-baj2y9"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div> <div${attr("class", `flex-1 overflow-y-auto custom-scrollbar ${stringify(center ? "flex justify-center items-center" : "")} px-6 py-4 svelte-baj2y9`)}>`;
     if (children) {
       $$payload.out += "<!--[-->";
       children($$payload);
@@ -24374,6 +25267,10 @@ function ModalIndSearch($$payload, $$props) {
   push();
   var $$store_subs;
   let { show = void 0 } = $$props;
+  const ctx = getContext("ctx");
+  const save = getContext("save");
+  const chart = getContext("chart");
+  const renderIntegration = getChartRenderIntegration();
   const staticIndicators = [
     // Main indicators (overlay on price chart) - sorted alphabetically
     {
@@ -24508,15 +25405,18 @@ function ModalIndSearch($$payload, $$props) {
       is_main: false
     }
   ];
-  let selectedIndicators = /* @__PURE__ */ new Set();
-  function deselectIndicator(name) {
-    selectedIndicators.delete(name);
-    selectedIndicators = new Set(selectedIndicators);
-  }
-  const ctx = getContext("ctx");
-  const save = getContext("save");
-  const chart = getContext("chart");
-  const renderIntegration = getChartRenderIntegration();
+  let selectedIndicators = (() => {
+    const activeIndicators = /* @__PURE__ */ new Set();
+    if (store_get($$store_subs ??= {}, "$save", save) && store_get($$store_subs ??= {}, "$save", save).saveInds) {
+      Object.values(store_get($$store_subs ??= {}, "$save", save).saveInds).forEach((indicator2) => {
+        if (indicator2 && indicator2.name) {
+          activeIndicators.add(indicator2.name);
+        }
+      });
+    }
+    console.log("🔄 selectedIndicators updated:", Array.from(activeIndicators));
+    return activeIndicators;
+  })();
   let keyword = "";
   let showInds = /* @__PURE__ */ (() => {
     return staticIndicators;
@@ -24524,17 +25424,58 @@ function ModalIndSearch($$payload, $$props) {
   async function createIndicator(name, params, isStack, paneOptions) {
     const chartObj = store_get($$store_subs ??= {}, "$chart", chart);
     if (!chartObj) return null;
+    let calcParams = params;
+    let styleOverrides = {};
     if (name === "VOL") {
       paneOptions = {
         axis: { gap: { bottom: 2 } },
         ...paneOptions
       };
+      if (!params || params.length === 0) {
+        calcParams = [20];
+        const convertLineStyle = (style) => {
+          switch (style) {
+            case "dashed":
+              return {
+                style: kc.LineType.Dashed,
+                dashedValue: [4, 4]
+              };
+            case "dotted":
+              return {
+                style: kc.LineType.Dashed,
+                dashedValue: [2, 2]
+              };
+            default:
+              return {
+                style: kc.LineType.Solid,
+                dashedValue: [2, 2]
+              };
+          }
+        };
+        const lineStyle = convertLineStyle("dotted");
+        styleOverrides = {
+          bars: [
+            {
+              upColor: "#26a69a",
+              downColor: "#ef5350",
+              noChangeColor: "#26a69a"
+            }
+          ],
+          lines: [
+            {
+              color: "#8B5CF6",
+              size: 1,
+              style: lineStyle.style,
+              dashedValue: lineStyle.dashedValue,
+              smooth: false
+            }
+          ]
+        };
+      }
     }
-    let calcParams = params;
-    let styleOverrides = {};
     if (!calcParams || calcParams.length === 0) {
       const fields = IndFieldsMap[name] || [];
-      if (fields.length > 0) {
+      if (fields.length > 0 && name !== "VOL") {
         calcParams = fields.filter((f) => f.type !== "color").map((f) => f.default);
         const styleFields = fields.filter((f) => f.styleKey && f.type === "color");
         styleFields.forEach((field) => {
@@ -24636,7 +25577,6 @@ function ModalIndSearch($$payload, $$props) {
       console.log("🧹 After cleanup saveInds keys:", Object.keys(s.saveInds));
       return s;
     });
-    deselectIndicator(name);
     renderIntegration.removeIndicator({ chart: chartObj, name, paneId }).catch((err) => {
       console.warn("Background color preservation failed:", err);
     });
@@ -24890,7 +25830,7 @@ function ColorPalette($$payload, $$props) {
     $$payload.out += "<!--[-->";
     const each_array = ensure_array_like(colorPalette);
     const each_array_2 = ensure_array_like(quickColors);
-    $$payload.out += `<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div class="bg-base-100 rounded-lg shadow-xl p-4 w-full max-w-md max-h-[80vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-semibold text-base-content">Color Picker</h3> <button class="btn btn-sm btn-primary">OK</button></div> <div class="space-y-1 mb-4 max-h-60 overflow-y-auto"><!--[-->`;
+    $$payload.out += `<div class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"><div class="bg-base-100 rounded-lg shadow-xl p-4 w-full max-w-md max-h-[80vh] overflow-y-auto"><div class="flex items-center justify-between mb-4"><h3 class="text-lg font-semibold text-base-content">Color Picker</h3> <button class="btn btn-sm btn-primary">OK</button></div> <div class="space-y-1 mb-4 max-h-60 overflow-y-auto"><!--[-->`;
     for (let rowIndex = 0, $$length = each_array.length; rowIndex < $$length; rowIndex++) {
       let row = each_array[rowIndex];
       const each_array_1 = ensure_array_like(row);
@@ -24914,6 +25854,254 @@ function ColorPalette($$payload, $$props) {
   bind_props($$props, { show });
   pop();
 }
+const STORAGE_KEYS = {
+  LAYOUTS: "chart.saves.v1",
+  ACTIVE_SAVE_ID: "chart.activeSaveId",
+  // Legacy key for migration
+  LEGACY_LAYOUTS: "chart.saves.v0"
+};
+function generateUUID() {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === "x" ? r : r & 3 | 8;
+    return v.toString(16);
+  });
+}
+function normalizeSymbolKey(symbol) {
+  return symbol.toUpperCase().trim();
+}
+function validateLayout(layout) {
+  return layout && typeof layout.id === "string" && typeof layout.name === "string" && typeof layout.createdAt === "string" && typeof layout.updatedAt === "string" && typeof layout.timezone === "string" && typeof layout.interval === "string" && typeof layout.chartType === "string" && typeof layout.theme === "string" && Array.isArray(layout.panes) && Array.isArray(layout.indicators) && typeof layout.drawingsBySymbol === "object";
+}
+class LocalStorageProvider {
+  initialized = false;
+  constructor() {
+    this.initialize();
+  }
+  async initialize() {
+    if (this.initialized) return;
+    try {
+      await this.migrate();
+      this.initialized = true;
+    } catch (error) {
+      console.error("Failed to initialize storage provider:", error);
+      throw error;
+    }
+  }
+  /**
+   * Migrate from legacy storage format
+   */
+  async migrate() {
+    try {
+      const legacyData = localStorage.getItem(STORAGE_KEYS.LEGACY_LAYOUTS);
+      if (!legacyData) return;
+      console.log("🔄 Migrating chart saves from v0 to v1...");
+      const legacyLayouts = JSON.parse(legacyData);
+      if (!Array.isArray(legacyLayouts)) return;
+      const currentData = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      if (currentData) {
+        localStorage.removeItem(STORAGE_KEYS.LEGACY_LAYOUTS);
+        return;
+      }
+      const migratedLayouts = legacyLayouts.map((legacy) => ({
+        id: legacy.id || generateUUID(),
+        name: legacy.name || "Migrated Layout",
+        createdAt: legacy.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        timezone: legacy.timezone || "UTC",
+        interval: legacy.interval || "1h",
+        chartType: legacy.chartType || "candles",
+        theme: legacy.theme || "dark",
+        panes: legacy.panes || [],
+        indicators: legacy.indicators || [],
+        styles: legacy.styles || {},
+        options: legacy.options || {},
+        // Convert drawings to symbol-scoped format
+        drawingsBySymbol: legacy.drawings ? {
+          [normalizeSymbolKey(legacy.symbol || "DEFAULT")]: legacy.drawings
+        } : {}
+      }));
+      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(migratedLayouts));
+      localStorage.removeItem(STORAGE_KEYS.LEGACY_LAYOUTS);
+      console.log(`✅ Migrated ${migratedLayouts.length} layouts to v1 format`);
+    } catch (error) {
+      console.error("Migration failed:", error);
+    }
+  }
+  /**
+   * Get all saved layout metadata
+   */
+  async listSavedLayouts() {
+    await this.initialize();
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      if (!data) return [];
+      const layouts = JSON.parse(data);
+      if (!Array.isArray(layouts)) return [];
+      return layouts.filter(validateLayout).map((layout) => ({
+        id: layout.id,
+        name: layout.name,
+        createdAt: layout.createdAt,
+        updatedAt: layout.updatedAt
+      })).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    } catch (error) {
+      console.error("Failed to list saved layouts:", error);
+      return [];
+    }
+  }
+  /**
+   * Get a specific saved layout
+   */
+  async getSavedLayout(id) {
+    await this.initialize();
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      if (!data) return null;
+      const layouts = JSON.parse(data);
+      if (!Array.isArray(layouts)) return null;
+      const layout = layouts.find((l) => l.id === id);
+      return layout && validateLayout(layout) ? layout : null;
+    } catch (error) {
+      console.error("Failed to get saved layout:", error);
+      return null;
+    }
+  }
+  /**
+   * Create a new saved layout
+   */
+  async createSavedLayout(layoutData) {
+    await this.initialize();
+    try {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const layout = {
+        ...layoutData,
+        id: generateUUID(),
+        createdAt: now,
+        updatedAt: now,
+        // Normalize symbol keys in drawings
+        drawingsBySymbol: Object.fromEntries(
+          Object.entries(layoutData.drawingsBySymbol).map(([symbol, drawings]) => [
+            normalizeSymbolKey(symbol),
+            drawings
+          ])
+        )
+      };
+      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      const layouts = data ? JSON.parse(data) : [];
+      layouts.push(layout);
+      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
+      return layout;
+    } catch (error) {
+      console.error("Failed to create saved layout:", error);
+      throw new Error("Failed to save layout");
+    }
+  }
+  /**
+   * Update an existing saved layout
+   */
+  async updateSavedLayout(id, updates) {
+    await this.initialize();
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      if (!data) throw new Error("Layout not found");
+      const layouts = JSON.parse(data);
+      const index = layouts.findIndex((l) => l.id === id);
+      if (index === -1) throw new Error("Layout not found");
+      const updatedLayout = {
+        ...layouts[index],
+        ...updates,
+        id,
+        // Ensure ID doesn't change
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        // Normalize symbol keys in drawings if provided
+        drawingsBySymbol: updates.drawingsBySymbol ? Object.fromEntries(
+          Object.entries(updates.drawingsBySymbol).map(([symbol, drawings]) => [
+            normalizeSymbolKey(symbol),
+            drawings
+          ])
+        ) : layouts[index].drawingsBySymbol
+      };
+      layouts[index] = updatedLayout;
+      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
+      return updatedLayout;
+    } catch (error) {
+      console.error("Failed to update saved layout:", error);
+      throw new Error("Failed to update layout");
+    }
+  }
+  /**
+   * Delete a saved layout
+   */
+  async deleteSavedLayout(id) {
+    await this.initialize();
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      if (!data) return;
+      const layouts = JSON.parse(data);
+      const filteredLayouts = layouts.filter((l) => l.id !== id);
+      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(filteredLayouts));
+      const activeSaveId = await this.getActiveSaveId();
+      if (activeSaveId === id) {
+        await this.setActiveSaveId(null);
+      }
+    } catch (error) {
+      console.error("Failed to delete saved layout:", error);
+      throw new Error("Failed to delete layout");
+    }
+  }
+  /**
+   * Set the currently active save ID
+   */
+  async setActiveSaveId(id) {
+    try {
+      if (id === null) {
+        localStorage.removeItem(STORAGE_KEYS.ACTIVE_SAVE_ID);
+      } else {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_SAVE_ID, id);
+      }
+    } catch (error) {
+      console.error("Failed to set active save ID:", error);
+    }
+  }
+  /**
+   * Get the currently active save ID
+   */
+  async getActiveSaveId() {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.ACTIVE_SAVE_ID);
+    } catch (error) {
+      console.error("Failed to get active save ID:", error);
+      return null;
+    }
+  }
+  /**
+   * Check if a layout name already exists
+   */
+  async layoutNameExists(name, excludeId) {
+    const layouts = await this.listSavedLayouts();
+    return layouts.some(
+      (layout) => layout.name === name && layout.id !== excludeId
+    );
+  }
+  /**
+   * Cleanup storage (remove invalid entries)
+   */
+  async cleanup() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
+      if (!data) return;
+      const layouts = JSON.parse(data);
+      const validLayouts = layouts.filter(validateLayout);
+      if (validLayouts.length !== layouts.length) {
+        localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(validLayouts));
+        console.log(`🧹 Cleaned up ${layouts.length - validLayouts.length} invalid layouts`);
+      }
+    } catch (error) {
+      console.error("Failed to cleanup storage:", error);
+    }
+  }
+}
+const defaultStorageProvider = new LocalStorageProvider();
 function ModalIndCfg($$payload, $$props) {
   push();
   var $$store_subs;
@@ -24933,8 +26121,6 @@ function ModalIndCfg($$payload, $$props) {
   let bollingerLineStyle = "solid";
   let bollingerPeriod = 20;
   let bollingerStdDev = 2;
-  let showRsiColorPalette = false;
-  let rsiColorPalettePosition = { x: 0, y: 0 };
   let showMacdColorPalette = false;
   let macdColorPalettePosition = { x: 0, y: 0 };
   let showCciColorPalette = false;
@@ -24956,13 +26142,23 @@ function ModalIndCfg($$payload, $$props) {
   let mtmColorPaletteIndex = 0;
   let showTrixColorPalette = false;
   let trixColorPalettePosition = { x: 0, y: 0 };
+  let volGroups = [];
   let showVolColorPalette = false;
   let volColorPalettePosition = { x: 0, y: 0 };
   let volColorPaletteIndex = 0;
   let showWrColorPalette = false;
   let wrColorPalettePosition = { x: 0, y: 0 };
+  let showWrOverboughtColorPalette = false;
+  let wrOverboughtColorPalettePosition = { x: 0, y: 0 };
+  let showWrOversoldColorPalette = false;
+  let wrOversoldColorPalettePosition = { x: 0, y: 0 };
+  let showWrMiddleLineColorPalette = false;
+  let wrMiddleLineColorPalettePosition = { x: 0, y: 0 };
+  let wrColorPaletteGroupIndex = 0;
   let showVrColorPalette = false;
   let vrColorPalettePosition = { x: 0, y: 0 };
+  let vrColorPaletteGroupIndex = 0;
+  let vrColorPaletteLineType = "vr";
   let showRocColorPalette = false;
   let rocColorPalettePosition = { x: 0, y: 0 };
   let rocColorPaletteIndex = 0;
@@ -25000,6 +26196,13 @@ function ModalIndCfg($$payload, $$props) {
   let macdSignalColorPalettePosition = { x: 0, y: 0 };
   let showMacdHistColorPalette = false;
   let macdHistColorPalettePosition = { x: 0, y: 0 };
+  let showRsiOverboughtColorPalette = false;
+  let rsiOverboughtColorPalettePosition = { x: 0, y: 0 };
+  let showRsiOversoldColorPalette = false;
+  let rsiOversoldColorPalettePosition = { x: 0, y: 0 };
+  let showRsiMiddleLineColorPalette = false;
+  let rsiMiddleLineColorPalettePosition = { x: 0, y: 0 };
+  let rsiColorPaletteGroupIndex = 0;
   let showVolIncreasingColorPalette = false;
   let volIncreasingColorPalettePosition = { x: 0, y: 0 };
   let showVolDecreasingColorPalette = false;
@@ -25031,6 +26234,9 @@ function ModalIndCfg($$payload, $$props) {
   let showBbiColorPalette = false;
   let bbiColorPalettePosition = { x: 0, y: 0 };
   let bbiColorPaletteIndex = 0;
+  let showRsiColorPalette = false;
+  let rsiColorPalettePosition = { x: 0, y: 0 };
+  let rsiColorPaletteIndex = 0;
   function delInd(paneId, name) {
     if (!store_get($$store_subs ??= {}, "$chart", chart)) return;
     try {
@@ -25046,7 +26252,6 @@ function ModalIndCfg($$payload, $$props) {
   }
   const isBollingerBands = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "BOLL";
   const isMacd = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "MACD";
-  const isRsi = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "RSI";
   const isBias = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "BIAS";
   const isAo = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "AO";
   const isWr = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "WR";
@@ -25071,17 +26276,21 @@ function ModalIndCfg($$payload, $$props) {
   const isCci = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "CCI";
   const isEmv = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "EMV";
   const isMtm = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "MTM";
+  const isRsi = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "RSI";
   let zigzagColor = "#2962FF";
   let zigzagThickness = 2;
   let macdGroups = [];
-  let rsiGroups = [];
-  let wrGroups = [];
+  let wrGroups = (
+    // Track which pane this WR indicator belongs to
+    []
+  );
   let vrGroups = [];
   let aoGroups = [];
   let bbiGroups = [];
   let biasGroups = [];
   let sarGroups = [];
   let dmiGroups = [];
+  let trixGroups = [];
   let crGroups = [];
   let rocGroups = (
     // Track which pane this ROC indicator belongs to
@@ -25128,6 +26337,14 @@ function ModalIndCfg($$payload, $$props) {
     pvtGroups = [];
     console.log("✅ PVT groups cleared from modal state");
   }
+  function clearVolGroups() {
+    volGroups = [];
+    console.log("✅ VOL groups cleared from modal state");
+  }
+  function clearWrGroups() {
+    wrGroups = [];
+    console.log("✅ WR groups cleared from modal state");
+  }
   function initializePvtGroups() {
     if (!isPvt) return;
     const savedKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_PVT`;
@@ -25137,7 +26354,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (pvtGroups.length === 0) {
       pvtGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           name: "PVT #1",
           color: "#2563eb",
           thickness: 1,
@@ -25150,6 +26367,15 @@ function ModalIndCfg($$payload, $$props) {
     rocGroups = [];
     console.log("✅ ROC groups cleared from modal state");
   }
+  let rsiGroups = (
+    // Track which pane this RSI indicator belongs to
+    // Dynamic coloring options
+    []
+  );
+  function clearRsiGroups() {
+    rsiGroups = [];
+    console.log("✅ RSI groups cleared from modal state");
+  }
   function initializeMacdGroups() {
     if (!isMacd) return;
     const savedKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_MACD`;
@@ -25159,7 +26385,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (macdGroups.length === 0) {
       macdGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           fastPeriod: 12,
           slowPeriod: 26,
           signalPeriod: 9,
@@ -25209,7 +26435,7 @@ function ModalIndCfg($$payload, $$props) {
   function createDefaultEmvGroup() {
     emvGroups = [
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: "EMV #1",
         period: 14,
         period2: 9,
@@ -25245,7 +26471,7 @@ function ModalIndCfg($$payload, $$props) {
   function createDefaultMtmGroup() {
     mtmGroups = [
       {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: "MTM #1",
         period: 14,
         color: "#2563eb",
@@ -25255,92 +26481,219 @@ function ModalIndCfg($$payload, $$props) {
     ];
     console.log("✅ Created default MTM group");
   }
-  function initializeRsiGroups() {
-    if (!isRsi) return;
-    const savedKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_RSI`;
-    const savedInd = store_get($$store_subs ??= {}, "$save", save).saveInds[savedKey];
-    if (savedInd && savedInd.rsiGroups && savedInd.rsiGroups.length > 0) {
-      rsiGroups = [...savedInd.rsiGroups];
-    } else if (rsiGroups.length === 0) {
-      rsiGroups = [
-        {
-          id: crypto.randomUUID(),
-          period: 14,
-          overboughtLevel: 70,
-          middleLevel: 50,
-          oversoldLevel: 30,
-          styles: {
-            rsi: {
-              color: "#2563eb",
-              thickness: 1,
-              lineStyle: "solid"
-            }
-          }
-        }
-      ];
-    }
-  }
   function initializeWrGroups() {
     if (!isWr) return;
-    const savedKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_WR`;
-    const savedInd = store_get($$store_subs ??= {}, "$save", save).saveInds[savedKey];
-    if (savedInd && savedInd.wrGroups && savedInd.wrGroups.length > 0) {
-      wrGroups = [...savedInd.wrGroups];
-    } else if (savedInd && savedInd.wrGroup) {
-      wrGroups = [savedInd.wrGroup];
+    const mainSavedKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_WR`;
+    const mainSavedInd = store_get($$store_subs ??= {}, "$save", save).saveInds[mainSavedKey];
+    if (mainSavedInd && mainSavedInd.wrGroups && mainSavedInd.wrGroups.length > 0) {
+      wrGroups = [...mainSavedInd.wrGroups];
+      return;
+    }
+    const loadedGroups = [];
+    Object.keys(store_get($$store_subs ??= {}, "$save", save).saveInds).forEach((key) => {
+      if ((key.includes("_WR") || key.startsWith("WR_")) && key !== mainSavedKey) {
+        const savedInd = store_get($$store_subs ??= {}, "$save", save).saveInds[key];
+        if (savedInd && savedInd.wrGroup) {
+          loadedGroups.push(savedInd.wrGroup);
+        }
+      }
+    });
+    if (mainSavedInd && mainSavedInd.wrGroup) {
+      loadedGroups.unshift(mainSavedInd.wrGroup);
+    }
+    if (loadedGroups.length > 0) {
+      wrGroups = [...loadedGroups];
     } else if (wrGroups.length === 0) {
       wrGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           period: 14,
           overboughtLevel: -20,
           middleLevel: -50,
           oversoldLevel: -80,
+          paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
+          // Assign the current edit pane ID to the default group
           styles: {
             wr: {
               color: "#2563eb",
               thickness: 1,
               lineStyle: "solid"
+            },
+            overbought: {
+              color: "#EF4444",
+              thickness: 1,
+              lineStyle: "solid"
+            },
+            oversold: {
+              color: "#10B981",
+              thickness: 1,
+              lineStyle: "solid"
+            },
+            middleLine: {
+              color: "#6B7280",
+              thickness: 1,
+              lineStyle: "solid"
             }
           }
         }
       ];
     }
   }
+  function updateWrIndicator(groupIndex) {
+    if (!isWr || !store_get($$store_subs ??= {}, "$chart", chart) || groupIndex < 0 || groupIndex >= wrGroups.length) return;
+    const group = wrGroups[groupIndex];
+    const paneId = group.paneId || store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId;
+    console.log("🔄 Updating WR indicator:", groupIndex, paneId);
+    try {
+      WRManager.updateInstance(paneId, {
+        period: group.period,
+        lineColor: group.styles.wr.color,
+        lineThickness: group.styles.wr.thickness,
+        lineStyle: group.styles.wr.lineStyle,
+        enableDynamicColoring: true,
+        overboughtColor: group.styles.overbought.color || "#EF4444",
+        oversoldColor: group.styles.oversold.color || "#10B981",
+        overboughtThreshold: group.overboughtLevel,
+        oversoldThreshold: group.oversoldLevel,
+        levels: [
+          {
+            id: "overbought",
+            value: group.overboughtLevel,
+            color: group.styles.overbought.color || "#EF4444",
+            lineStyle: group.styles.overbought.lineStyle,
+            thickness: group.styles.overbought.thickness,
+            label: "Overbought",
+            visible: true
+          },
+          {
+            id: "middle",
+            value: group.middleLevel,
+            color: group.styles.middleLine.color || "#6B7280",
+            lineStyle: group.styles.middleLine.lineStyle,
+            thickness: group.styles.middleLine.thickness,
+            label: "Middle",
+            visible: true
+          },
+          {
+            id: "oversold",
+            value: group.oversoldLevel,
+            color: group.styles.oversold.color || "#10B981",
+            lineStyle: group.styles.oversold.lineStyle,
+            thickness: group.styles.oversold.thickness,
+            label: "Oversold",
+            visible: true
+          }
+        ]
+      });
+      store_get($$store_subs ??= {}, "$chart", chart).removeIndicator({ paneId, name: "WR" });
+      let lineStyle = kc.LineType.Solid;
+      let dashedValue = [2, 2];
+      if (group.styles.wr.lineStyle === "dashed") {
+        lineStyle = kc.LineType.Dashed;
+        dashedValue = [4, 4];
+      } else if (group.styles.wr.lineStyle === "dotted") {
+        lineStyle = kc.LineType.Dashed;
+        dashedValue = [2, 2];
+      }
+      const indicatorId = store_get($$store_subs ??= {}, "$chart", chart).createIndicator(
+        {
+          name: "WR",
+          calcParams: [group.period],
+          styles: {
+            lines: [
+              {
+                color: group.styles.wr.color,
+                size: group.styles.wr.thickness,
+                style: lineStyle,
+                dashedValue
+              }
+            ]
+          }
+        },
+        paneId === store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
+        { id: paneId }
+      );
+      if (indicatorId) {
+        const saveKey = `${paneId}_WR`;
+        save.update((s) => {
+          s.saveInds[saveKey] = {
+            name: "WR",
+            pane_id: paneId,
+            params: [group.period]
+          };
+          return s;
+        });
+      }
+      console.log("✅ WR indicator and levels updated successfully");
+    } catch (error) {
+      console.error("❌ Error updating WR indicator:", error);
+    }
+  }
   function initializeVrGroups() {
     if (!isVr) return;
-    const savedKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_VR`;
-    const savedInd = store_get($$store_subs ??= {}, "$save", save).saveInds[savedKey];
-    if (savedInd && savedInd.vrGroups && savedInd.vrGroups.length > 0) {
-      vrGroups = [...savedInd.vrGroups];
-    } else if (savedInd && savedInd.vrGroup) {
-      vrGroups = [savedInd.vrGroup];
-    } else if (vrGroups.length === 0) {
-      vrGroups = [
-        {
-          id: crypto.randomUUID(),
-          period: 26,
-          shortPeriod: 6,
-          longPeriod: 12,
-          styles: {
-            vr: {
-              color: "#FF6B35",
-              thickness: 2,
-              lineStyle: "solid"
-            },
-            vrShort: {
-              color: "#2196F3",
-              thickness: 1,
-              lineStyle: "solid"
-            },
-            vrLong: {
-              color: "#4CAF50",
-              thickness: 1,
-              lineStyle: "solid"
+    const vrEntries = Object.entries(store_get($$store_subs ??= {}, "$save", save).saveInds).filter(([key, ind]) => ind.name === "VR");
+    if (vrEntries.length > 0) {
+      vrGroups = vrEntries.map(([saveKey, savedInd]) => {
+        if (savedInd.vrGroups && savedInd.vrGroups.length > 0) {
+          return savedInd.vrGroups[0];
+        } else if (savedInd.vrGroup) {
+          return savedInd.vrGroup;
+        } else {
+          return {
+            id: generateUUID(),
+            paneId: savedInd.pane_id,
+            period: savedInd.params?.[0] || 26,
+            shortPeriod: savedInd.params?.[1] || 6,
+            longPeriod: savedInd.params?.[2] || 12,
+            styles: {
+              vr: {
+                color: "#FF6B35",
+                thickness: 2,
+                lineStyle: "solid"
+              },
+              vrShort: {
+                color: "#2196F3",
+                thickness: 1,
+                lineStyle: "solid"
+              },
+              vrLong: {
+                color: "#4CAF50",
+                thickness: 1,
+                lineStyle: "solid"
+              }
             }
+          };
+        }
+      });
+      console.log("✅ Loaded VR groups from save system:", vrGroups.length);
+    } else if (vrGroups.length === 0) {
+      const defaultGroup = {
+        id: generateUUID(),
+        paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
+        // Assign current pane ID to first VR
+        period: 26,
+        shortPeriod: 6,
+        longPeriod: 12,
+        styles: {
+          vr: {
+            color: "#FF6B35",
+            thickness: 2,
+            lineStyle: "solid"
+          },
+          vrShort: {
+            color: "#2196F3",
+            thickness: 1,
+            lineStyle: "solid"
+          },
+          vrLong: {
+            color: "#4CAF50",
+            thickness: 1,
+            lineStyle: "solid"
           }
         }
-      ];
+      };
+      vrGroups = [defaultGroup];
+      console.log("✅ Created default VR group with pane ID:", store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId);
     }
   }
   function initializeBbiGroups() {
@@ -25360,7 +26713,7 @@ function ModalIndCfg($$payload, $$props) {
             bbiGroups.push({ ...savedInd.bbiGroup });
           } else if (savedInd.params && savedInd.params.length === 4) {
             bbiGroups.push({
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               name: `BBI${index + 1}`,
               period1: savedInd.params[0] || 3,
               period2: savedInd.params[1] || 6,
@@ -25377,7 +26730,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (bbiGroups.length === 0) {
       bbiGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           name: "BBI",
           period1: 3,
           period2: 6,
@@ -25389,6 +26742,76 @@ function ModalIndCfg($$payload, $$props) {
         }
       ];
       console.log("🆕 Created default BBI group");
+    }
+  }
+  function initializeTrixGroups() {
+    if (!isTrix) return;
+    const allTrixKeys = Object.keys(store_get($$store_subs ??= {}, "$save", save).saveInds).filter((key) => store_get($$store_subs ??= {}, "$save", save).saveInds[key].name === "TRIX").sort((a, b) => {
+      if (a === `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_TRIX`) return -1;
+      if (b === `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_TRIX`) return 1;
+      return a.localeCompare(b);
+    });
+    console.log("🔍 Found existing TRIX keys:", allTrixKeys);
+    if (allTrixKeys.length > 0) {
+      trixGroups = [];
+      allTrixKeys.forEach((key, index) => {
+        const savedInd = store_get($$store_subs ??= {}, "$save", save).saveInds[key];
+        if (savedInd) {
+          if (savedInd.trixGroup) {
+            const group = { ...savedInd.trixGroup };
+            if (!group.paneId) {
+              group.paneId = savedInd.pane_id || store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId;
+            }
+            trixGroups.push(group);
+          } else if (savedInd.params && savedInd.params.length >= 2) {
+            trixGroups.push({
+              id: generateUUID(),
+              name: `TRIX${index + 1}`,
+              trixPeriod: savedInd.params[0] || 15,
+              signalPeriod: savedInd.params[1] || 9,
+              paneId: savedInd.pane_id || store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
+              // Set paneId properly
+              styles: {
+                trix: {
+                  color: "#2563eb",
+                  thickness: 2,
+                  lineStyle: "solid"
+                },
+                signal: {
+                  color: "#dc2626",
+                  thickness: 1,
+                  lineStyle: "solid"
+                }
+              }
+            });
+          }
+        }
+      });
+      console.log("✅ Loaded", trixGroups.length, "existing TRIX groups");
+    } else if (trixGroups.length === 0) {
+      trixGroups = [
+        {
+          id: generateUUID(),
+          name: "TRIX",
+          trixPeriod: 15,
+          signalPeriod: 9,
+          paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
+          // Set paneId for default group
+          styles: {
+            trix: {
+              color: "#2563eb",
+              thickness: 2,
+              lineStyle: "solid"
+            },
+            signal: {
+              color: "#dc2626",
+              thickness: 1,
+              lineStyle: "solid"
+            }
+          }
+        }
+      ];
+      console.log("🆕 Created default TRIX group");
     }
   }
   function initializeBiasGroups() {
@@ -25408,7 +26831,7 @@ function ModalIndCfg($$payload, $$props) {
             biasGroups.push({ ...savedInd.biasGroup });
           } else if (savedInd.params && savedInd.params.length >= 1) {
             biasGroups.push({
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               name: `BIAS${index + 1}`,
               period: savedInd.params[0] || 6,
               color: "#2196F3",
@@ -25422,7 +26845,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (biasGroups.length === 0) {
       biasGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           name: "BIAS",
           period: 6,
           color: "#2196F3",
@@ -25454,7 +26877,7 @@ function ModalIndCfg($$payload, $$props) {
             groupCounter++;
           } else if (savedInd.params && savedInd.params.length >= 1) {
             cciGroups.push({
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               name: groupCounter === 1 ? "CCI" : `CCI${groupCounter}`,
               period: savedInd.params[0] || 14,
               color: "#FF9800",
@@ -25469,7 +26892,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (cciGroups.length === 0) {
       cciGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           name: "CCI",
           period: 14,
           color: "#FF9800",
@@ -25489,7 +26912,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (sarGroups.length === 0) {
       sarGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           start: 0.02,
           increment: 0.02,
           maxValue: 0.2,
@@ -25515,7 +26938,7 @@ function ModalIndCfg($$payload, $$props) {
           dmiGroups.push({ ...savedInd.dmiGroup });
         } else {
           dmiGroups.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             name: `DMI${index + 1}`,
             diPeriod: savedInd.params?.[0] || 14,
             adxPeriod: savedInd.params?.[1] || 6,
@@ -25543,7 +26966,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (dmiGroups.length === 0) {
       dmiGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           name: "DMI",
           diPeriod: 14,
           adxPeriod: 6,
@@ -25585,7 +27008,7 @@ function ModalIndCfg($$payload, $$props) {
           crGroups.push({ ...savedInd.crGroup });
         } else {
           crGroups.push({
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             name: `CR${index + 1}`,
             crPeriod: savedInd.params?.[0] || 26,
             crMa1Period: savedInd.params?.[1] || 10,
@@ -25626,7 +27049,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (crGroups.length === 0) {
       crGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           name: "CR",
           crPeriod: 26,
           crMa1Period: 10,
@@ -25684,7 +27107,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (rocGroups.length === 0) {
       rocGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           period: 14,
           period2: 21,
           paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
@@ -25720,14 +27143,14 @@ function ModalIndCfg($$payload, $$props) {
         if (savedData.psyGroup) {
           return {
             ...savedData.psyGroup,
-            id: savedData.psyGroup.id || crypto.randomUUID(),
+            id: savedData.psyGroup.id || generateUUID(),
             actualPaneId: savedData.pane_id
           };
         } else if (savedData.psyGroups) {
           const group = savedData.psyGroups[index] || savedData.psyGroups[0];
           return {
             ...group,
-            id: group.id || crypto.randomUUID(),
+            id: group.id || generateUUID(),
             actualPaneId: savedData.pane_id
           };
         } else {
@@ -25741,7 +27164,7 @@ function ModalIndCfg($$payload, $$props) {
             "#c2410c"
           ];
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             psyPeriod,
             mapsyPeriod,
             showMapsy: true,
@@ -25763,7 +27186,7 @@ function ModalIndCfg($$payload, $$props) {
       });
     } else {
       psyGroups.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         psyPeriod: 12,
         mapsyPeriod: 6,
         showMapsy: true,
@@ -25782,10 +27205,7 @@ function ModalIndCfg($$payload, $$props) {
         }
       });
     }
-    psyGroups = psyGroups.map((group) => ({
-      ...group,
-      id: group.id || crypto.randomUUID()
-    }));
+    psyGroups = psyGroups.map((group) => ({ ...group, id: group.id || generateUUID() }));
   }
   function initializeObvGroups() {
     if (!isObv) return;
@@ -25814,7 +27234,7 @@ function ModalIndCfg($$payload, $$props) {
           });
         } else {
           const group = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             obvPeriod: obvData.params?.[0] || 30,
             maobvPeriod: obvData.params?.[1] || 10,
             showMaobv: true,
@@ -25840,7 +27260,7 @@ function ModalIndCfg($$payload, $$props) {
       });
     } else {
       obvGroups.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         obvPeriod: 30,
         maobvPeriod: 10,
         showMaobv: true,
@@ -25883,7 +27303,7 @@ function ModalIndCfg($$payload, $$props) {
             kdjGroups.push(group);
           } else if (savedInd.params && savedInd.params.length >= 2) {
             const group = {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               kPeriod: savedInd.params[0] || 9,
               dPeriod: savedInd.params[1] || 3,
               actualPaneId: void 0,
@@ -25916,7 +27336,7 @@ function ModalIndCfg($$payload, $$props) {
     } else if (kdjGroups.length === 0) {
       kdjGroups = [
         {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           kPeriod: 9,
           dPeriod: 3,
           styles: {
@@ -26003,7 +27423,7 @@ function ModalIndCfg($$payload, $$props) {
             aoGroups.push({ ...savedInd.aoGroup });
           } else if (savedInd.params && savedInd.params.length === 2) {
             aoGroups.push({
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               shortPeriod: savedInd.params[0] || 5,
               longPeriod: savedInd.params[1] || 34,
               styles: {
@@ -26022,7 +27442,7 @@ function ModalIndCfg($$payload, $$props) {
         console.log("🔄 Found existing AO indicator, creating group from it");
         aoGroups = [
           {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             shortPeriod: ind.params?.[0] || 5,
             longPeriod: ind.params?.[1] || 34,
             styles: {
@@ -26035,7 +27455,7 @@ function ModalIndCfg($$payload, $$props) {
         console.log("🔄 Creating default AO group");
         aoGroups = [
           {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             shortPeriod: 5,
             longPeriod: 34,
             styles: {
@@ -26113,10 +27533,6 @@ function ModalIndCfg($$payload, $$props) {
       initializePvtGroups();
       return;
     }
-    if (isRsi) {
-      initializeRsiGroups();
-      return;
-    }
     if (isEmv) {
       initializeEmvGroups();
       return;
@@ -26135,6 +27551,10 @@ function ModalIndCfg($$payload, $$props) {
     }
     if (isBbi) {
       initializeBbiGroups();
+      return;
+    }
+    if (isTrix) {
+      initializeTrixGroups();
       return;
     }
     if (isBias) {
@@ -26284,6 +27704,18 @@ function ModalIndCfg($$payload, $$props) {
   clearRocSignal.subscribe((signal) => {
     if (signal > 0) {
       clearRocGroups();
+    }
+  });
+  const clearVolSignal = derived(ctx, ($ctx) => $ctx.clearVolGroups);
+  clearVolSignal.subscribe((signal) => {
+    if (signal > 0) {
+      clearVolGroups();
+    }
+  });
+  const clearWrSignal = derived(ctx, ($ctx) => $ctx.clearWrGroups);
+  clearWrSignal.subscribe((signal) => {
+    if (signal > 0) {
+      clearWrGroups();
     }
   });
   function handleCrConfirm() {
@@ -26499,110 +27931,23 @@ function ModalIndCfg($$payload, $$props) {
     });
     show = false;
   }
-  function handleRsiConfirm() {
-    if (!isRsi) return;
-    rsiGroups.forEach((group, index) => {
-      const calcParams = [
-        group.period,
-        group.overboughtLevel,
-        group.middleLevel,
-        group.oversoldLevel
-      ];
-      const indicatorStyles = {
-        lines: [
-          {
-            color: group.styles.rsi.color,
-            size: group.styles.rsi.thickness,
-            style: group.styles.rsi.lineStyle === "solid" ? kc.LineType.Solid : kc.LineType.Dashed,
-            dashedValue: group.styles.rsi.lineStyle === "dashed" ? [4, 4] : [2, 2],
-            smooth: false
-          }
-        ]
-      };
-      if (index === 0) {
-        store_get($$store_subs ??= {}, "$chart", chart)?.overrideIndicator({
-          name: "RSI",
-          calcParams,
-          styles: indicatorStyles,
-          paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId
-        });
-      } else {
-        store_get($$store_subs ??= {}, "$chart", chart)?.createIndicator(
-          {
-            name: "RSI",
-            calcParams,
-            styles: indicatorStyles
-          },
-          false,
-          { axis: { gap: { bottom: 2 } } }
-        );
-      }
-    });
-    save.update((s) => {
-      rsiGroups.forEach((group, index) => {
-        const saveKey = index === 0 ? `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_RSI` : `RSI_${index + 1}`;
-        const saveData = {
-          name: "RSI",
-          rsiGroup: group,
-          pane_id: index === 0 ? store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId : `new_pane_${index}`,
-          groupIndex: index
-        };
-        s.saveInds[saveKey] = saveData;
-      });
-      return s;
-    });
-    console.log("🔄 Clearing edit state and closing popup...");
-    ctx.update((c) => {
-      c.editIndName = "";
-      c.editPaneId = "";
-      c.modalIndCfg = false;
-      console.log("✅ Context updated - modalIndCfg set to false");
-      return c;
-    });
-    show = false;
-  }
   function handleWrConfirm() {
     if (!isWr) return;
     wrGroups.forEach((group, index) => {
-      const calcParams = [
-        group.period,
-        group.overboughtLevel,
-        group.middleLevel,
-        group.oversoldLevel
-      ];
-      const indicatorStyles = {
-        lines: [
-          {
-            color: group.styles.wr.color,
-            size: group.styles.wr.thickness,
-            style: group.styles.wr.lineStyle === "solid" ? kc.LineType.Solid : kc.LineType.Dashed,
-            dashedValue: group.styles.wr.lineStyle === "dashed" ? [4, 4] : [2, 2],
-            smooth: false
-          }
-        ]
-      };
-      if (index === 0) {
-        store_get($$store_subs ??= {}, "$chart", chart)?.overrideIndicator({
-          name: "WR",
-          calcParams,
-          styles: indicatorStyles,
-          paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId
-        });
-      } else {
-        store_get($$store_subs ??= {}, "$chart", chart)?.createIndicator(
-          {
-            name: "WR",
-            calcParams,
-            styles: indicatorStyles
-          },
-          false,
-          { axis: { gap: { bottom: 2 } } }
-        );
+      if (group.paneId) {
+        updateWrIndicator(index);
       }
     });
     save.update((s) => {
+      const mainSaveKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_WR`;
+      const mainSaveData = {
+        name: "WR",
+        wrGroups,
+        pane_id: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId
+      };
+      s.saveInds[mainSaveKey] = mainSaveData;
       wrGroups.forEach((group, index) => {
-        const saveKey = index === 0 ? `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_WR` : `WR_${index + 1}`;
+        const saveKey = index === 0 ? `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_WR_single` : `WR_${index + 1}`;
         const saveData = {
           name: "WR",
           wrGroup: group,
@@ -26670,35 +28015,87 @@ function ModalIndCfg($$payload, $$props) {
           }
         ]
       };
-      if (index === 0) {
+      if (group.paneId) {
         store_get($$store_subs ??= {}, "$chart", chart)?.overrideIndicator({
           name: "VR",
           calcParams,
           styles: indicatorStyles,
-          paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId
+          paneId: group.paneId
         });
-      } else {
-        store_get($$store_subs ??= {}, "$chart", chart)?.createIndicator(
-          {
-            name: "VR",
-            calcParams,
-            styles: indicatorStyles
-          },
-          false,
-          { axis: { gap: { bottom: 2 } } }
-        );
+        console.log(`✅ Updated VR indicator in pane: ${group.paneId}`);
       }
     });
     save.update((s) => {
       vrGroups.forEach((group, index) => {
-        const saveKey = index === 0 ? `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_VR` : `VR_${index + 1}`;
+        const saveKey = `${group.paneId}_VR`;
         const saveData = {
           name: "VR",
           vrGroup: group,
-          pane_id: index === 0 ? store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId : `new_pane_${index}`,
+          pane_id: group.paneId,
+          params: [
+            group.period,
+            group.shortPeriod,
+            group.longPeriod
+          ],
           groupIndex: index
         };
         s.saveInds[saveKey] = saveData;
+        console.log(`💾 Saved VR group to: ${saveKey}`);
+      });
+      return s;
+    });
+    ctx.update((c) => {
+      c.editIndName = "";
+      c.editPaneId = "";
+      c.modalIndCfg = false;
+      return c;
+    });
+    show = false;
+  }
+  function handleVolConfirm() {
+    if (!isVol) return;
+    volGroups.forEach((group, index) => {
+      const calcParams = [group.period];
+      const indicatorStyles = {
+        bars: [
+          {
+            upColor: group.styles.histogram.upColor,
+            downColor: group.styles.histogram.downColor,
+            noChangeColor: group.styles.histogram.upColor
+          }
+        ],
+        lines: [
+          {
+            color: group.styles.ema.color,
+            size: group.styles.ema.thickness,
+            style: group.styles.ema.lineStyle === "solid" ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.ema.lineStyle === "dashed" ? [4, 4] : [2, 2],
+            smooth: false
+          }
+        ]
+      };
+      if (group.paneId) {
+        store_get($$store_subs ??= {}, "$chart", chart)?.overrideIndicator({
+          name: "VOL",
+          calcParams,
+          styles: indicatorStyles,
+          paneId: group.paneId
+        });
+        console.log(`✅ Updated Volume indicator in pane: ${group.paneId}`);
+      }
+    });
+    save.update((s) => {
+      volGroups.forEach((group, index) => {
+        const saveKey = `${group.paneId}_VOL`;
+        const saveData = {
+          name: "VOL",
+          volGroup: group,
+          pane_id: group.paneId,
+          params: [group.period],
+          groupIndex: index
+        };
+        s.saveInds[saveKey] = saveData;
+        console.log(`💾 Saved Volume group to: ${saveKey}`);
       });
       return s;
     });
@@ -28214,10 +29611,6 @@ function ModalIndCfg($$payload, $$props) {
       show = false;
       return;
     }
-    if (from === "confirm" && isRsi && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
-      handleRsiConfirm();
-      return;
-    }
     if (from === "confirm" && isCr && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
       handleCrConfirm();
       return;
@@ -28228,6 +29621,10 @@ function ModalIndCfg($$payload, $$props) {
     }
     if (from === "confirm" && isVr && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
       handleVrConfirm();
+      return;
+    }
+    if (from === "confirm" && isVol && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
+      handleVolConfirm();
       return;
     }
     if (from === "confirm" && isBbi && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
@@ -28457,40 +29854,40 @@ function ModalIndCfg($$payload, $$props) {
           $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More MACD"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add MACD</span></button></div></div>`;
         } else {
           $$payload3.out += "<!--[!-->";
-          if (isDmi) {
+          if (isRsi) {
             $$payload3.out += "<!--[-->";
-            const each_array_1 = ensure_array_like(dmiGroups);
+            const each_array_1 = ensure_array_like(rsiGroups);
             $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
             for (let groupIndex = 0, $$length = each_array_1.length; groupIndex < $$length; groupIndex++) {
               let group = each_array_1[groupIndex];
-              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">DMI ${escape_html(groupIndex + 1)}</span> `;
-              if (dmiGroups.length > 1) {
+              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">RSI ${escape_html(groupIndex + 1)}</span> `;
+              if (rsiGroups.length > 1) {
                 $$payload3.out += "<!--[-->";
-                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
               } else {
                 $$payload3.out += "<!--[!-->";
               }
-              $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">DI Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.diPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">ADX Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.adxPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">DI+:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.diPlus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">DI-:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.diMinus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">ADX:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.adx.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+              $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="space-y-1"><label class="text-xs text-base-content/70">Period</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.period)} min="1" max="100"></div> <div class="space-y-1"><label class="text-xs text-base-content/70">Overbought</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.overboughtLevel)} min="50" max="100"></div> <div class="space-y-1"><label class="text-xs text-base-content/70">Middle</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.middleLevel)} min="0" max="100"></div> <div class="space-y-1"><label class="text-xs text-base-content/70">Oversold</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.oversoldLevel)} min="0" max="50"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center justify-between"><span class="text-xs text-base-content/70">RSI Line</span> <div class="flex items-center gap-2"><button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.rsi.color)}`)} title="Change RSI Color"></button> <select class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-12"><option${attr("value", 1)}>1</option><option${attr("value", 2)}>2</option><option${attr("value", 3)}>3</option><option${attr("value", 4)}>4</option><option${attr("value", 5)}>5</option></select> <select class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-16"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="space-y-2 border-t border-base-200 pt-2 svelte-omz3gf"><span class="text-xs text-base-content/70 font-medium svelte-omz3gf">Zone Colors</span> <div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs text-base-content/60">Overbought</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.overboughtColor || "#EF4444")}`)} title="Change Overbought Color"></button></div> <div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs text-base-content/60">Oversold</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.oversoldColor || "#10B981")}`)} title="Change Oversold Color"></button></div> <div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs text-base-content/60">Middle Line</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.middleLineColor || "#6B7280")}`)} title="Change Middle Line Color"></button></div></div></div>`;
             }
-            $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add DMI</span></button></div></div>`;
+            $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 sm:gap-2" title="Add More RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add RSI</span></button></div></div>`;
           } else {
             $$payload3.out += "<!--[!-->";
-            if (isRsi) {
+            if (isDmi) {
               $$payload3.out += "<!--[-->";
-              const each_array_2 = ensure_array_like(rsiGroups);
+              const each_array_2 = ensure_array_like(dmiGroups);
               $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
               for (let groupIndex = 0, $$length = each_array_2.length; groupIndex < $$length; groupIndex++) {
                 let group = each_array_2[groupIndex];
-                $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">RSI ${escape_html(groupIndex + 1)}</span> `;
-                if (rsiGroups.length > 1) {
+                $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">DMI ${escape_html(groupIndex + 1)}</span> `;
+                if (dmiGroups.length > 1) {
                   $$payload3.out += "<!--[-->";
-                  $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                  $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
                 } else {
                   $$payload3.out += "<!--[!-->";
                 }
-                $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Overbought</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.overboughtLevel)} min="50" max="100"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Middle</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.middleLevel)} min="30" max="70"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Oversold</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.oversoldLevel)} min="0" max="50"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(group.styles.rsi.color)}`)}></div> <button class="w-6 h-5 sm:w-8 sm:h-6 rounded border-2 border-base-300 cursor-pointer hover:border-primary transition-colors"${attr("style", `background-color: ${stringify(group.styles.rsi.color)}`)}></button></div></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">DI Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.diPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">ADX Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.adxPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">DI+:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.diPlus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">DI-:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.diMinus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">ADX:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.adx.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
               }
-              $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add RSI</span></button></div></div>`;
+              $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add DMI</span></button></div></div>`;
             } else {
               $$payload3.out += "<!--[!-->";
               if (isWr) {
@@ -28506,7 +29903,7 @@ function ModalIndCfg($$payload, $$props) {
                   } else {
                     $$payload3.out += "<!--[!-->";
                   }
-                  $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Overbought</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.overboughtLevel)} min="-50" max="0"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Middle</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.middleLevel)} min="-70" max="-30"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Oversold</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.oversoldLevel)} min="-100" max="-50"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.wr.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                  $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Overbought</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.overboughtLevel)} min="-50" max="0"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Middle</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.middleLevel)} min="-70" max="-30"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Oversold</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.oversoldLevel)} min="-100" max="-50"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-2 text-xs text-base-content/70"><span class="w-12 font-medium">WR Line:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.wr.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div> <div class="space-y-2 svelte-omz3gf"><div class="text-xs font-medium text-base-content/80 border-b border-base-200 pb-1 svelte-omz3gf">Level Lines</div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-20 font-medium">Overbought:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.overbought.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-20 font-medium">Middle:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.middleLine.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-20 font-medium">Oversold:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.oversold.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
                 }
                 $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More Williams %R"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add Williams %R</span></button></div></div>`;
               } else {
@@ -28681,34 +30078,47 @@ function ModalIndCfg($$payload, $$props) {
                                     $$payload3.out += "<!--[!-->";
                                     if (isVol) {
                                       $$payload3.out += "<!--[-->";
-                                      const each_array_13 = ensure_array_like(fields);
-                                      $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                      for (let i = 0, $$length = each_array_13.length; i < $$length; i++) {
-                                        let field = each_array_13[i];
-                                        $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
-                                        if (params.length > 1) {
+                                      const each_array_13 = ensure_array_like(volGroups);
+                                      $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
+                                      for (let groupIndex = 0, $$length = each_array_13.length; groupIndex < $$length; groupIndex++) {
+                                        let group = each_array_13[groupIndex];
+                                        $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">Volume ${escape_html(groupIndex + 1)}</span> `;
+                                        if (volGroups.length > 1) {
                                           $$payload3.out += "<!--[-->";
-                                          $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" title="Delete Volume parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                          $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove Volume"><span class="text-xs">×</span></button>`;
                                         } else {
                                           $$payload3.out += "<!--[!-->";
-                                          $$payload3.out += `<div class="w-8 flex-shrink-0"></div>`;
+                                          $$payload3.out += `<div class="w-6"></div>`;
                                         }
-                                        $$payload3.out += `<!--]--></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                                        $$payload3.out += `<!--]--></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs"${attr("value", group.period)} min="1" max="200"></div></div> <div class="space-y-2 svelte-omz3gf"><h4 class="text-xs font-medium text-base-content/70 svelte-omz3gf">Volume Histogram</h4> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Up Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.histogram.upColor)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Down Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.histogram.downColor)}`)}></div></button></div></div></div> <div class="space-y-2 svelte-omz3gf"><h4 class="text-xs font-medium text-base-content/70 svelte-omz3gf">EMA Line</h4> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.ema.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
                                       }
-                                      $$payload3.out += `<!--]--></div>`;
+                                      $$payload3.out += `<!--]--> <div class="flex justify-center mt-4 svelte-omz3gf"><button class="btn btn-sm btn-outline btn-primary" title="Add more Volume indicator"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4"></path></svg> Add More Volume</button></div></div>`;
                                     } else {
                                       $$payload3.out += "<!--[!-->";
                                       if (isTrix) {
                                         $$payload3.out += "<!--[-->";
-                                        $$payload3.out += `<div class="space-y-2 mt-2 svelte-omz3gf"><div class="border border-base-300 rounded-md p-2 space-y-2 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">TRIX</span></div> <div class="grid grid-cols-2 gap-2 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs text-xs max-w-20"${attr("value", params[0])} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Signal</label> <input type="number" class="input input-bordered input-xs text-xs max-w-20"${attr("value", params[1])} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-1 svelte-omz3gf"><span class="text-xs text-base-content/60">Period Line:</span> <div class="w-3 h-2 rounded"${attr("style", `background-color: ${stringify(styles[0]?.color || "#2563eb")}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer"${attr("value", styles[0].color)}></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-1 svelte-omz3gf"><span class="text-xs text-base-content/60">Signal Line:</span> <div class="w-3 h-2 rounded"${attr("style", `background-color: ${stringify(styles[1]?.color || "#dc2626")}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer"${attr("value", styles[1].color)}></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div> <div class="flex justify-center pt-1 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs" title="Add More TRIX"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> + Add More TRIX</button></div></div>`;
+                                        const each_array_14 = ensure_array_like(trixGroups);
+                                        $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
+                                        for (let groupIndex = 0, $$length = each_array_14.length; groupIndex < $$length; groupIndex++) {
+                                          let group = each_array_14[groupIndex];
+                                          $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">${escape_html(group.name)}</span> `;
+                                          if (trixGroups.length > 1) {
+                                            $$payload3.out += "<!--[-->";
+                                            $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove TRIX"><span class="text-xs">×</span></button>`;
+                                          } else {
+                                            $$payload3.out += "<!--[!-->";
+                                          }
+                                          $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex items-center gap-2 sm:gap-3"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0">TRIX:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm"${attr("value", group.trixPeriod)} min="1"></div> <div class="flex items-center gap-2 sm:gap-3"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0">Signal:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm"${attr("value", group.signalPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-1 svelte-omz3gf"><span class="text-xs text-base-content/60">TRIX Line:</span> <div class="w-3 h-2 rounded"${attr("style", `background-color: ${stringify(group.styles.trix.color)}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer"${attr("value", group.styles.trix.color)}></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-1 svelte-omz3gf"><span class="text-xs text-base-content/60">Signal Line:</span> <div class="w-3 h-2 rounded"${attr("style", `background-color: ${stringify(group.styles.signal.color)}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer"${attr("value", group.styles.signal.color)}></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
+                                        }
+                                        $$payload3.out += `<!--]--> <div class="flex justify-center pt-2 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs" title="Add More TRIX"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> + Add More TRIX</button></div></div>`;
                                       } else {
                                         $$payload3.out += "<!--[!-->";
                                         if (isBias) {
                                           $$payload3.out += "<!--[-->";
-                                          const each_array_14 = ensure_array_like(biasGroups);
+                                          const each_array_15 = ensure_array_like(biasGroups);
                                           $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
-                                          for (let groupIndex = 0, $$length = each_array_14.length; groupIndex < $$length; groupIndex++) {
-                                            let group = each_array_14[groupIndex];
+                                          for (let groupIndex = 0, $$length = each_array_15.length; groupIndex < $$length; groupIndex++) {
+                                            let group = each_array_15[groupIndex];
                                             $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">BIAS ${escape_html(groupIndex + 1)}</span> `;
                                             if (biasGroups.length > 1) {
                                               $$payload3.out += "<!--[-->";
@@ -28723,10 +30133,10 @@ function ModalIndCfg($$payload, $$props) {
                                           $$payload3.out += "<!--[!-->";
                                           if (isCci) {
                                             $$payload3.out += "<!--[-->";
-                                            const each_array_15 = ensure_array_like(cciGroups);
+                                            const each_array_16 = ensure_array_like(cciGroups);
                                             $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
-                                            for (let groupIndex = 0, $$length = each_array_15.length; groupIndex < $$length; groupIndex++) {
-                                              let group = each_array_15[groupIndex];
+                                            for (let groupIndex = 0, $$length = each_array_16.length; groupIndex < $$length; groupIndex++) {
+                                              let group = each_array_16[groupIndex];
                                               $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">CCI ${escape_html(groupIndex + 1)}</span> `;
                                               if (cciGroups.length > 1) {
                                                 $$payload3.out += "<!--[-->";
@@ -28741,10 +30151,10 @@ function ModalIndCfg($$payload, $$props) {
                                             $$payload3.out += "<!--[!-->";
                                             if (isIchimoku) {
                                               $$payload3.out += "<!--[-->";
-                                              const each_array_16 = ensure_array_like(fields);
+                                              const each_array_17 = ensure_array_like(fields);
                                               $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                              for (let i = 0, $$length = each_array_16.length; i < $$length; i++) {
-                                                let field = each_array_16[i];
+                                              for (let i = 0, $$length = each_array_17.length; i < $$length; i++) {
+                                                let field = each_array_17[i];
                                                 $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-32 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
                                               }
                                               $$payload3.out += `<!--]--></div>`;
@@ -28752,10 +30162,10 @@ function ModalIndCfg($$payload, $$props) {
                                               $$payload3.out += "<!--[!-->";
                                               if (isSma) {
                                                 $$payload3.out += "<!--[-->";
-                                                const each_array_17 = ensure_array_like(fields);
+                                                const each_array_18 = ensure_array_like(fields);
                                                 $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                                for (let i = 0, $$length = each_array_17.length; i < $$length; i++) {
-                                                  let field = each_array_17[i];
+                                                for (let i = 0, $$length = each_array_18.length; i < $$length; i++) {
+                                                  let field = each_array_18[i];
                                                   $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
                                                   if (params.length > 1) {
                                                     $$payload3.out += "<!--[-->";
@@ -28778,10 +30188,10 @@ function ModalIndCfg($$payload, $$props) {
                                                 $$payload3.out += "<!--[!-->";
                                                 if (isMa) {
                                                   $$payload3.out += "<!--[-->";
-                                                  const each_array_18 = ensure_array_like(fields);
+                                                  const each_array_19 = ensure_array_like(fields);
                                                   $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                                  for (let i = 0, $$length = each_array_18.length; i < $$length; i++) {
-                                                    let field = each_array_18[i];
+                                                  for (let i = 0, $$length = each_array_19.length; i < $$length; i++) {
+                                                    let field = each_array_19[i];
                                                     $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
                                                     if (params.length > 1) {
                                                       $$payload3.out += "<!--[-->";
@@ -28804,10 +30214,10 @@ function ModalIndCfg($$payload, $$props) {
                                                   $$payload3.out += "<!--[!-->";
                                                   if (isRoc) {
                                                     $$payload3.out += "<!--[-->";
-                                                    const each_array_19 = ensure_array_like(rocGroups);
+                                                    const each_array_20 = ensure_array_like(rocGroups);
                                                     $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
-                                                    for (let groupIndex = 0, $$length = each_array_19.length; groupIndex < $$length; groupIndex++) {
-                                                      let group = each_array_19[groupIndex];
+                                                    for (let groupIndex = 0, $$length = each_array_20.length; groupIndex < $$length; groupIndex++) {
+                                                      let group = each_array_20[groupIndex];
                                                       $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">ROC ${escape_html(groupIndex + 1)}</h4> `;
                                                       if (rocGroups.length > 1) {
                                                         $$payload3.out += "<!--[-->";
@@ -28822,10 +30232,10 @@ function ModalIndCfg($$payload, $$props) {
                                                     $$payload3.out += "<!--[!-->";
                                                     if (isPsy) {
                                                       $$payload3.out += "<!--[-->";
-                                                      const each_array_20 = ensure_array_like(psyGroups);
+                                                      const each_array_21 = ensure_array_like(psyGroups);
                                                       $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
-                                                      for (let groupIndex = 0, $$length = each_array_20.length; groupIndex < $$length; groupIndex++) {
-                                                        let group = each_array_20[groupIndex];
+                                                      for (let groupIndex = 0, $$length = each_array_21.length; groupIndex < $$length; groupIndex++) {
+                                                        let group = each_array_21[groupIndex];
                                                         $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">PSY ${escape_html(groupIndex + 1)}</h4> `;
                                                         if (psyGroups.length > 1) {
                                                           $$payload3.out += "<!--[-->";
@@ -28840,10 +30250,10 @@ function ModalIndCfg($$payload, $$props) {
                                                       $$payload3.out += "<!--[!-->";
                                                       if (isObv) {
                                                         $$payload3.out += "<!--[-->";
-                                                        const each_array_21 = ensure_array_like(obvGroups);
+                                                        const each_array_22 = ensure_array_like(obvGroups);
                                                         $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
-                                                        for (let groupIndex = 0, $$length = each_array_21.length; groupIndex < $$length; groupIndex++) {
-                                                          let group = each_array_21[groupIndex];
+                                                        for (let groupIndex = 0, $$length = each_array_22.length; groupIndex < $$length; groupIndex++) {
+                                                          let group = each_array_22[groupIndex];
                                                           $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">OBV ${escape_html(groupIndex + 1)}</h4> `;
                                                           if (obvGroups.length > 1) {
                                                             $$payload3.out += "<!--[-->";
@@ -28858,10 +30268,10 @@ function ModalIndCfg($$payload, $$props) {
                                                         $$payload3.out += "<!--[!-->";
                                                         if (isKdj) {
                                                           $$payload3.out += "<!--[-->";
-                                                          const each_array_22 = ensure_array_like(kdjGroups);
+                                                          const each_array_23 = ensure_array_like(kdjGroups);
                                                           $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
-                                                          for (let groupIndex = 0, $$length = each_array_22.length; groupIndex < $$length; groupIndex++) {
-                                                            let group = each_array_22[groupIndex];
+                                                          for (let groupIndex = 0, $$length = each_array_23.length; groupIndex < $$length; groupIndex++) {
+                                                            let group = each_array_23[groupIndex];
                                                             $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">KDJ ${escape_html(groupIndex + 1)}</h4> `;
                                                             if (kdjGroups.length > 1) {
                                                               $$payload3.out += "<!--[-->";
@@ -28884,10 +30294,10 @@ function ModalIndCfg($$payload, $$props) {
                                                               $$payload3.out += `<div class="flex justify-center items-center min-h-[120px]"><div class="text-base-content/70">${escape_html(/* @__PURE__ */ no_ind_params())}</div></div>`;
                                                             } else {
                                                               $$payload3.out += "<!--[!-->";
-                                                              const each_array_23 = ensure_array_like(fields);
+                                                              const each_array_24 = ensure_array_like(fields);
                                                               $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                                              for (let i = 0, $$length = each_array_23.length; i < $$length; i++) {
-                                                                let field = each_array_23[i];
+                                                              for (let i = 0, $$length = each_array_24.length; i < $$length; i++) {
+                                                                let field = each_array_24[i];
                                                                 $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-16 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
                                                                 if (params.length > 1 && !isBollingerBands) {
                                                                   $$payload3.out += "<!--[-->";
@@ -28968,18 +30378,6 @@ function ModalIndCfg($$payload, $$props) {
         $$payload3.out += `<!--]--></div>`;
       },
       $$slots: { default: true }
-    });
-    $$payload2.out += `<!----> `;
-    ColorPalette($$payload2, {
-      get show() {
-        return showRsiColorPalette;
-      },
-      set show($$value) {
-        showRsiColorPalette = $$value;
-        $$settled = false;
-      },
-      selectedColor: rsiGroups[0]?.styles?.rsi?.color || "#2563eb",
-      position: rsiColorPalettePosition
     });
     $$payload2.out += `<!----> `;
     ColorPalette($$payload2, {
@@ -29074,7 +30472,7 @@ function ModalIndCfg($$payload, $$props) {
         showVolColorPalette = $$value;
         $$settled = false;
       },
-      selectedColor: styles[volColorPaletteIndex]?.color || "#2563eb",
+      selectedColor: volGroups[volColorPaletteIndex]?.styles?.histogram?.upColor || "#26a69a",
       position: volColorPalettePosition
     });
     $$payload2.out += `<!----> `;
@@ -29086,8 +30484,44 @@ function ModalIndCfg($$payload, $$props) {
         showWrColorPalette = $$value;
         $$settled = false;
       },
-      selectedColor: styles[0]?.color || "#2563eb",
+      selectedColor: wrGroups[wrColorPaletteGroupIndex]?.styles?.wr?.color || "#2563eb",
       position: wrColorPalettePosition
+    });
+    $$payload2.out += `<!----> `;
+    ColorPalette($$payload2, {
+      get show() {
+        return showWrOverboughtColorPalette;
+      },
+      set show($$value) {
+        showWrOverboughtColorPalette = $$value;
+        $$settled = false;
+      },
+      selectedColor: wrGroups[wrColorPaletteGroupIndex]?.styles?.overbought?.color || "#FF4444",
+      position: wrOverboughtColorPalettePosition
+    });
+    $$payload2.out += `<!----> `;
+    ColorPalette($$payload2, {
+      get show() {
+        return showWrOversoldColorPalette;
+      },
+      set show($$value) {
+        showWrOversoldColorPalette = $$value;
+        $$settled = false;
+      },
+      selectedColor: wrGroups[wrColorPaletteGroupIndex]?.styles?.oversold?.color || "#00C851",
+      position: wrOversoldColorPalettePosition
+    });
+    $$payload2.out += `<!----> `;
+    ColorPalette($$payload2, {
+      get show() {
+        return showWrMiddleLineColorPalette;
+      },
+      set show($$value) {
+        showWrMiddleLineColorPalette = $$value;
+        $$settled = false;
+      },
+      selectedColor: wrGroups[wrColorPaletteGroupIndex]?.styles?.middleLine?.color || "#808080",
+      position: wrMiddleLineColorPalettePosition
     });
     $$payload2.out += `<!----> `;
     ColorPalette($$payload2, {
@@ -29098,7 +30532,7 @@ function ModalIndCfg($$payload, $$props) {
         showVrColorPalette = $$value;
         $$settled = false;
       },
-      selectedColor: styles[0]?.color || "#2563eb",
+      selectedColor: vrGroups[vrColorPaletteGroupIndex]?.styles?.[vrColorPaletteLineType]?.color || "#2563eb",
       position: vrColorPalettePosition
     });
     $$payload2.out += `<!----> `;
@@ -29481,6 +30915,54 @@ function ModalIndCfg($$payload, $$props) {
       })(),
       position: crColorPalettePosition
     });
+    $$payload2.out += `<!----> `;
+    ColorPalette($$payload2, {
+      get show() {
+        return showRsiColorPalette;
+      },
+      set show($$value) {
+        showRsiColorPalette = $$value;
+        $$settled = false;
+      },
+      selectedColor: rsiGroups[rsiColorPaletteIndex]?.styles?.rsi?.color || "#8B5CF6",
+      position: rsiColorPalettePosition
+    });
+    $$payload2.out += `<!----> `;
+    ColorPalette($$payload2, {
+      get show() {
+        return showRsiOverboughtColorPalette;
+      },
+      set show($$value) {
+        showRsiOverboughtColorPalette = $$value;
+        $$settled = false;
+      },
+      selectedColor: rsiGroups[rsiColorPaletteGroupIndex]?.styles?.overboughtColor || "#EF4444",
+      position: rsiOverboughtColorPalettePosition
+    });
+    $$payload2.out += `<!----> `;
+    ColorPalette($$payload2, {
+      get show() {
+        return showRsiOversoldColorPalette;
+      },
+      set show($$value) {
+        showRsiOversoldColorPalette = $$value;
+        $$settled = false;
+      },
+      selectedColor: rsiGroups[rsiColorPaletteGroupIndex]?.styles?.oversoldColor || "#10B981",
+      position: rsiOversoldColorPalettePosition
+    });
+    $$payload2.out += `<!----> `;
+    ColorPalette($$payload2, {
+      get show() {
+        return showRsiMiddleLineColorPalette;
+      },
+      set show($$value) {
+        showRsiMiddleLineColorPalette = $$value;
+        $$settled = false;
+      },
+      selectedColor: rsiGroups[rsiColorPaletteGroupIndex]?.styles?.middleLineColor || "#6B7280",
+      position: rsiMiddleLineColorPalettePosition
+    });
     $$payload2.out += `<!---->`;
   }
   do {
@@ -29498,7 +30980,10 @@ function ModalIndCfg($$payload, $$props) {
     clearObvGroups,
     clearPsyGroups,
     clearPvtGroups,
-    clearRocGroups
+    clearVolGroups,
+    clearWrGroups,
+    clearRocGroups,
+    clearRsiGroups
   });
   pop();
 }
@@ -31614,14 +33099,12 @@ function Search($$payload, $$props) {
 }
 function SaveButton($$payload, $$props) {
   push();
-  let activeLayout, hasActiveSave;
   let savedLayouts = fallback($$props["savedLayouts"], () => [], true);
   let activeSaveId = fallback($$props["activeSaveId"], null);
   let isLoading = fallback($$props["isLoading"], false);
   let hasUnsavedChanges = fallback($$props["hasUnsavedChanges"], false);
-  activeLayout = activeSaveId ? savedLayouts.find((l) => l.id === activeSaveId) : null;
-  hasActiveSave = !!activeLayout;
-  $$payload.out += `<div class="relative"><div class="flex"><button${attr("class", `btn btn-primary btn-sm rounded-r-none border-r-0 min-w-[80px] transition-all duration-200 ${stringify([hasUnsavedChanges ? "btn-warning" : ""].filter(Boolean).join(" "))}`)}${attr("disabled", isLoading, true)}${attr("title", hasActiveSave ? "Quick Save" : "Save Layout")}>`;
+  activeSaveId ? savedLayouts.find((l) => l.id === activeSaveId) : null;
+  $$payload.out += `<button${attr("class", `btn btn-primary btn-sm min-w-[100px] transition-all duration-200 ${stringify([hasUnsavedChanges ? "btn-warning" : ""].filter(Boolean).join(" "))}`)}${attr("disabled", isLoading, true)} title="Save Layout Options">`;
   if (isLoading) {
     $$payload.out += "<!--[-->";
     $$payload.out += `<span class="loading loading-spinner loading-xs"></span>`;
@@ -31629,11 +33112,14 @@ function SaveButton($$payload, $$props) {
     $$payload.out += "<!--[!-->";
     $$payload.out += `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12"></path></svg>`;
   }
-  $$payload.out += `<!--]--> ${escape_html(hasActiveSave ? "Save" : "Save")}</button> <button${attr("class", `btn btn-primary btn-sm rounded-l-none border-l-0 px-2 transition-all duration-200 ${stringify([hasUnsavedChanges ? "btn-warning" : ""].filter(Boolean).join(" "))}`)}${attr("disabled", isLoading, true)} title="Manage Saved Layouts"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg></button></div></div> `;
-  {
+  $$payload.out += `<!--]--> Save `;
+  if (hasUnsavedChanges) {
+    $$payload.out += "<!--[-->";
+    $$payload.out += `<span class="text-xs">•</span>`;
+  } else {
     $$payload.out += "<!--[!-->";
   }
-  $$payload.out += `<!--]-->`;
+  $$payload.out += `<!--]--></button>`;
   bind_props($$props, {
     savedLayouts,
     activeSaveId,
@@ -31780,6 +33266,104 @@ function SaveModal($$payload, $$props) {
   bind_props($$props, { show, savedLayouts, isLoading, mode });
   pop();
 }
+function ChartSavePopup($$payload, $$props) {
+  push();
+  let activeLayout, hasActiveSave;
+  let show = fallback($$props["show"], false);
+  let savedLayouts = fallback($$props["savedLayouts"], () => [], true);
+  let activeSaveId = fallback($$props["activeSaveId"], null);
+  let isLoading = fallback($$props["isLoading"], false);
+  let hasUnsavedChanges = fallback($$props["hasUnsavedChanges"], false);
+  let position = fallback($$props["position"], () => ({ x: 0, y: 0 }), true);
+  onDestroy(() => {
+  });
+  function formatDate2(timestamp) {
+    return new Date(timestamp).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+  function getPopupStyle() {
+    {
+      return `left: ${position.x}px; top: ${position.y}px;`;
+    }
+  }
+  activeLayout = activeSaveId ? savedLayouts.find((l) => l.id === activeSaveId) : null;
+  hasActiveSave = !!activeLayout;
+  {
+    if (show) {
+      console.log("🔄 ChartSavePopup reactive update (visible):", {
+        show,
+        savedLayouts: savedLayouts?.length || 0,
+        savedLayoutsData: savedLayouts,
+        activeSaveId,
+        activeLayout,
+        hasActiveSave
+      });
+    }
+  }
+  if (show) {
+    $$payload.out += "<!--[-->";
+    $$payload.out += `<div class="fixed inset-0 bg-black/20 z-40"></div> <div class="fixed z-50 bg-base-100 border border-base-300 rounded-lg shadow-xl animate-in fade-in zoom-in-95 duration-200"${attr("style", getPopupStyle())}><div class="flex items-center justify-between p-4 border-b border-base-300/50"><h3 class="text-lg font-semibold text-base-content">Save Chart Layout</h3> <button class="btn btn-ghost btn-sm btn-circle" title="Close"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div> <div class="p-4 border-b border-base-300/50"><div class="space-y-2"><button${attr("class", `w-full flex items-center gap-3 px-4 py-3 text-sm bg-primary text-primary-content hover:bg-primary/90 rounded-md transition-colors duration-150 ${stringify([hasUnsavedChanges ? "btn-warning" : ""].filter(Boolean).join(" "))}`)}${attr("disabled", isLoading, true)}>`;
+    if (isLoading) {
+      $$payload.out += "<!--[-->";
+      $$payload.out += `<span class="loading loading-spinner loading-xs"></span>`;
+    } else {
+      $$payload.out += "<!--[!-->";
+      $$payload.out += `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12"></path></svg>`;
+    }
+    $$payload.out += `<!--]--> ${escape_html(hasActiveSave ? "Quick Save" : "Save New Layout")}</button> <button class="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-base-200 rounded-md transition-colors duration-150"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg> Save As...</button> <button class="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-base-200 rounded-md transition-colors duration-150"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> New Layout</button></div></div> `;
+    if (activeLayout) {
+      $$payload.out += "<!--[-->";
+      $$payload.out += `<div class="p-4 bg-primary/5 border-b border-base-300/50"><div class="flex items-center gap-2 text-sm"><div class="w-2 h-2 bg-primary rounded-full"></div> <span class="font-medium text-base-content">Active: ${escape_html(activeLayout.name)}</span> `;
+      if (hasUnsavedChanges) {
+        $$payload.out += "<!--[-->";
+        $$payload.out += `<span class="text-xs text-warning">• Unsaved changes</span>`;
+      } else {
+        $$payload.out += "<!--[!-->";
+      }
+      $$payload.out += `<!--]--></div> <div class="text-xs text-base-content/60 mt-1">Last saved: ${escape_html(formatDate2(new Date(activeLayout.updatedAt).getTime()))}</div></div>`;
+    } else {
+      $$payload.out += "<!--[!-->";
+    }
+    $$payload.out += `<!--]--> <div class="max-h-48 overflow-y-auto svelte-10s4pck">`;
+    if (savedLayouts.length === 0) {
+      $$payload.out += "<!--[-->";
+      $$payload.out += `<div class="p-6 text-center text-base-content/60 text-sm">No saved layouts yet</div>`;
+    } else {
+      $$payload.out += "<!--[!-->";
+      const each_array = ensure_array_like(savedLayouts);
+      $$payload.out += `<div class="p-4"><div class="text-xs font-medium text-base-content/70 px-2 py-2">Saved Layouts (${escape_html(savedLayouts.length)})</div> <div class="space-y-1"><!--[-->`;
+      for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
+        let layout = each_array[$$index];
+        $$payload.out += `<div${attr("class", `group flex items-center justify-between px-3 py-2 hover:bg-base-200 rounded-md transition-colors duration-150 cursor-pointer ${stringify(layout.id === activeSaveId ? "bg-primary/10" : "")}`)}><div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="text-sm font-medium text-base-content truncate">${escape_html(layout.name)}</span> `;
+        if (layout.id === activeSaveId) {
+          $$payload.out += "<!--[-->";
+          $$payload.out += `<div class="w-1.5 h-1.5 bg-primary rounded-full"></div>`;
+        } else {
+          $$payload.out += "<!--[!-->";
+        }
+        $$payload.out += `<!--]--></div> <div class="text-xs text-base-content/60">${escape_html(formatDate2(new Date(layout.updatedAt).getTime()))}</div></div> <button class="opacity-0 group-hover:opacity-100 p-1 hover:bg-error/20 rounded transition-all duration-150" title="Delete layout"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>`;
+      }
+      $$payload.out += `<!--]--></div></div>`;
+    }
+    $$payload.out += `<!--]--></div></div>`;
+  } else {
+    $$payload.out += "<!--[!-->";
+  }
+  $$payload.out += `<!--]-->`;
+  bind_props($$props, {
+    show,
+    savedLayouts,
+    activeSaveId,
+    isLoading,
+    hasUnsavedChanges,
+    position
+  });
+  pop();
+}
 function MenuBar($$payload, $$props) {
   push();
   var $$store_subs;
@@ -31805,6 +33389,8 @@ function MenuBar($$payload, $$props) {
   let screenShotUrl = "";
   let showName = "";
   let showSaveModal = false;
+  let showChartSavePopup = false;
+  let chartSavePopupPosition = { x: 0, y: 0 };
   let savedLayouts = [];
   let activeSaveId = null;
   let isLoading = false;
@@ -32176,6 +33762,21 @@ function MenuBar($$payload, $$props) {
       isLoading,
       mode: "save"
     });
+    $$payload2.out += `<!----> `;
+    ChartSavePopup($$payload2, {
+      get show() {
+        return showChartSavePopup;
+      },
+      set show($$value) {
+        showChartSavePopup = $$value;
+        $$settled = false;
+      },
+      savedLayouts,
+      activeSaveId,
+      isLoading,
+      hasUnsavedChanges,
+      position: chartSavePopupPosition
+    });
     $$payload2.out += `<!----> <div class="menu-container svelte-jxpbmm"><div class="menu-left-section svelte-jxpbmm"><div class="menu-toggle-wrapper svelte-jxpbmm"><button class="menu-toggle-btn svelte-jxpbmm" title="Toggle Left Panel"><div class="menu-toggle-icon-wrapper svelte-jxpbmm"><svg${attr("class", `menu-toggle-icon ${stringify(!store_get($$store_subs ??= {}, "$save", save).showDrawBar ? "rotate" : "")} svelte-jxpbmm`)} viewBox="0 0 1024 1024"><path d="M192.037 287.953h640.124c17.673 0 32-14.327 32-32s-14.327-32-32-32H192.037c-17.673 0-32 14.327-32 32s14.327 32 32 32zM832.161 479.169H438.553c-17.673 0-32 14.327-32 32s14.327 32 32 32h393.608c17.673 0 32-14.327 32-32s-14.327-32-32-32zM832.161 735.802H192.037c-17.673 0-32 14.327-32 32s14.327 32 32 32h640.124c17.673 0 32-14.327 32-32s-14.327-32-32-32zM319.028 351.594l-160 160 160 160z" class="svelte-jxpbmm"></path></svg></div> <div class="menu-toggle-glow svelte-jxpbmm"></div></button></div> `;
     if (customLoad) {
       $$payload2.out += "<!--[-->";
@@ -32342,254 +33943,6 @@ function Toast($$payload, $$props) {
   });
   pop();
 }
-const STORAGE_KEYS = {
-  LAYOUTS: "chart.saves.v1",
-  ACTIVE_SAVE_ID: "chart.activeSaveId",
-  // Legacy key for migration
-  LEGACY_LAYOUTS: "chart.saves.v0"
-};
-function generateUUID() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === "x" ? r : r & 3 | 8;
-    return v.toString(16);
-  });
-}
-function normalizeSymbolKey(symbol) {
-  return symbol.toUpperCase().trim();
-}
-function validateLayout(layout) {
-  return layout && typeof layout.id === "string" && typeof layout.name === "string" && typeof layout.createdAt === "string" && typeof layout.updatedAt === "string" && typeof layout.timezone === "string" && typeof layout.interval === "string" && typeof layout.chartType === "string" && typeof layout.theme === "string" && Array.isArray(layout.panes) && Array.isArray(layout.indicators) && typeof layout.drawingsBySymbol === "object";
-}
-class LocalStorageProvider {
-  initialized = false;
-  constructor() {
-    this.initialize();
-  }
-  async initialize() {
-    if (this.initialized) return;
-    try {
-      await this.migrate();
-      this.initialized = true;
-    } catch (error) {
-      console.error("Failed to initialize storage provider:", error);
-      throw error;
-    }
-  }
-  /**
-   * Migrate from legacy storage format
-   */
-  async migrate() {
-    try {
-      const legacyData = localStorage.getItem(STORAGE_KEYS.LEGACY_LAYOUTS);
-      if (!legacyData) return;
-      console.log("🔄 Migrating chart saves from v0 to v1...");
-      const legacyLayouts = JSON.parse(legacyData);
-      if (!Array.isArray(legacyLayouts)) return;
-      const currentData = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-      if (currentData) {
-        localStorage.removeItem(STORAGE_KEYS.LEGACY_LAYOUTS);
-        return;
-      }
-      const migratedLayouts = legacyLayouts.map((legacy) => ({
-        id: legacy.id || generateUUID(),
-        name: legacy.name || "Migrated Layout",
-        createdAt: legacy.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        timezone: legacy.timezone || "UTC",
-        interval: legacy.interval || "1h",
-        chartType: legacy.chartType || "candles",
-        theme: legacy.theme || "dark",
-        panes: legacy.panes || [],
-        indicators: legacy.indicators || [],
-        styles: legacy.styles || {},
-        options: legacy.options || {},
-        // Convert drawings to symbol-scoped format
-        drawingsBySymbol: legacy.drawings ? {
-          [normalizeSymbolKey(legacy.symbol || "DEFAULT")]: legacy.drawings
-        } : {}
-      }));
-      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(migratedLayouts));
-      localStorage.removeItem(STORAGE_KEYS.LEGACY_LAYOUTS);
-      console.log(`✅ Migrated ${migratedLayouts.length} layouts to v1 format`);
-    } catch (error) {
-      console.error("Migration failed:", error);
-    }
-  }
-  /**
-   * Get all saved layout metadata
-   */
-  async listSavedLayouts() {
-    await this.initialize();
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-      if (!data) return [];
-      const layouts = JSON.parse(data);
-      if (!Array.isArray(layouts)) return [];
-      return layouts.filter(validateLayout).map((layout) => ({
-        id: layout.id,
-        name: layout.name,
-        createdAt: layout.createdAt,
-        updatedAt: layout.updatedAt
-      })).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    } catch (error) {
-      console.error("Failed to list saved layouts:", error);
-      return [];
-    }
-  }
-  /**
-   * Get a specific saved layout
-   */
-  async getSavedLayout(id) {
-    await this.initialize();
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-      if (!data) return null;
-      const layouts = JSON.parse(data);
-      if (!Array.isArray(layouts)) return null;
-      const layout = layouts.find((l) => l.id === id);
-      return layout && validateLayout(layout) ? layout : null;
-    } catch (error) {
-      console.error("Failed to get saved layout:", error);
-      return null;
-    }
-  }
-  /**
-   * Create a new saved layout
-   */
-  async createSavedLayout(layoutData) {
-    await this.initialize();
-    try {
-      const now = (/* @__PURE__ */ new Date()).toISOString();
-      const layout = {
-        ...layoutData,
-        id: generateUUID(),
-        createdAt: now,
-        updatedAt: now,
-        // Normalize symbol keys in drawings
-        drawingsBySymbol: Object.fromEntries(
-          Object.entries(layoutData.drawingsBySymbol).map(([symbol, drawings]) => [
-            normalizeSymbolKey(symbol),
-            drawings
-          ])
-        )
-      };
-      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-      const layouts = data ? JSON.parse(data) : [];
-      layouts.push(layout);
-      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
-      return layout;
-    } catch (error) {
-      console.error("Failed to create saved layout:", error);
-      throw new Error("Failed to save layout");
-    }
-  }
-  /**
-   * Update an existing saved layout
-   */
-  async updateSavedLayout(id, updates) {
-    await this.initialize();
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-      if (!data) throw new Error("Layout not found");
-      const layouts = JSON.parse(data);
-      const index = layouts.findIndex((l) => l.id === id);
-      if (index === -1) throw new Error("Layout not found");
-      const updatedLayout = {
-        ...layouts[index],
-        ...updates,
-        id,
-        // Ensure ID doesn't change
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        // Normalize symbol keys in drawings if provided
-        drawingsBySymbol: updates.drawingsBySymbol ? Object.fromEntries(
-          Object.entries(updates.drawingsBySymbol).map(([symbol, drawings]) => [
-            normalizeSymbolKey(symbol),
-            drawings
-          ])
-        ) : layouts[index].drawingsBySymbol
-      };
-      layouts[index] = updatedLayout;
-      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(layouts));
-      return updatedLayout;
-    } catch (error) {
-      console.error("Failed to update saved layout:", error);
-      throw new Error("Failed to update layout");
-    }
-  }
-  /**
-   * Delete a saved layout
-   */
-  async deleteSavedLayout(id) {
-    await this.initialize();
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-      if (!data) return;
-      const layouts = JSON.parse(data);
-      const filteredLayouts = layouts.filter((l) => l.id !== id);
-      localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(filteredLayouts));
-      const activeSaveId = await this.getActiveSaveId();
-      if (activeSaveId === id) {
-        await this.setActiveSaveId(null);
-      }
-    } catch (error) {
-      console.error("Failed to delete saved layout:", error);
-      throw new Error("Failed to delete layout");
-    }
-  }
-  /**
-   * Set the currently active save ID
-   */
-  async setActiveSaveId(id) {
-    try {
-      if (id === null) {
-        localStorage.removeItem(STORAGE_KEYS.ACTIVE_SAVE_ID);
-      } else {
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_SAVE_ID, id);
-      }
-    } catch (error) {
-      console.error("Failed to set active save ID:", error);
-    }
-  }
-  /**
-   * Get the currently active save ID
-   */
-  async getActiveSaveId() {
-    try {
-      return localStorage.getItem(STORAGE_KEYS.ACTIVE_SAVE_ID);
-    } catch (error) {
-      console.error("Failed to get active save ID:", error);
-      return null;
-    }
-  }
-  /**
-   * Check if a layout name already exists
-   */
-  async layoutNameExists(name, excludeId) {
-    const layouts = await this.listSavedLayouts();
-    return layouts.some(
-      (layout) => layout.name === name && layout.id !== excludeId
-    );
-  }
-  /**
-   * Cleanup storage (remove invalid entries)
-   */
-  async cleanup() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.LAYOUTS);
-      if (!data) return;
-      const layouts = JSON.parse(data);
-      const validLayouts = layouts.filter(validateLayout);
-      if (validLayouts.length !== layouts.length) {
-        localStorage.setItem(STORAGE_KEYS.LAYOUTS, JSON.stringify(validLayouts));
-        console.log(`🧹 Cleaned up ${layouts.length - validLayouts.length} invalid layouts`);
-      }
-    } catch (error) {
-      console.error("Failed to cleanup storage:", error);
-    }
-  }
-}
-const defaultStorageProvider = new LocalStorageProvider();
 class SaveManager {
   storage;
   runtime = null;
@@ -32605,27 +33958,21 @@ class SaveManager {
       activeSaveId: null,
       savedLayouts: [],
       isLoading: false,
-      lastError: null
+      lastError: null,
+      initialized: false
     });
-    this.initializeInternal();
+    this.initialize();
   }
   /**
-   * Initialize the save manager (public method)
+   * Initialize the save manager
    */
   async initialize() {
-    return this.initializeInternal();
-  }
-  /**
-   * Initialize the save manager (internal)
-   */
-  async initializeInternal() {
     try {
       this.updateState({ isLoading: true });
       const [activeSaveId, savedLayouts] = await Promise.all([
         this.storage.getActiveSaveId(),
         this.storage.listSavedLayouts()
       ]);
-      console.log("🔄 SaveManager initialized with:", { activeSaveId, savedLayoutsCount: savedLayouts.length });
       this.updateState({
         activeSaveId,
         savedLayouts,
@@ -32647,6 +33994,8 @@ class SaveManager {
     this.runtime = runtime;
     this.runtime.onSymbolChange(this.handleSymbolChange.bind(this));
     this.currentSymbol = this.runtime.getCurrentSymbol();
+    this.updateState({ initialized: true });
+    console.log("✅ SaveManager fully initialized and ready");
   }
   /**
    * Set event handlers
@@ -32855,13 +34204,22 @@ class SaveManager {
   async load(layoutId) {
     try {
       this.updateState({ isLoading: true, lastError: null });
+      console.log("🔄 Loading layout:", layoutId);
       const layout = await this.storage.getSavedLayout(layoutId);
       if (!layout) {
+        console.error("❌ Layout not found:", layoutId);
         return { success: false, error: "Layout not found" };
       }
+      console.log("📊 Layout data loaded:", {
+        name: layout.name,
+        indicatorCount: layout.indicators?.length || 0,
+        indicators: layout.indicators?.map((ind) => ind.type) || []
+      });
       if (!this.runtime) {
+        console.error("❌ Runtime contracts not set");
         return { success: false, error: "Runtime contracts not set" };
       }
+      console.log("🔧 Applying global state with indicators:", layout.indicators?.length || 0);
       await this.runtime.applyGlobalState({
         timezone: layout.timezone,
         interval: layout.interval,
@@ -32882,6 +34240,11 @@ class SaveManager {
         isLoading: false
       });
       this.events.onLoaded?.(layout);
+      console.log("✅ Layout loaded successfully:", {
+        layoutId: layout.id,
+        name: layout.name,
+        indicatorsRestored: layout.indicators?.length || 0
+      });
       return { success: true };
     } catch (error) {
       console.error("Load failed:", error);
@@ -33024,6 +34387,7 @@ function Chart($$payload, $$props) {
   const renderIntegration = getChartRenderIntegration();
   getRenderScheduler();
   const globalThemeManager = new TransactionalThemeManager("global-chart", chart, store_get($$store_subs ??= {}, "$save", save).theme || "dark");
+  let drawingManager = null;
   setContext("ctx", ctx);
   setContext("save", save);
   setContext("chart", chart);
@@ -33031,6 +34395,7 @@ function Chart($$payload, $$props) {
   setContext("datafeed", datafeed);
   setContext("renderIntegration", renderIntegration);
   setContext("globalThemeManager", globalThemeManager);
+  setContext("drawingManager", { get: () => drawingManager });
   function applyCanvasColors() {
     return;
   }
@@ -33166,6 +34531,7 @@ function Chart($$payload, $$props) {
       });
     } catch (e) {
     }
+    currentPeriod.set(store_get($$store_subs ??= {}, "$save", save).period);
     if (store_get($$store_subs ??= {}, "$ctx", ctx).loadingKLine || customLoad || !store_get($$store_subs ??= {}, "$chart", chart)) return;
     renderIntegration.changeTimeframe({
       chart: store_get($$store_subs ??= {}, "$chart", chart),
@@ -33292,7 +34658,7 @@ function Chart($$payload, $$props) {
   let $$inner_payload;
   function $$render_inner($$payload2) {
     const each_array = ensure_array_like(store_get($$store_subs ??= {}, "$alerts", alerts));
-    $$payload2.out += `<div class="kline-main svelte-1s0nyjy"${attr("data-theme", store_get($$store_subs ??= {}, "$save", save).theme)}><div class="alerts-container svelte-1s0nyjy"><!--[-->`;
+    $$payload2.out += `<div class="kline-main svelte-aemmq5"${attr("data-theme", store_get($$store_subs ??= {}, "$save", save).theme)}><div class="alerts-container svelte-aemmq5"><!--[-->`;
     for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
       let alert = each_array[$$index];
       Alert($$payload2, { type: alert.type, text: alert.text });
@@ -33315,14 +34681,14 @@ function Chart($$payload, $$props) {
         $$settled = false;
       }
     });
-    $$payload2.out += `<!----> <div class="chart-container svelte-1s0nyjy"><div class="kline-content svelte-1s0nyjy">`;
+    $$payload2.out += `<!----> <div class="chart-container svelte-aemmq5"><div class="kline-content svelte-aemmq5">`;
     if (store_get($$store_subs ??= {}, "$save", save).showDrawBar) {
       $$payload2.out += "<!--[-->";
       DrawBar($$payload2, {});
     } else {
       $$payload2.out += "<!--[!-->";
     }
-    $$payload2.out += `<!--]--> <div class="kline-widget svelte-1s0nyjy" role="application" tabindex="0"></div></div> `;
+    $$payload2.out += `<!--]--> <div class="kline-widget svelte-aemmq5" role="application" tabindex="0"></div></div> `;
     SidebarHost($$payload2, {});
     $$payload2.out += `<!----></div> `;
     {
