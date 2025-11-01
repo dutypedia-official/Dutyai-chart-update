@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Script Loader</title>
+</head>
+<body>
+    <h1>Chart Refresh Persistence Test</h1>
+    <p>Open the browser console to see test results.</p>
+    <script src="/test-refresh-persistence.js"></script>
+    <script>
+        // Auto-run the comprehensive test after page loads
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('🚀 Auto-running comprehensive test...');
+                if (window.testRefreshPersistence) {
+                    window.testRefreshPersistence();
+                } else {
+                    console.log('❌ Test function not available');
+                }
+            }, 5000);
+        });
+    </script>
+</body>
+</html>
