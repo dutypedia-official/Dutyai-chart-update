@@ -26,7 +26,6 @@
  * ```
  */
 declare module '$env/static/private' {
-	export const TRAE_AI_SHELL_ID: string;
 	export const TERM_PROGRAM: string;
 	export const NODE: string;
 	export const INIT_CWD: string;
@@ -91,7 +90,6 @@ declare module '$env/static/private' {
 	export const GIT_ASKPASS: string;
 	export const INFOPATH: string;
 	export const HOMEBREW_CELLAR: string;
-	export const GIT_PAGER: string;
 	export const npm_node_execpath: string;
 	export const npm_config_prefix: string;
 	export const COLORTERM: string;
@@ -127,7 +125,6 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
-		TRAE_AI_SHELL_ID: string;
 		TERM_PROGRAM: string;
 		NODE: string;
 		INIT_CWD: string;
@@ -192,7 +189,6 @@ declare module '$env/dynamic/private' {
 		GIT_ASKPASS: string;
 		INFOPATH: string;
 		HOMEBREW_CELLAR: string;
-		GIT_PAGER: string;
 		npm_node_execpath: string;
 		npm_config_prefix: string;
 		COLORTERM: string;
