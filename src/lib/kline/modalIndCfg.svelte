@@ -4832,11 +4832,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   }
 
   // Volume Groups color palette handler (VR-style implementation)
-<<<<<<< HEAD
   function showVolGroupColorPaletteHandler(groupIndex: number, type: 'histogram' | 'histogram-down' | 'ema') {
-=======
-  function showVolGroupColorPaletteHandler(groupIndex: number, type: 'histogram' | 'ema') {
->>>>>>> github/main
     return (event: MouseEvent) => {
       volColorPaletteIndex = groupIndex;
       volColorPaletteType = type;
@@ -10162,11 +10158,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 <label class="text-xs text-base-content/60 min-w-fit">Down Color:</label>
                 <button 
                   class="btn btn-xs btn-outline"
-<<<<<<< HEAD
                   onclick={showVolGroupColorPaletteHandler(groupIndex, 'histogram-down')}
-=======
-                  onclick={showVolGroupColorPaletteHandler(groupIndex, 'histogram')}
->>>>>>> github/main
                 >
                   <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.histogram.downColor}"></div>
                 </button>
@@ -11623,11 +11615,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   selectedColor={
     volColorPaletteType === 'histogram' 
       ? (volGroups[volColorPaletteIndex]?.styles?.histogram?.upColor || '#26a69a')
-<<<<<<< HEAD
       : volColorPaletteType === 'histogram-down'
       ? (volGroups[volColorPaletteIndex]?.styles?.histogram?.downColor || '#ef5350')
-=======
->>>>>>> github/main
       : (volGroups[volColorPaletteIndex]?.styles?.ema?.color || '#2563eb')
   }
   position={volColorPalettePosition}
@@ -11635,11 +11624,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (volGroups.length > volColorPaletteIndex) {
       if (volColorPaletteType === 'histogram') {
         volGroups[volColorPaletteIndex].styles.histogram.upColor = e.detail.color;
-<<<<<<< HEAD
       } else if (volColorPaletteType === 'histogram-down') {
         volGroups[volColorPaletteIndex].styles.histogram.downColor = e.detail.color;
-=======
->>>>>>> github/main
       } else if (volColorPaletteType === 'ema') {
         volGroups[volColorPaletteIndex].styles.ema.color = e.detail.color;
       }
