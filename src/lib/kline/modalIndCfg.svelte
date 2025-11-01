@@ -630,6 +630,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     console.log('✅ PVT groups cleared from modal state');
   }
 
+  // Clear VOL groups when VOL is removed from indicator list
+  export function clearVolGroups() {
+    volGroups = [];
+    console.log('✅ VOL groups cleared from modal state');
+  }
+
   // Clear WR groups when WR is removed from indicator list
   export function clearWrGroups() {
     wrGroups = [];
@@ -1798,7 +1804,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             period: (savedInd.params?.[0] as number) || 20, // Default 20-period EMA
             styles: {
               histogram: {upColor: '#26a69a', downColor: '#ef5350', thickness: 1, lineStyle: 'solid'}, // Green/Red
-              ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'solid'} // Purple
+              ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted'} // Purple
             }
           };
         }
@@ -1813,7 +1819,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         period: 20, // Default 20-period EMA
         styles: {
           histogram: {upColor: '#26a69a', downColor: '#ef5350', thickness: 1, lineStyle: 'solid'}, // Green/Red
-          ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'solid'} // Purple
+          ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted'} // Purple
         }
       };
       
@@ -1931,7 +1937,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       period: 20, // Default 20-period EMA
       styles: {
         histogram: {upColor: '#26a69a', downColor: '#ef5350', thickness: 1, lineStyle: 'solid'}, // Green/Red
-        ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'solid'} // Purple
+        ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted'} // Purple with dotted style
       }
     };
     
@@ -1943,10 +1949,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       let lineStyle = kc.LineType.Solid;
       let dashedValue = [2, 2];
       
-      if (newGroup.styles.histogram.lineStyle === 'dashed') {
+      if (newGroup.styles.ema.lineStyle === 'dashed') {
         lineStyle = kc.LineType.Dashed;
         dashedValue = [4, 4];
-      } else if (newGroup.styles.histogram.lineStyle === 'dotted') {
+      } else if (newGroup.styles.ema.lineStyle === 'dotted') {
         lineStyle = kc.LineType.Dashed;
         dashedValue = [2, 2];
       }
@@ -2119,6 +2125,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         dashedValue = [2, 2];
       }
       
+      // Debug logging for volume colors
+      console.log('updateVolIndicator - Colors being applied:', {
+        upColor: group.styles.histogram.upColor,
+        downColor: group.styles.histogram.downColor,
+        noChangeColor: group.styles.histogram.upColor,
+        emaColor: group.styles.ema.color
+      });
+
       // Re-create the Volume indicator with updated parameters
       const indicatorId = $chart.createIndicator({
         name: 'VOL',
@@ -5323,6 +5337,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   clearRocSignal.subscribe((signal) => {
     if (signal > 0) {
       clearRocGroups();
+    }
+  });
+
+  // Listen for clear VOL groups signal
+  const clearVolSignal = derived(ctx, ($ctx) => $ctx.clearVolGroups);
+  clearVolSignal.subscribe((signal) => {
+    if (signal > 0) {
+      clearVolGroups();
     }
   });
 
@@ -10207,6 +10229,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 >
                   <option value="solid">Solid</option>
                   <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
                 </select>
               </div>
             </div>

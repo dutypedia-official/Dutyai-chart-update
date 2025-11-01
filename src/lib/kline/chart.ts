@@ -48,6 +48,7 @@ export class ChartCtx {
   clearPsyGroups: number // Signal to clear PSY groups when incremented
   clearPvtGroups: number // Signal to clear PVT groups when incremented
   clearRocGroups: number // Signal to clear ROC groups when incremented
+  clearVolGroups: number // Signal to clear VOL groups when incremented
   clearWrGroups: number // Signal to clear WR groups when incremented
 
   constructor() {
@@ -77,6 +78,7 @@ export class ChartCtx {
     this.clearPsyGroups = 0
     this.clearPvtGroups = 0
     this.clearRocGroups = 0
+    this.clearVolGroups = 0
     this.clearWrGroups = 0
 
     for(let name of local_mains){

@@ -783,6 +783,58 @@
       });
       
       console.log('✅ Bulk VR deletion completed');
+    } else if (name === 'VOL') {
+      // For VOL, delete all instances and groups from all sub-panes
+      console.log('🗑️ Starting bulk VOL deletion...');
+      
+      // First, remove all VOL indicators directly from chart
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const volIndicators = indicators.filter(ind => ind.name === 'VOL');
+          console.log('📊 Found VOL indicators on chart:', volIndicators.length);
+          
+          volIndicators.forEach(indicator => {
+            console.log('🗑️ Removing VOL indicator from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'VOL' });
+          });
+          
+          console.log('✅ All VOL indicators removed from chart');
+        } catch (error) {
+          console.error('❌ Error removing VOL indicators from chart:', error);
+        }
+      }
+      
+      // Then, clean up saved data entries
+      const volEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'VOL');
+      console.log('🗑️ Deleting VOL saved entries:', volEntries.length);
+      
+      volEntries.forEach(([key, ind]) => {
+        console.log('🗑️ Cleaning saved entry:', key, 'pane:', ind.pane_id);
+        if (ind.pane_id) {
+          // Use delInd for additional cleanup
+          delInd(ind.pane_id, name);
+        }
+      });
+      
+      // Clear all VOL-related saved data
+      save.update(s => {
+        Object.keys(s.saveInds).forEach(key => {
+          if (s.saveInds[key].name === 'VOL') {
+            console.log('🗑️ Clearing VOL saved data:', key);
+            delete s.saveInds[key];
+          }
+        });
+        return s;
+      });
+      
+      // Signal to clear VOL groups in modal
+      ctx.update(c => {
+        c.clearVolGroups++;
+        return c;
+      });
+      
+      console.log('✅ Bulk VOL deletion completed');
     } else {
       // Find the pane ID for this indicator
       const indicatorEntry = Object.entries($save.saveInds).find(([key, ind]) => ind.name === name);
@@ -806,6 +858,17 @@
       // Apply default volume groups styling when no params provided
       if (!params || params.length === 0) {
         calcParams = [20]; // Default period
+        
+        // Helper function to convert line style to KLineCharts format
+        const convertLineStyle = (style: string) => {
+          switch (style) {
+            case 'dashed': return { style: kc.LineType.Dashed, dashedValue: [4, 4] };
+            case 'dotted': return { style: kc.LineType.Dashed, dashedValue: [2, 2] };
+            default: return { style: kc.LineType.Solid, dashedValue: [2, 2] };
+          }
+        };
+        
+        const lineStyle = convertLineStyle('dotted');
         styleOverrides = {
           bars: [
             {
@@ -816,10 +879,10 @@
           ],
           lines: [
             {
-              color: '#2196F3',
-              size: 2,
-              style: 1, // Solid line
-              dashedValue: [2, 2],
+              color: '#8B5CF6',
+              size: 1,
+              style: lineStyle.style,
+              dashedValue: lineStyle.dashedValue,
               smooth: false
             }
           ]
