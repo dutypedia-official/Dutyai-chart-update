@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount, onDestroy } from 'svelte';
+  import { browser } from '$app/environment';
   import type { SavedLayoutMeta } from './types';
 
   // Props
@@ -52,7 +53,7 @@
       position
     });
     
-    if (show) {
+    if (browser && show) {
       document.addEventListener('click', handleClickOutside);
       document.addEventListener('keydown', handleKeydown);
     }
@@ -73,17 +74,19 @@
   }
 
   onDestroy(() => {
-    document.removeEventListener('click', handleClickOutside);
-    document.removeEventListener('keydown', handleKeydown);
+    if (browser) {
+      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener('keydown', handleKeydown);
+    }
   });
 
   // Update event listeners when show changes
-  $: if (show) {
+  $: if (browser && show) {
     setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
       document.addEventListener('keydown', handleKeydown);
     }, 0);
-  } else {
+  } else if (browser) {
     document.removeEventListener('click', handleClickOutside);
     document.removeEventListener('keydown', handleKeydown);
   }
@@ -136,6 +139,10 @@
 
   // Calculate popup position to keep it within chart bounds
   function getPopupStyle() {
+    if (!browser) {
+      return `left: ${position.x}px; top: ${position.y}px;`;
+    }
+    
     const popupWidth = 320;
     const popupHeight = 400;
     const chartContainer = document.querySelector('.chart-container') || document.querySelector('.kline-widget');

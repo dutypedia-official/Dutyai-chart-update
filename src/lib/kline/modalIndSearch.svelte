@@ -15,6 +15,14 @@
   
   let { show = $bindable() } = $props();
 
+  // Get context variables first before using them in derived stores
+  const ctx = getContext('ctx') as Writable<ChartCtx>;
+  const save = getContext('save') as Writable<ChartSave>;
+  const chart = getContext('chart') as Writable<Nullable<Chart>>;
+  
+  // Render system integration
+  const renderIntegration = getChartRenderIntegration();
+
   // Static indicator list - always the same (sorted alphabetically)
   const staticIndicators = [
     // Main indicators (overlay on price chart) - sorted alphabetically
@@ -98,13 +106,6 @@
     }, 2000)
     console.log('🔍 Debug function added: window.debugChart()')
   })
-  
-  const ctx = getContext('ctx') as Writable<ChartCtx>;
-  const save = getContext('save') as Writable<ChartSave>;
-  const chart = getContext('chart') as Writable<Nullable<Chart>>;
-  
-  // Render system integration
-  const renderIntegration = getChartRenderIntegration();
   
   let keyword = $state('');
   let wasOpenedFromIndicatorList = $state(false);
