@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="%paraglide.lang%" dir="%paraglide.textDirection%">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<style>	
+			html {height: 100%;padding: 0;display: flex;flex-direction: column;}
+			body{min-height: 100vh;flex: 1; display: flex;flex-direction: column;}
+		</style>
+		<script>
+			// Load theme early to prevent blinking
+			(function() {
+				try {
+					const savedChart = localStorage.getItem('chart');
+					if (savedChart) {
+						const chartData = JSON.parse(savedChart);
+						if (chartData.theme) {
+							document.documentElement.setAttribute('data-theme', chartData.theme);
+							
+							// Set CSS variables immediately based on theme
+							const root = document.documentElement;
+							if (chartData.theme === 'dark') {
+								root.style.setProperty('--border-color', '#292929');
+								root.style.setProperty('--background-color', '#0f0f0f');
+								root.style.setProperty('--text-color', '#cccccc');
+							} else {
+								root.style.setProperty('--border-color', '#ebedf1');
+								root.style.setProperty('--background-color', '#ffffff');
+								root.style.setProperty('--text-color', '#051441');
+							}
+						}
+					}
+				} catch (e) {
+					// Fallback to default theme if error
+					console.log('Theme loading error:', e);
+				}
+			})();
+
+			// Early sidebar state restoration to prevent flashing
+			(function() {
+				try {
+					// Constants
+					const MIN_WIDTH = 180;
+					const MAX_WIDTH = 480;
+					const DEFAULT_WIDTH = 280;
+					const PRICE_SCALE_WIDTH = 80;
+
+					// Helper functions
+					function parseBool(value, fallback) {
+						if (value === null) return fallback;
+						return value === 'true';
+					}
+
+					function clampWidth(value, min, max, fallback) {
+						if (isNaN(value) || value < min || value > max) {
+							return fallback;
+						}
+						return value;
+					}
+
+					function checkContainerSize() {
+						const containerWidth = window.innerWidth;
+						const minChartWidth = 300;
+						const minRequiredWidth = MIN_WIDTH + PRICE_SCALE_WIDTH + minChartWidth;
+						return containerWidth >= minRequiredWidth;
+					}
+
+					// Read persisted state
+					const persistedVisible = localStorage.getItem('dutyai.chart.sidebar.visible');
+					const persistedWidth = localStorage.getItem('dutyai.chart.sidebar.widthPx');
+					
+					let visible = parseBool(persistedVisible, false);
+					let widthPx = clampWidth(parseInt(persistedWidth || '', 10), MIN_WIDTH, MAX_WIDTH, DEFAULT_WIDTH);
+
+					// Auto-collapse if container is too narrow
+					if (visible && !checkContainerSize()) {
+						visible = false;
+						widthPx = 0;
+					}
+
+					// Store bootstrap state globally for components to use
+					window.__sidebarBootstrap = {
+						visible: visible,
+						widthPx: visible ? widthPx : 0,
+						transitionsEnabled: false
+					};
+
+					// Set initial CSS variables to prevent layout shift
+					const root = document.documentElement;
+					root.style.setProperty('--sidebar-width', visible ? widthPx + 'px' : '0px');
+					root.style.setProperty('--sidebar-visible', visible ? '1' : '0');
+					root.style.setProperty('--chart-sidebar-width', visible ? widthPx + 'px' : '0px');
+					root.style.setProperty('--chart-sidebar-visible', visible ? '1' : '0');
+					
+				} catch (e) {
+					console.warn('Sidebar bootstrap error:', e);
+					// Fallback state
+					window.__sidebarBootstrap = {
+						visible: false,
+						widthPx: 0,
+						transitionsEnabled: false
+					};
+					// Set fallback CSS variables
+					const root = document.documentElement;
+					root.style.setProperty('--sidebar-width', '0px');
+					root.style.setProperty('--sidebar-visible', '0');
+					root.style.setProperty('--chart-sidebar-width', '0px');
+					root.style.setProperty('--chart-sidebar-visible', '0');
+				}
+			})();
+		</script>
+
+		<!-- No-flash CSS rules to prevent sidebar visibility during initial paint -->
+		<style>
+			/* Prevent sidebar from being visible during initial paint if not supposed to be visible */
+			.sidebar-container {
+				width: var(--sidebar-width, 0px) !important;
+				transition: none !important;
+				overflow: hidden;
+			}
+			
+			/* Ensure chart content takes up correct space from the start */
+			.chart-container {
+				--chart-content-width: calc(100% - var(--chart-sidebar-width, 0px));
+			}
+			
+			.kline-content {
+				width: var(--chart-content-width, 100%) !important;
+			}
+			
+			/* Hide sidebar completely if not visible */
+			.sidebar-container[data-visible="false"] {
+				display: none !important;
+			}
+			
+			/* Disable all transitions during initial load */
+			.sidebar-container,
+			.sidebar-container *,
+			.chart-container,
+			.chart-container *,
+			.kline-content,
+			.kline-content * {
+				transition: none !important;
+			}
+		</style>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents;">%sveltekit.body%</div>
+	</body>
+</html>
