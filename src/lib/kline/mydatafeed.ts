@@ -393,7 +393,9 @@ export default class MyDatafeed implements Datafeed {
 
   async getSymbols(): Promise<SymbolInfo[]> {
     console.log("🚀 getSymbols() method called");
-    const symbols = [
+    
+    // Fallback symbols in case API fails
+    const fallbackSymbols = [
       {
         ticker: "GP",
         name: "Grameen Phone Limited",
@@ -445,8 +447,50 @@ export default class MyDatafeed implements Datafeed {
         logo: "",
       },
     ];
-    console.log("📋 Returning symbols:", symbols);
-    return symbols;
+
+    try {
+      console.log("🌐 Fetching symbols from API...");
+      const response = await fetch("https://heart.dutyai.app/finance/get/stock/list");
+      
+      if (!response.ok) {
+        console.warn(`⚠️ API request failed with status: ${response.status}`);
+        return fallbackSymbols;
+      }
+
+      const apiData = await response.json();
+      
+      if (!Array.isArray(apiData)) {
+        console.warn("⚠️ API response is not an array, using fallback symbols");
+        return fallbackSymbols;
+      }
+
+      console.log(`📊 Received ${apiData.length} symbols from API`);
+
+      // Transform API data to SymbolInfo format
+      const symbols: SymbolInfo[] = apiData.map((item: any) => ({
+        ticker: item.symbol || "",
+        name: item.fullName || item.symbol || "",
+        shortName: item.symbol || "",
+        market: "stock",
+        exchange: item.country === "BD" ? "DSEBD" : "UNKNOWN",
+        priceCurrency: "BDT",
+        type: "stock",
+        logo: "",
+      }));
+
+      // Filter out any symbols with empty tickers
+      const validSymbols = symbols.filter(symbol => symbol.ticker && symbol.ticker.trim() !== "");
+      
+      console.log(`✅ Successfully processed ${validSymbols.length} valid symbols`);
+      console.log("📋 Sample symbols:", validSymbols.slice(0, 5));
+      
+      return validSymbols.length > 0 ? validSymbols : fallbackSymbols;
+      
+    } catch (error) {
+      console.error("❌ Error fetching symbols from API:", error);
+      console.log("🔄 Falling back to hardcoded symbols");
+      return fallbackSymbols;
+    }
   }
 
   watch(key: string, callback: DatafeedWatchCallback) {
