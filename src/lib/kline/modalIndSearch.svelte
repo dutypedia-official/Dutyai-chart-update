@@ -110,6 +110,11 @@
   let keyword = $state('');
   let wasOpenedFromIndicatorList = $state(false);
   
+  // Scroll-based search bar hide/show
+  let isSearchBarVisible = $state(true);
+  let lastScrollTop = $state(0);
+  let scrollContainer: HTMLElement;
+  
   // Watch for edit popup state changes
   $effect(() => {
     // If edit popup is closed and we opened it from indicator list, show indicator list again
@@ -1050,6 +1055,23 @@
     console.log('🚫 Automatic indicator restoration disabled to prevent deleted indicators from reappearing')
   })
 
+  // Scroll handler for search bar hide/show
+  function handleScroll(event: Event) {
+    const target = event.target as HTMLElement;
+    const currentScrollTop = target.scrollTop;
+    
+    // Show search bar when scrolling up or at top
+    if (currentScrollTop < lastScrollTop || currentScrollTop <= 10) {
+      isSearchBarVisible = true;
+    } 
+    // Hide search bar when scrolling down (but not immediately)
+    else if (currentScrollTop > lastScrollTop && currentScrollTop > 50) {
+      isSearchBarVisible = false;
+    }
+    
+    lastScrollTop = currentScrollTop;
+  }
+
   const initDone = derived(ctx, ($ctx) => $ctx.initDone);
   let subscribed = false;
   initDone.subscribe((new_val) => {
@@ -1106,76 +1128,84 @@
 </script>
 
 <Modal title={m.indicator()} width={700} bind:show={show} buttons={[]}>
-  <div class="flex flex-col gap-5">
-    <!-- Premium Search Bar -->
-    <div class="relative group">
-      <div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/40 pointer-events-none">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+  <div class="flex flex-col gap-6">
+    <!-- Ultra-Minimalist Premium Search -->
+    <div class="relative group transition-all duration-300 ease-out {isSearchBarVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}">
+      <div class="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none z-10 transition-all duration-300 search-icon">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>
       </div>
       <input
         type="text"
-        class="input input-bordered w-full pl-12 pr-12 h-12 rounded-xl bg-base-200/50 border-base-300/50 focus:border-primary/50 focus:bg-base-100 transition-all duration-300 placeholder:text-base-content/40"
+        class="w-full pl-12 pr-12 py-3.5 text-[15px] font-medium tracking-wide backdrop-blur-sm rounded-2xl 
+               focus:outline-none transition-all duration-500 ease-out
+               placeholder:font-normal search-input"
         placeholder={m.search()}
         bind:value={keyword}
       />
       {#if keyword}
         <button
-          class="absolute right-4 top-1/2 transform -translate-y-1/2 text-base-content/40 hover:text-error hover:scale-110 transition-all duration-200"
+          class="absolute right-4 top-1/2 transform -translate-y-1/2 hover:scale-110 transition-all duration-300 z-10 clear-search-btn"
           onclick={() => keyword = ''}
           title="Clear search"
         >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
         </button>
       {/if}
     </div>
     
-    <!-- Minimal Indicator List -->
-    <div class="relative rounded-lg overflow-hidden border border-base-300/30">
-      <div class="h-[450px] overflow-y-auto custom-scrollbar">
+    <!-- Ultra-Minimalist Premium Indicator List -->
+    <div class="relative rounded-2xl overflow-hidden backdrop-blur-sm indicator-list-container">
+      <div class="h-[480px] overflow-y-auto ultra-minimal-scrollbar" bind:this={scrollContainer} onscroll={handleScroll}>
         {#each showInds as ind, index}
           {@const isSelected = selectedIndicators.has(ind.name)}
           <div 
-            class="group relative flex items-center min-h-[48px] px-4 py-2 cursor-pointer
-                   {isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-base-200/30 text-base-content'}
-                   {index < showInds.length - 1 ? 'border-b border-base-300/20' : ''}"
+            class="group relative flex items-center min-h-[56px] px-5 py-3 cursor-pointer transition-all duration-500 ease-out
+                   {index < showInds.length - 1 ? 'border-b' : ''} 
+                   {isSelected ? 'indicator-item-selected' : 'indicator-item-unselected'}"
             onclick={() => !isSelected && addIndicator(ind.is_main, ind.name)}
           >
-            <!-- Minimal Indicator Name -->
-            <div class="flex items-center flex-1">
-              <span class="text-sm font-medium">
+            <!-- Minimal Indicator Dot -->
+            <div class="flex items-center justify-center w-2 h-2 rounded-full mr-4 transition-all duration-500 
+                        {isSelected ? 'indicator-dot-selected' : 'indicator-dot-unselected'}">
+            </div>
+            
+            <!-- Clean Typography -->
+            <div class="flex-1 min-w-0">
+              <span class="text-[15px] font-medium tracking-wide leading-relaxed 
+                           {isSelected ? 'indicator-text-selected' : 'indicator-text-unselected'}">
                 {ind.title}
               </span>
             </div>
             
-            <!-- Action Buttons for Selected Indicators -->
+            <!-- Minimal Action Buttons for Selected Indicators -->
             {#if isSelected}
-              <div class="flex items-center gap-2 ml-4">
+              <div class="flex items-center gap-2 ml-4 opacity-100 transition-all duration-300">
                 <button 
-                  class="btn btn-xs btn-ghost hover:bg-info/20 hover:text-info"
+                  class="w-8 h-8 rounded-full hover:scale-110 transition-all duration-300 flex items-center justify-center backdrop-blur-sm edit-btn"
                   title="Edit Parameters"
                   onclick={(e) => {
                     e.stopPropagation();
                     editIndicator(ind.name);
                   }}
                 >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                   </svg>
                 </button>
                 <button 
-                  class="btn btn-xs btn-ghost hover:bg-error/20 hover:text-error"
-                  title="Delete Indicator"
+                  class="w-8 h-8 rounded-full hover:scale-110 transition-all duration-300 flex items-center justify-center backdrop-blur-sm delete-btn"
+                  title="Remove Indicator"
                   onclick={(e) => {
                     e.stopPropagation();
                     deleteIndicator(ind.name);
                   }}
                 >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
                   </svg>
                 </button>
               </div>
@@ -1183,40 +1213,343 @@
           </div>
         {/each}
         
+        <!-- Premium Empty State -->
         {#if showInds.length === 0}
-          <div class="flex flex-col items-center justify-center h-full text-base-content/50 gap-3">
-            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
-            <p class="text-lg font-medium">No indicators found</p>
-            <p class="text-sm">Try a different search term</p>
+          <div class="flex flex-col items-center justify-center py-16 text-center">
+            <div class="w-16 h-16 rounded-full bg-base-200/50 flex items-center justify-center mb-4">
+              <svg class="w-8 h-8 text-base-content/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
+            <p class="text-lg font-semibold text-base-content/60 mb-2">No indicators found</p>
+            <p class="text-sm text-base-content/40">Try a different search term</p>
           </div>
         {/if}
+      </div>
+    </div>
+
+    <!-- Luxury Premium Footer -->
+    <div class="flex justify-center items-center py-2 mt-1">
+      <div class="group relative cursor-pointer">
+        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out blur-xl"></div>
+        <div class="relative flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-base-100/80 to-base-200/60 backdrop-blur-sm border border-base-300/30 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-500 ease-out">
+          <div class="w-2 h-2 rounded-full bg-gradient-to-r from-primary to-secondary animate-pulse"></div>
+          <span class="text-sm font-medium text-base-content/70 group-hover:text-primary transition-colors duration-300">
+            Powered by
+          </span>
+          <span class="text-sm font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent group-hover:from-secondary group-hover:to-primary transition-all duration-500">
+            Duty AI
+          </span>
+          <div class="w-2 h-2 rounded-full bg-gradient-to-r from-secondary to-primary animate-pulse" style="animation-delay: 0.5s;"></div>
+        </div>
       </div>
     </div>
   </div>
 </Modal>
 
 <style>
-  /* Custom Scrollbar Styling */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
+
+  
+  /* Premium animations */
+  /* Premium Micro-Animations */
+  @keyframes gentle-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   
-  .custom-scrollbar::-webkit-scrollbar-track {
+  @keyframes pulse-glow {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(var(--primary-rgb), 0.3);
+    }
+    50% {
+      box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.1);
+    }
+  }
+  
+  @keyframes subtle-scale {
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.02);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  
+  /* Smooth entrance animation for list items */
+  .group {
+    animation: gentle-fade-in 0.6s ease-out;
+    animation-fill-mode: both;
+  }
+  
+  /* Staggered animation delay for each item */
+  .group:nth-child(1) { animation-delay: 0.05s; }
+  .group:nth-child(2) { animation-delay: 0.1s; }
+  .group:nth-child(3) { animation-delay: 0.15s; }
+  .group:nth-child(4) { animation-delay: 0.2s; }
+  .group:nth-child(5) { animation-delay: 0.25s; }
+  .group:nth-child(6) { animation-delay: 0.3s; }
+  .group:nth-child(7) { animation-delay: 0.35s; }
+  .group:nth-child(8) { animation-delay: 0.4s; }
+  .group:nth-child(9) { animation-delay: 0.45s; }
+  .group:nth-child(10) { animation-delay: 0.5s; }
+   
+
+   
+
+   
+   /* Ultra-Minimal Premium Scrollbar */
+  .ultra-minimal-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  }
+  
+  .ultra-minimal-scrollbar::-webkit-scrollbar {
+    width: 2px;
+  }
+  
+  .ultra-minimal-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
   
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.3);
-    border-radius: 4px;
-    transition: background 0.2s;
+  .ultra-minimal-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(138, 43, 226, 0.3), rgba(138, 43, 226, 0.15));
+    border-radius: 1px;
+    transition: all 0.3s ease;
   }
   
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(156, 163, 175, 0.5);
+  .ultra-minimal-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(138, 43, 226, 0.5), rgba(138, 43, 226, 0.3));
+    width: 3px;
+  }
+
+  /* Light Mode Styling */
+  :global([data-theme="light"]) .search-input {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    color: #1f2937;
+    --placeholder-color: rgba(31, 41, 55, 0.7);
   }
   
-  /* Smooth animations */
+  :global([data-theme="light"]) .search-input:focus {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
   
+  :global([data-theme="light"]) .search-input:hover {
+    background: rgba(59, 130, 246, 0.05);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+  
+  :global([data-theme="light"]) .search-icon {
+    color: rgba(31, 41, 55, 0.7);
+  }
+  
+  :global([data-theme="light"]) .group:focus-within .search-icon {
+    color: rgba(59, 130, 246, 0.8);
+  }
+  
+  :global([data-theme="light"]) .clear-search-btn {
+    color: rgba(31, 41, 55, 0.7);
+  }
+  
+  :global([data-theme="light"]) .clear-search-btn:hover {
+    color: rgba(59, 130, 246, 0.9);
+  }
+  
+  :global([data-theme="light"]) .indicator-list-container {
+    background: rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+  }
+
+  /* Dark Mode Styling */
+  :global([data-theme="dark"]) .search-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(138, 43, 226, 0.2);
+    color: #ffffff;
+    --placeholder-color: rgba(255, 255, 255, 0.7);
+  }
+  
+  :global([data-theme="dark"]) .search-input:focus {
+    background: rgba(138, 43, 226, 0.2);
+    border-color: rgba(138, 43, 226, 0.4);
+  }
+  
+  :global([data-theme="dark"]) .search-input:hover {
+    background: rgba(138, 43, 226, 0.15);
+    border-color: rgba(138, 43, 226, 0.3);
+  }
+  
+  :global([data-theme="dark"]) .search-icon {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  
+  :global([data-theme="dark"]) .group:focus-within .search-icon {
+    color: rgba(138, 43, 226, 0.8);
+  }
+  
+  :global([data-theme="dark"]) .clear-search-btn {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  
+  :global([data-theme="dark"]) .clear-search-btn:hover {
+    color: rgba(138, 43, 226, 0.9);
+  }
+  
+  :global([data-theme="dark"]) .indicator-list-container {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(138, 43, 226, 0.2);
+  }
+
+  /* Indicator List Items - Light Mode */
+  .indicator-item-selected {
+    background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    color: white;
+    border-left: 2px solid rgba(37, 99, 235, 0.8);
+    border-bottom-color: rgba(37, 99, 235, 0.2);
+  }
+
+  .indicator-item-unselected {
+    color: rgba(55, 65, 81, 0.9);
+    border-bottom-color: rgba(37, 99, 235, 0.2);
+  }
+
+  .indicator-item-unselected:hover {
+    background: rgba(37, 99, 235, 0.1);
+    color: #1f2937;
+  }
+
+  /* Indicator Dots - Light Mode */
+  .indicator-dot-selected {
+    background: white;
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+  }
+
+  .indicator-dot-unselected {
+    background: rgba(37, 99, 235, 0.4);
+  }
+
+  .group:hover .indicator-dot-unselected {
+    background: rgba(37, 99, 235, 0.8);
+    transform: scale(1.5);
+  }
+
+  /* Indicator Text - Light Mode */
+  .indicator-text-selected {
+    color: white;
+  }
+
+  .indicator-text-unselected {
+    color: rgba(55, 65, 81, 0.9);
+  }
+
+  .group:hover .indicator-text-unselected {
+    color: #1f2937;
+  }
+
+  /* Action Buttons - Light Mode */
+  .edit-btn, .delete-btn {
+    background: rgba(37, 99, 235, 0.05);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+    color: rgba(55, 65, 81, 0.9);
+  }
+
+  .edit-btn:hover, .delete-btn:hover {
+    background: rgba(37, 99, 235, 0.2);
+    border-color: rgba(37, 99, 235, 0.4);
+    color: #1f2937;
+  }
+
+  /* Dark Mode Adjustments */
+  :global([data-theme="dark"]) .indicator-item-selected {
+    background: linear-gradient(135deg, #8a2be2 0%, #9932cc 100%);
+    color: white;
+    border-left: 2px solid rgba(138, 43, 226, 0.8);
+    border-bottom-color: rgba(138, 43, 226, 0.2);
+  }
+
+  :global([data-theme="dark"]) .indicator-item-unselected {
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom-color: rgba(138, 43, 226, 0.2);
+  }
+
+  :global([data-theme="dark"]) .indicator-item-unselected:hover {
+    background: rgba(138, 43, 226, 0.2);
+    color: white;
+  }
+
+  :global([data-theme="dark"]) .indicator-dot-selected {
+    background: white;
+    box-shadow: 0 4px 15px rgba(138, 43, 226, 0.4);
+  }
+
+  :global([data-theme="dark"]) .indicator-dot-unselected {
+    background: rgba(255, 255, 255, 0.4);
+  }
+
+  :global([data-theme="dark"]) .group:hover .indicator-dot-unselected {
+    background: rgba(138, 43, 226, 0.8);
+    transform: scale(1.5);
+  }
+
+  :global([data-theme="dark"]) .indicator-text-selected {
+    color: white;
+  }
+
+  :global([data-theme="dark"]) .indicator-text-unselected {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  :global([data-theme="dark"]) .group:hover .indicator-text-unselected {
+    color: white;
+  }
+
+  :global([data-theme="dark"]) .edit-btn, :global([data-theme="dark"]) .delete-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(138, 43, 226, 0.2);
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  :global([data-theme="dark"]) .edit-btn:hover, :global([data-theme="dark"]) .delete-btn:hover {
+    background: rgba(138, 43, 226, 0.2);
+    border-color: rgba(138, 43, 226, 0.4);
+    color: white;
+  }
+
+  /* Light Mode Scrollbar */
+  :global([data-theme="light"]) .ultra-minimal-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.15));
+  }
+  
+  :global([data-theme="light"]) .ultra-minimal-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.5), rgba(59, 130, 246, 0.3));
+  }
+
+  /* Dark Mode Scrollbar */
+  :global([data-theme="dark"]) .ultra-minimal-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(138, 43, 226, 0.4), rgba(138, 43, 226, 0.2));
+  }
+  
+  :global([data-theme="dark"]) .ultra-minimal-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(138, 43, 226, 0.6), rgba(138, 43, 226, 0.4));
+  }
+
+  /* Mobile responsive enhancements */
+  @media (max-width: 640px) {
+    .ultra-minimal-scrollbar {
+      height: 400px;
+    }
+    
+    .ultra-minimal-scrollbar::-webkit-scrollbar {
+      width: 1px;
+    }
+  }
 </style>
