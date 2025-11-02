@@ -41,9 +41,9 @@
   // Bollinger Bands specific variables
   let bollingerFillColor = $state('#2196F3'); // Default blue color
   let bollingerFillOpacity = $state(5); // Default 5%
-  let bollingerUpperColor = $state('#2196F3');
-  let bollingerMiddleColor = $state('#FF9800');
-  let bollingerLowerColor = $state('#2196F3');
+  let bollingerUpperColor = $state('#f23645'); // Default red for upper band
+  let bollingerMiddleColor = $state('#2962ff'); // Default blue for middle line
+  let bollingerLowerColor = $state('#089981'); // Default green for lower band
   let bollingerThickness = $state(1);
   let bollingerLineStyle = $state('solid');
   let bollingerPeriod = $state(20);
@@ -317,6 +317,19 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   });
 
+  // SMA initialization effect
+  let smaInitialized = $state(false);
+  $effect(() => {
+    if (isSma && !smaInitialized) {
+      console.log('🎯 SMA modal opened, initializing...');
+      smaInitialized = true;
+      initializeSmaGroups();
+    } else if (!isSma && smaInitialized) {
+      // Reset flag when SMA modal is closed
+      smaInitialized = false;
+    }
+  });
+
   // VR initialization effect
   let vrInitialized = $state(false);
   $effect(() => {
@@ -340,6 +353,146 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     } else if (!isVol && volInitialized) {
       // Reset flag when Volume modal is closed
       volInitialized = false;
+    }
+  });
+
+  // BBI initialization effect
+  let bbiInitialized = $state(false);
+  $effect(() => {
+    if (isBbi && !bbiInitialized) {
+      console.log('🎯 BBI modal opened, initializing...');
+      bbiInitialized = true;
+      initializeBbiGroups();
+    } else if (!isBbi && bbiInitialized) {
+      // Reset flag when BBI modal is closed
+      bbiInitialized = false;
+    }
+  });
+
+  // BBI real-time parameter update effects
+  $effect(() => {
+    if (isBbi && bbiInitialized && $chart) {
+      // Watch for changes in BBI groups and update indicators in real-time
+      bbiGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { period1, period2, period3, period4, color, thickness, lineStyle } = group;
+        
+        // Trigger update when parameters or styles change
+        if (period1 && period2 && period3 && period4 && color && thickness && lineStyle) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            updateBbiIndicator(index);
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
+  // Bollinger Bands initialization effect
+  let bollingerInitialized = $state(false);
+  $effect(() => {
+    if (isBollingerBands && !bollingerInitialized) {
+      console.log('🎯 Bollinger Bands modal opened, initializing...');
+      bollingerInitialized = true;
+      initializeBollingerBands();
+    } else if (!isBollingerBands && bollingerInitialized) {
+      // Reset flag when Bollinger Bands modal is closed
+      bollingerInitialized = false;
+    }
+  });
+
+  // Bollinger Bands real-time parameter update effects
+  $effect(() => {
+    if (isBollingerBands && bollingerInitialized && $chart) {
+      // Watch for changes in Bollinger Bands parameters and styles
+      const period = bollingerPeriod;
+      const stdDev = bollingerStdDev;
+      const fillColor = bollingerFillColor;
+      const fillOpacity = bollingerFillOpacity;
+      const upperColor = bollingerUpperColor;
+      const middleColor = bollingerMiddleColor;
+      const lowerColor = bollingerLowerColor;
+      const thickness = bollingerThickness;
+      const lineStyle = bollingerLineStyle;
+      
+      // Trigger update when any parameter or style changes
+      if (period && stdDev && fillColor && upperColor && middleColor && lowerColor && thickness && lineStyle) {
+        // Small delay to prevent excessive updates during rapid changes
+        const timeoutId = setTimeout(() => {
+          // Create custom styles for Bollinger Bands
+          const indicatorStyles = {
+            lines: [
+              {
+                color: upperColor,
+                size: thickness,
+                style: lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+                dashedValue: lineStyle === 'dashed' ? [4, 4] : [0, 0]
+              },
+              {
+                color: middleColor,
+                size: thickness,
+                style: lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+                dashedValue: lineStyle === 'dashed' ? [4, 4] : [0, 0]
+              },
+              {
+                color: lowerColor,
+                size: thickness,
+                style: lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+                dashedValue: lineStyle === 'dashed' ? [4, 4] : [0, 0]
+              }
+            ],
+            fill: {
+              color: fillColor,
+              opacity: fillOpacity / 100 // Convert percentage to decimal (0-1)
+            }
+          };
+
+          $chart?.overrideIndicator({
+            name: 'BOLL',
+            calcParams: [period, stdDev],
+            styles: indicatorStyles,
+            paneId: $ctx.editPaneId
+          });
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  });
+
+  // SAR initialization effect
+  let sarInitialized = $state(false);
+  $effect(() => {
+    if (isSar && !sarInitialized) {
+      console.log('🎯 SAR modal opened, initializing...');
+      sarInitialized = true;
+      initializeSarGroups();
+    } else if (!isSar && sarInitialized) {
+      // Reset flag when SAR modal is closed
+      sarInitialized = false;
+    }
+  });
+
+  // SAR real-time parameter update effects
+  $effect(() => {
+    if (isSar && sarInitialized && $chart) {
+      // Watch for changes in SAR groups and update indicators in real-time
+      sarGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { start, increment, maxValue, color, dotSize } = group;
+        
+        // Trigger update when parameters or styles change
+        if (start !== undefined && increment !== undefined && maxValue !== undefined && color && dotSize) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            updateSarIndicator(index);
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
     }
   });
 
@@ -423,6 +576,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   let bbiGroups = $state<Array<{
     id: string;
     name: string;
+    paneId?: string; // Track which pane this BBI indicator belongs to
     period1: number;
     period2: number;
     period3: number;
@@ -434,6 +588,16 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
   // BIAS groups management
   let biasGroups = $state<Array<{
+    id: string;
+    name: string;
+    period: number;
+    color: string;
+    thickness: number;
+    lineStyle: string;
+  }>>([]);
+
+  // SMA groups management
+  let smaGroups = $state<Array<{
     id: string;
     name: string;
     period: number;
@@ -2173,6 +2337,449 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
      }
   }
 
+  function updateBbiIndicator(groupIndex: number) {
+    if ($ctx.editIndName !== 'BBI' || !$chart || groupIndex < 0 || groupIndex >= bbiGroups.length) return;
+    
+    const group = bbiGroups[groupIndex];
+    const paneId = group.paneId || $ctx.editPaneId;
+    
+    console.log('🔄 Updating BBI indicator:', groupIndex, paneId);
+    
+    try {
+      // Remove the existing BBI indicator from this specific pane
+      $chart.removeIndicator({ paneId: paneId, name: 'BBI' });
+      
+      // Convert line style to klinecharts format
+      const convertLineStyle = (style: string) => {
+        switch (style) {
+          case 'dashed': return { style: kc.LineType.Dashed, dashedValue: [4, 4] };
+          case 'dotted': return { style: kc.LineType.Dashed, dashedValue: [2, 2] };
+          default: return { style: kc.LineType.Solid, dashedValue: [2, 2] };
+        }
+      };
+      
+      const bbiStyle = convertLineStyle(group.lineStyle);
+      
+      // Re-create the BBI indicator with updated parameters
+      const indicatorId = $chart.createIndicator({
+        name: 'BBI',
+        calcParams: [group.period1, group.period2, group.period3, group.period4],
+        styles: {
+          lines: [{
+            color: group.color,
+            size: group.thickness,
+            style: bbiStyle.style,
+            dashedValue: bbiStyle.dashedValue
+          }]
+        }
+      }, paneId === $ctx.editPaneId, { id: paneId });
+      
+      // Update the save system
+      if (indicatorId) {
+        const saveKey = `${paneId}_BBI`;
+        save.update(s => {
+          s.saveInds[saveKey] = {
+            name: 'BBI',
+            pane_id: paneId,
+            params: [group.period1, group.period2, group.period3, group.period4],
+            bbiGroup: group
+          };
+          return s;
+        });
+      }
+      
+      console.log('✅ BBI indicator updated successfully');
+    } catch (error) {
+      console.error('❌ Error updating BBI indicator:', error);
+    }
+  }
+
+  function updateEmaIndicator() {
+    if ($ctx.editIndName !== 'EMA' || !$chart) return;
+    
+    try {
+      console.log('🔄 Updating EMA indicator');
+      
+      // Remove the existing EMA indicator from the edit pane
+      $chart.removeIndicator({ paneId: $ctx.editPaneId, name: 'EMA' });
+      
+      // Re-create the EMA indicator with updated parameters
+      const indicatorId = $chart.createIndicator({
+        name: 'EMA',
+        calcParams: params,
+        styles: {
+          lines: params.map((_, index) => {
+            const style = styles[index];
+            let lineStyle = kc.LineType.Solid;
+            let dashedValue = [2, 2];
+            
+            if (style?.lineStyle === 'dashed') {
+              lineStyle = kc.LineType.Dashed;
+              dashedValue = [4, 4];
+            } else if (style?.lineStyle === 'dotted') {
+              lineStyle = kc.LineType.Dashed;
+              dashedValue = [2, 2];
+            }
+            
+            return {
+              color: style?.color || '#FF6B6B',
+              size: style?.thickness || 1,
+              style: lineStyle,
+              dashedValue: dashedValue
+            };
+          })
+        }
+      }, true, { id: $ctx.editPaneId });
+      
+      console.log('✅ EMA indicator updated successfully');
+       
+     } catch (error) {
+       console.error('❌ Error updating EMA indicator:', error);
+     }
+  }
+
+  function updateMaIndicator() {
+    if ($ctx.editIndName !== 'MA' || !$chart) return;
+    
+    try {
+      console.log('🔄 Updating MA indicator');
+      
+      // Remove the existing MA indicator from the edit pane
+      $chart.removeIndicator({ paneId: $ctx.editPaneId, name: 'MA' });
+      
+      // Re-create the MA indicator with updated parameters
+      const indicatorId = $chart.createIndicator({
+        name: 'MA',
+        calcParams: params,
+        styles: {
+          lines: params.map((_, index) => {
+            const style = styles[index];
+            let lineStyle = kc.LineType.Solid;
+            let dashedValue = [2, 2];
+            
+            if (style?.lineStyle === 'dashed') {
+              lineStyle = kc.LineType.Dashed;
+              dashedValue = [4, 4];
+            } else if (style?.lineStyle === 'dotted') {
+              lineStyle = kc.LineType.Dashed;
+              dashedValue = [2, 2];
+            }
+            
+            return {
+              color: style?.color || '#2563eb',
+              size: style?.thickness || 1,
+              style: lineStyle,
+              dashedValue: dashedValue
+            };
+          })
+        }
+      }, true, { id: $ctx.editPaneId });
+      
+      // Save the updated configuration
+      const saveKey = `${$ctx.editPaneId}_MA`;
+      save.update(s => {
+        if (s.saveInds[saveKey]) {
+          s.saveInds[saveKey].params = [...params];
+          s.saveInds[saveKey].styles = styles.map(style => ({...style}));
+        }
+        return s;
+      });
+      
+      console.log('✅ MA indicator updated successfully');
+       
+     } catch (error) {
+       console.error('❌ Error updating MA indicator:', error);
+     }
+  }
+
+  // Initialize SMA groups (support multiple)
+  function initializeSmaGroups() {
+    if (!isSma) return;
+    
+    const savedKey = `${$ctx.editPaneId}_SMA`;
+    const savedInd = $save.saveInds[savedKey];
+    
+    if (savedInd && (savedInd as any).smaGroups && (savedInd as any).smaGroups.length > 0) {
+      // Load saved SMA groups (multiple SMAs)
+      smaGroups = [...(savedInd as any).smaGroups];
+      console.log('✅ Loaded', smaGroups.length, 'SMA groups from saved data');
+    } else if (savedInd && savedInd.params && savedInd.params.length > 0 && savedInd.styles) {
+      // Load from old format (single SMA)
+      smaGroups = [{
+        id: generateUUID(),
+        name: 'SMA',
+        period: savedInd.params[0] || 20,
+        color: savedInd.styles[0]?.color || '#FF6C37',
+        thickness: savedInd.styles[0]?.thickness || 2,
+        lineStyle: savedInd.styles[0]?.lineStyle || 'solid'
+      }];
+      console.log('✅ Loaded SMA from saved data (old format)');
+    } else if (smaGroups.length === 0) {
+      // Create default SMA group
+      smaGroups = [{
+        id: generateUUID(),
+        name: 'SMA',
+        period: 20,
+        color: '#FF6C37',
+        thickness: 2,
+        lineStyle: 'solid'
+      }];
+      console.log('✅ Created default SMA group');
+    }
+  }
+
+  // Update specific SMA indicator with real-time changes
+  function updateSmaIndicator(groupIndex: number) {
+    if ($ctx.editIndName !== 'SMA' || !$chart || smaGroups.length === 0 || groupIndex >= smaGroups.length) return;
+    
+    try {
+      console.log('🔄 Updating SMA indicator at index:', groupIndex);
+      
+      const group = smaGroups[groupIndex];
+      
+      // Remove ALL existing SMA indicators
+      const indicators = $chart?.getIndicators();
+      const smaIndicators = indicators.filter(ind => ind.name === 'SMA');
+      for (const indicator of smaIndicators) {
+        $chart?.removeIndicator({ paneId: indicator.paneId, name: 'SMA' });
+      }
+      
+      // Re-create ALL SMA indicators
+      smaGroups.forEach((g, idx) => {
+        // Convert line style to klinecharts format
+        let lineStyle = kc.LineType.Solid;
+        let dashedValue = [2, 2];
+        
+        if (g.lineStyle === 'dashed') {
+          lineStyle = kc.LineType.Dashed;
+          dashedValue = [8, 4];
+        } else if (g.lineStyle === 'dotted') {
+          lineStyle = kc.LineType.Dashed;
+          dashedValue = [2, 2];
+        }
+        
+        // Create SMA indicator
+        $chart?.createIndicator({
+          name: 'SMA',
+          calcParams: [g.period],
+          styles: {
+            lines: [{
+              color: g.color,
+              size: g.thickness,
+              style: lineStyle,
+              dashedValue: dashedValue
+            }]
+          }
+        }, true, { id: $ctx.editPaneId });
+      });
+      
+      // Save the updated configuration
+      const saveKey = `${$ctx.editPaneId}_SMA`;
+      save.update(s => {
+        s.saveInds[saveKey] = {
+          name: 'SMA',
+          pane_id: $ctx.editPaneId,
+          smaGroups: smaGroups.map(g => ({...g}))
+        };
+        return s;
+      });
+      
+      console.log('✅ SMA indicators updated successfully');
+       
+     } catch (error) {
+       console.error('❌ Error updating SMA indicator:', error);
+     }
+  }
+
+  // Add new SMA group
+  function addSmaGroup() {
+    if (!isSma) return;
+    
+    const newPeriod = smaGroups.length > 0 ? smaGroups[smaGroups.length - 1].period + 10 : 20;
+    const colors = ['#FF6C37', '#2563eb', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    const newColor = colors[smaGroups.length % colors.length];
+    
+    const newGroup = {
+      id: generateUUID(),
+      name: 'SMA',
+      period: newPeriod,
+      color: newColor,
+      thickness: 2,
+      lineStyle: 'solid'
+    };
+    
+    smaGroups.push(newGroup);
+    
+    // Add to chart immediately
+    if ($chart) {
+      $chart.createIndicator({
+        name: 'SMA',
+        calcParams: [newGroup.period],
+        styles: {
+          lines: [{
+            color: newGroup.color,
+            size: newGroup.thickness,
+            style: kc.LineType.Solid,
+            dashedValue: [2, 2]
+          }]
+        }
+      }, true, { id: $ctx.editPaneId });
+      
+      // Save configuration
+      const saveKey = `${$ctx.editPaneId}_SMA`;
+      save.update(s => {
+        s.saveInds[saveKey] = {
+          name: 'SMA',
+          pane_id: $ctx.editPaneId,
+          smaGroups: smaGroups.map(g => ({...g}))
+        };
+        return s;
+      });
+    }
+    
+    console.log('➕ Added new SMA group:', newGroup);
+  }
+
+  // Remove SMA group
+  function removeSmaGroup(groupIndex: number) {
+    if (!isSma || smaGroups.length <= 1 || groupIndex < 0 || groupIndex >= smaGroups.length) return;
+    
+    console.log('🗑️ Removing SMA group at index:', groupIndex);
+    
+    // Remove from groups array
+    smaGroups.splice(groupIndex, 1);
+    
+    // Remove all SMA indicators from chart and re-add remaining ones
+    if ($chart) {
+      try {
+        const indicators = $chart?.getIndicators();
+        const smaIndicators = indicators.filter(ind => ind.name === 'SMA');
+        
+        // Remove all SMA indicators
+        for (const indicator of smaIndicators) {
+          $chart?.removeIndicator({ paneId: indicator.paneId, name: 'SMA' });
+        }
+        
+        // Re-add remaining SMA groups
+        smaGroups.forEach((group) => {
+          let lineStyle = kc.LineType.Solid;
+          let dashedValue = [2, 2];
+          
+          if (group.lineStyle === 'dashed') {
+            lineStyle = kc.LineType.Dashed;
+            dashedValue = [8, 4];
+          } else if (group.lineStyle === 'dotted') {
+            lineStyle = kc.LineType.Dashed;
+            dashedValue = [2, 2];
+          }
+          
+          $chart?.createIndicator({
+            name: 'SMA',
+            calcParams: [group.period],
+            styles: {
+              lines: [{
+                color: group.color,
+                size: group.thickness,
+                style: lineStyle,
+                dashedValue: dashedValue
+              }]
+            }
+          }, true, { id: $ctx.editPaneId });
+        });
+        
+        // Save updated configuration
+        const saveKey = `${$ctx.editPaneId}_SMA`;
+        save.update(s => {
+          if (smaGroups.length > 0) {
+            s.saveInds[saveKey] = {
+              name: 'SMA',
+              pane_id: $ctx.editPaneId,
+              smaGroups: smaGroups.map(g => ({...g}))
+            };
+          } else {
+            delete s.saveInds[saveKey];
+          }
+          return s;
+        });
+        
+        console.log('✅ SMA group removed and chart updated');
+      } catch (error) {
+        console.error('❌ Error removing SMA group:', error);
+      }
+    }
+  }
+
+  // Handle SMA confirm - save all SMA groups
+  function handleSmaConfirm() {
+    if (!isSma) return;
+    
+    console.log('🔧 SMA Confirm: Saving', smaGroups.length, 'SMA groups');
+    
+    try {
+      // Remove all existing SMA indicators from chart
+      const indicators = $chart?.getIndicators();
+      const smaIndicators = indicators?.filter(ind => ind.name === 'SMA') || [];
+      
+      for (const indicator of smaIndicators) {
+        $chart?.removeIndicator({ paneId: indicator.paneId, name: 'SMA' });
+      }
+      
+      // Re-create all SMA indicators with final settings
+      smaGroups.forEach((group) => {
+        let lineStyle = kc.LineType.Solid;
+        let dashedValue = [2, 2];
+        
+        if (group.lineStyle === 'dashed') {
+          lineStyle = kc.LineType.Dashed;
+          dashedValue = [8, 4];
+        } else if (group.lineStyle === 'dotted') {
+          lineStyle = kc.LineType.Dashed;
+          dashedValue = [2, 2];
+        }
+        
+        $chart?.createIndicator({
+          name: 'SMA',
+          calcParams: [group.period],
+          styles: {
+            lines: [{
+              color: group.color,
+              size: group.thickness,
+              style: lineStyle,
+              dashedValue: dashedValue
+            }]
+          }
+        }, true, { id: $ctx.editPaneId });
+        
+        console.log('✅ Created SMA with period:', group.period);
+      });
+      
+      // Save all SMA groups to persistent storage
+      const saveKey = `${$ctx.editPaneId}_SMA`;
+      save.update(s => {
+        s.saveInds[saveKey] = {
+          name: 'SMA',
+          pane_id: $ctx.editPaneId,
+          smaGroups: smaGroups.map(g => ({...g}))
+        };
+        console.log('💾 Saved', smaGroups.length, 'SMA groups to:', saveKey);
+        return s;
+      });
+      
+      console.log('✅ SMA confirm completed successfully');
+      
+      // Clear edit state
+      ctx.update(c => {
+        c.editIndName = '';
+        c.editPaneId = '';
+        c.modalIndCfg = false;
+        return c;
+      });
+      
+    } catch (error) {
+      console.error('❌ Error in SMA confirm:', error);
+    }
+  }
+
   // Initialize default BBI group
   function initializeBbiGroups() {
     if (!isBbi) return;
@@ -2196,15 +2803,23 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       allBbiKeys.forEach((key, index) => {
         const savedInd = $save.saveInds[key];
         if (savedInd) {
+          // Extract paneId from the save key or use saved pane_id
+          const paneId = savedInd.pane_id || key.replace('_BBI', '');
+          
           // Check if this saved indicator has a bbiGroup property
           if ((savedInd as any).bbiGroup) {
-            // Load from bbiGroup property
-            bbiGroups.push({...(savedInd as any).bbiGroup});
+            // Load from bbiGroup property and ensure paneId is set
+            const group = {...(savedInd as any).bbiGroup};
+            if (!group.paneId) {
+              group.paneId = paneId;
+            }
+            bbiGroups.push(group);
           } else if (savedInd.params && savedInd.params.length === 4) {
             // Create group from params if bbiGroup doesn't exist
             bbiGroups.push({
               id: generateUUID(),
               name: `BBI${index + 1}`,
+              paneId: paneId, // Set paneId properly
               period1: savedInd.params[0] || 3,
               period2: savedInd.params[1] || 6,
               period3: savedInd.params[2] || 12,
@@ -2223,6 +2838,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       bbiGroups = [{
         id: generateUUID(),
         name: 'BBI',
+        paneId: $ctx.editPaneId, // Set paneId for default BBI
         period1: 3,
         period2: 6,
         period3: 12,
@@ -2239,10 +2855,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function addBbiGroup() {
     if (!isBbi) return;
     
+    // Generate unique pane ID for new BBI group
+    const newPaneId = `pane_BBI_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     const groupNumber = bbiGroups.length + 1;
-    bbiGroups.push({
+    const newGroup = {
       id: generateUUID(),
       name: `BBI${groupNumber}`,
+      paneId: newPaneId,
       period1: 3,
       period2: 6,
       period3: 12,
@@ -2250,74 +2870,86 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       color: '#8B5CF6',
       thickness: 1,
       lineStyle: 'solid'
-    });
+    };
+    
+    bbiGroups.push(newGroup);
+    
+    // Add to chart immediately with proper styling in a new sub-pane
+    if ($chart) {
+      // Convert line style to klinecharts format
+      const convertLineStyle = (style: string) => {
+        switch (style) {
+          case 'dashed': return { style: kc.LineType.Dashed, dashedValue: [4, 4] };
+          case 'dotted': return { style: kc.LineType.Dashed, dashedValue: [2, 2] };
+          default: return { style: kc.LineType.Solid, dashedValue: [2, 2] };
+        }
+      };
+      
+      const bbiStyle = convertLineStyle(newGroup.lineStyle);
+      
+      const indicatorId = $chart.createIndicator({
+        name: 'BBI',
+        calcParams: [newGroup.period1, newGroup.period2, newGroup.period3, newGroup.period4],
+        styles: {
+          lines: [{
+            color: newGroup.color,
+            size: newGroup.thickness,
+            style: bbiStyle.style,
+            dashedValue: bbiStyle.dashedValue
+          }]
+        }
+      }, false, { id: newPaneId }); // false = create in sub-pane, not main pane
+      
+      // Save the indicator to the save system
+      if (indicatorId) {
+        const saveKey = `${newPaneId}_BBI`;
+        save.update(s => {
+          s.saveInds[saveKey] = {
+            name: 'BBI',
+            pane_id: newPaneId,
+            params: [newGroup.period1, newGroup.period2, newGroup.period3, newGroup.period4],
+            bbiGroup: newGroup
+          };
+          return s;
+        });
+      }
+    }
+    
+    console.log('➕ Added new BBI group in new pane:', newGroup.id, newPaneId);
   }
 
   function removeBbiGroup(groupId: string) {
     if (!isBbi || bbiGroups.length <= 1) return;
     
-    // Find the index of the group being removed
+    // Find the group being removed
     const groupIndex = bbiGroups.findIndex(group => group.id === groupId);
     if (groupIndex === -1) return;
     
-    console.log('🗑️ Removing BBI group at index:', groupIndex, 'ID:', groupId);
+    const groupToRemove = bbiGroups[groupIndex];
+    console.log('🗑️ Removing BBI group at index:', groupIndex, 'ID:', groupId, 'paneId:', groupToRemove.paneId);
     
-    // Remove the corresponding indicator from the chart FIRST
-    if (groupIndex === 0) {
-      // For the first group, remove from the current edit pane
-      if ($chart && $ctx.editPaneId) {
-        try {
-          console.log('🗑️ Removing BBI from edit pane:', $ctx.editPaneId);
-          $chart?.removeIndicator({ paneId: $ctx.editPaneId, name: 'BBI' });
-          console.log('✅ Successfully removed BBI from edit pane');
-        } catch (error) {
-          console.log('❌ Error removing BBI indicator from edit pane:', error);
-        }
+    // Determine the paneId to use for removal (fallback to editPaneId for first group)
+    const paneIdToRemove = groupToRemove.paneId || (groupIndex === 0 ? $ctx.editPaneId : null);
+    
+    // Remove the corresponding indicator from the chart using the group's paneId
+    if ($chart && paneIdToRemove) {
+      try {
+        console.log('🗑️ Removing BBI from pane:', paneIdToRemove);
+        $chart?.removeIndicator({ paneId: paneIdToRemove, name: 'BBI' });
+        console.log('✅ Successfully removed BBI from pane:', paneIdToRemove);
+      } catch (error) {
+        console.log('❌ Error removing BBI indicator from pane:', paneIdToRemove, error);
       }
       
-      // Clean up saved state for the first group
+      // Clean up saved state for this specific pane
       save.update(s => {
-        const saveKey = `${$ctx.editPaneId}_BBI`;
+        const saveKey = `${paneIdToRemove}_BBI`;
         console.log('🧹 Cleaning saved state key:', saveKey);
         delete s.saveInds[saveKey];
         return s;
       });
     } else {
-      // For additional groups, find and remove the corresponding indicator
-      const saveKey = `pane_BBI_${groupIndex + 1}_BBI`;
-      const savedData = $save.saveInds[saveKey];
-      
-      console.log('🗑️ Looking for saved data with key:', saveKey, 'Found:', !!savedData);
-      
-      if (savedData && savedData.pane_id && $chart) {
-        try {
-          console.log('🗑️ Removing BBI from pane:', savedData.pane_id);
-          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'BBI' });
-          console.log('✅ Successfully removed BBI from pane:', savedData.pane_id);
-        } catch (error) {
-          console.log('❌ Error removing BBI indicator from pane:', savedData.pane_id, error);
-        }
-      }
-      
-      // Clean up saved state for this group
-      save.update(s => {
-        console.log('🧹 Cleaning saved state for key:', saveKey);
-        delete s.saveInds[saveKey];
-        
-        // Reindex remaining groups to maintain consistency
-        const remainingGroups = Object.keys(s.saveInds).filter(key => 
-          key.startsWith('pane_BBI_') && s.saveInds[key].name === 'BBI'
-        ).sort();
-        
-        console.log('🔄 Reindexing remaining BBI groups:', remainingGroups);
-        
-        // Remove all pane_BBI_* entries and recreate them with correct indices
-        remainingGroups.forEach(key => {
-          delete s.saveInds[key];
-        });
-        
-        return s;
-      });
+      console.log('❌ Cannot remove BBI: no valid paneId found for group:', groupToRemove);
     }
     
     // Remove the group from the array AFTER removing from chart
@@ -2809,6 +3441,32 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         dotSize: 3
       }];
     }
+
+    // Apply the loaded configuration to the chart immediately
+    // This ensures the chart reflects the correct values when the modal opens
+    if ($chart && sarGroups.length > 0) {
+      sarGroups.forEach((group, index) => {
+        const calcParams = [group.start, group.increment, group.maxValue];
+        const indicatorStyles = {
+          lines: [{
+            color: group.color,
+            size: group.dotSize,
+            style: kc.LineType.Solid
+          }]
+        };
+
+        // For the first SAR group, update the current edit pane (main panel)
+        if (index === 0) {
+          $chart.overrideIndicator({
+            name: 'SAR',
+            calcParams: calcParams,
+            styles: indicatorStyles,
+            paneId: 'candle_pane'
+          });
+        }
+        // Additional groups will be handled by the confirmation
+      });
+    }
   }
 
 
@@ -2816,6 +3474,36 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function removeSarGroup(groupId: string) {
     if (!isSar || sarGroups.length <= 1) return;
     sarGroups = sarGroups.filter(group => group.id !== groupId);
+  }
+
+  // Update SAR indicator in real-time
+  function updateSarIndicator(index: number) {
+    if (!isSar || !$chart || index >= sarGroups.length) return;
+    
+    const group = sarGroups[index];
+    const calcParams = [group.start, group.increment, group.maxValue];
+    const indicatorStyles = {
+      lines: [{
+        color: group.color,
+        size: group.dotSize,
+        style: kc.LineType.Solid
+      }]
+    };
+
+    // For the first SAR group, update the current edit pane (main panel)
+    if (index === 0) {
+      $chart.overrideIndicator({
+        name: 'SAR',
+        calcParams: calcParams,
+        styles: indicatorStyles,
+        paneId: 'candle_pane'
+      });
+    } else {
+      // For additional groups, we need to remove and recreate
+      // This is a limitation of the SAR multi-group system
+      // The confirmation will handle proper recreation
+      console.log(`⚠️ SAR group ${index + 1} will be updated on confirm`);
+    }
   }
 
   // Initialize default DMI group
@@ -4391,6 +5079,47 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     console.log('🎨 Updated KDJ color:', lineType, group.styles[lineType].color);
   }
 
+  // Update Ichimoku indicator immediately when parameters change
+  function updateIchimokuIndicator() {
+    if (!isIchimoku || !$chart) return;
+    
+    const paneId = $ctx.editPaneId;
+    
+    // Create indicator styles for all Ichimoku lines
+    const indicatorStyles: any = {
+      lines: fields.map((field, i) => ({
+        color: styles[i].color,
+        size: styles[i].thickness,
+        style: styles[i].lineStyle === 'dashed' ? kc.LineType.Dashed : 
+               styles[i].lineStyle === 'dotted' ? kc.LineType.Dashed : kc.LineType.Solid,
+        dashedValue: styles[i].lineStyle === 'dashed' ? [4, 4] : [2, 2]
+      }))
+    };
+    
+    // Update the existing indicator with new parameters and styles
+    $chart?.overrideIndicator({
+      name: 'ICHIMOKU',
+      paneId: paneId,
+      styles: indicatorStyles,
+      calcParams: params
+    });
+    
+    // Persist changes to save data immediately
+    const saveKey = `${paneId}_ICHIMOKU`;
+    
+    save.update(s => {
+      if (s.saveInds[saveKey]) {
+        // Update existing saved indicator
+        s.saveInds[saveKey].params = [...params];
+        s.saveInds[saveKey].styles = styles.map(style => ({...style})); // Deep copy styles
+        console.log('💾 Persisted Ichimoku changes to save data:', saveKey, params, styles);
+      }
+      return s;
+    });
+    
+    console.log('🔄 Updated Ichimoku indicator:', params, styles);
+  }
+
   function removeKdjGroup(groupId: string) {
     if (!isKdj || kdjGroups.length <= 1) return;
     
@@ -4646,18 +5375,18 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       // Load saved styles
       bollingerFillColor = savedInd.bollingerStyles.fillColor || '#2196F3';
       bollingerFillOpacity = savedInd.bollingerStyles.fillOpacity ?? 5; // Default 5%
-      bollingerUpperColor = savedInd.bollingerStyles.upperColor || '#2196F3';
-      bollingerMiddleColor = savedInd.bollingerStyles.middleColor || '#FF9800';
-      bollingerLowerColor = savedInd.bollingerStyles.lowerColor || '#2196F3';
+      bollingerUpperColor = savedInd.bollingerStyles.upperColor || '#f23645';
+      bollingerMiddleColor = savedInd.bollingerStyles.middleColor || '#2962ff';
+      bollingerLowerColor = savedInd.bollingerStyles.lowerColor || '#089981';
       bollingerThickness = savedInd.bollingerStyles.thickness || 1;
       bollingerLineStyle = savedInd.bollingerStyles.lineStyle || 'solid';
     } else {
       // Use default values
       bollingerFillColor = '#2196F3';
       bollingerFillOpacity = 5; // Default 5%
-      bollingerUpperColor = '#2196F3';
-      bollingerMiddleColor = '#FF9800';
-      bollingerLowerColor = '#2196F3';
+      bollingerUpperColor = '#f23645'; // Red for upper band
+      bollingerMiddleColor = '#2962ff'; // Blue for middle line
+      bollingerLowerColor = '#089981'; // Green for lower band
       bollingerThickness = 1;
       bollingerLineStyle = 'solid';
     }
@@ -4670,6 +5399,44 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       // Use default parameters
       bollingerPeriod = 20;
       bollingerStdDev = 2;
+    }
+
+    // Apply the loaded configuration to the chart immediately
+    // This ensures the chart reflects the correct values when the modal opens
+    if ($chart) {
+      const indicatorStyles = {
+        lines: [
+          {
+            color: bollingerUpperColor,
+            size: bollingerThickness,
+            style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
+          },
+          {
+            color: bollingerMiddleColor,
+            size: bollingerThickness,
+            style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
+          },
+          {
+            color: bollingerLowerColor,
+            size: bollingerThickness,
+            style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
+          }
+        ],
+        fill: {
+          color: bollingerFillColor,
+          opacity: bollingerFillOpacity / 100 // Convert percentage to decimal (0-1)
+        }
+      };
+
+      $chart.overrideIndicator({
+        name: 'BOLL',
+        calcParams: [bollingerPeriod, bollingerStdDev],
+        styles: indicatorStyles,
+        paneId: $ctx.editPaneId
+      });
     }
   }
 
@@ -5249,6 +6016,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         if (savedInd && savedInd.params) {
           params.splice(0, params.length, ...savedInd.params);
           styles.splice(0, styles.length, ...(savedInd.styles || []));
+          
+          // For MA and EMA, trim fields to match params length
+          if ((isMa || isEma) && fields.length > params.length) {
+            fields.splice(params.length, fields.length - params.length);
+          }
         } else {
           // Use default parameters - exclude only pure color type parameters
           const defaultParams = defaultFields
@@ -5364,6 +6136,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     params.splice(index, 1);
     fields.splice(index, 1);
     styles.splice(index, 1);
+    
+    // Update MA or EMA indicator after deleting parameter
+    if (isMa) {
+      updateMaIndicator();
+    } else if (isEma) {
+      updateEmaIndicator();
+    }
   }
 
   function addParam() {
@@ -5400,6 +6179,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     fields.push(newField);
     params.push((newField as any).default || 0);
     styles.push({color: '#2563eb', thickness: 1, lineStyle: 'solid'});
+    
+    // Update MA or EMA indicator after adding new parameter
+    if (isMa) {
+      updateMaIndicator();
+    } else if (isEma) {
+      updateEmaIndicator();
+    }
   }
 
   function createNewBiasIndicator() {
@@ -6011,91 +6797,48 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function handleBbiConfirm() {
     if (!isBbi) return;
     
-    // Get existing BBI indicators to determine which ones already exist
-    const existingBbiKeys = Object.keys($save.saveInds).filter(key => 
-      $save.saveInds[key].name === 'BBI'
-    ).sort((a, b) => {
-      // Sort to ensure proper order: editPaneId_BBI first, then pane_BBI_2_BBI, etc.
-      if (a === `${$ctx.editPaneId}_BBI`) return -1;
-      if (b === `${$ctx.editPaneId}_BBI`) return 1;
-      return a.localeCompare(b);
-    });
+    console.log('🔧 Applying BBI changes. Current BBI groups:', bbiGroups.length);
     
-    console.log('🔧 Applying BBI changes. Existing keys:', existingBbiKeys);
-    console.log('🔧 Current BBI groups:', bbiGroups.length);
-    
-    // Remove indicators that are no longer needed (if we have fewer groups now)
-    const currentGroupCount = bbiGroups.length;
-    if (existingBbiKeys.length > currentGroupCount) {
-      for (let i = currentGroupCount; i < existingBbiKeys.length; i++) {
-        const key = existingBbiKeys[i];
-        const savedData = $save.saveInds[key];
-        if (savedData && savedData.pane_id) {
-          try {
-            console.log('🗑️ Removing excess BBI indicator from pane:', savedData.pane_id);
-            $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'BBI' });
-          } catch (error) {
-            console.log('❌ Error removing excess BBI indicator:', error);
-          }
-        }
-      }
-    }
-    
-    // Apply each BBI group as a separate indicator
+    // Apply each BBI group to its respective pane
     bbiGroups.forEach((group, index) => {
       const calcParams = [group.period1, group.period2, group.period3, group.period4];
+      
+      // Convert line style to klinecharts format
+      const convertLineStyle = (style: string) => {
+        switch (style) {
+          case 'dashed': return { style: kc.LineType.Dashed, dashedValue: [4, 4] };
+          case 'dotted': return { style: kc.LineType.Dashed, dashedValue: [2, 2] };
+          default: return { style: kc.LineType.Solid, dashedValue: [2, 2] };
+        }
+      };
+      
+      const bbiStyle = convertLineStyle(group.lineStyle);
       const indicatorStyles = {
         lines: [{
           color: group.color,
           size: group.thickness,
-          style: group.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-          dashedValue: group.lineStyle === 'dashed' ? [4, 4] : 
-                      group.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+          style: bbiStyle.style,
+          dashedValue: bbiStyle.dashedValue,
           smooth: false
         }]
       };
 
-      // For the first BBI group, always update the current edit pane
-      if (index === 0) {
-        console.log('🔄 Updating first BBI in pane:', $ctx.editPaneId);
-        $chart?.overrideIndicator({
-          name: 'BBI',
-          calcParams: calcParams,
-          styles: indicatorStyles,
-          paneId: $ctx.editPaneId
-        });
-      } else {
-        // For additional groups, check if they already exist using the correct key pattern
-        const expectedSaveKey = `pane_BBI_${index + 1}_BBI`;
-        const existingGroup = existingBbiKeys.find(key => key === expectedSaveKey);
-        
-        if (existingGroup) {
-          // Update existing indicator
-          const existingData = $save.saveInds[existingGroup];
-          if (existingData && existingData.pane_id) {
-            console.log('🔄 Updating existing BBI in pane:', existingData.pane_id);
-            $chart?.overrideIndicator({
-              name: 'BBI',
-              calcParams: calcParams,
-              styles: indicatorStyles,
-              paneId: existingData.pane_id
-            });
-          }
-        } else {
-          // Create new pane with controlled pane ID for truly new groups
-          const newPaneId = `pane_BBI_${index + 1}`;
-          console.log('🆕 Creating new BBI in pane:', newPaneId);
-          const newIndicatorId = $chart?.createIndicator({
-            name: 'BBI',
-            calcParams: calcParams,
-            styles: indicatorStyles
-          }, true, { id: newPaneId }); // Use controlled pane ID
-          
-          // Store the actual pane ID that was created
-          if (newIndicatorId) {
-            console.log('✅ Created new BBI indicator with ID:', newIndicatorId, 'in pane:', newPaneId);
-          }
-        }
+      // Use the group's paneId if it exists, otherwise use editPaneId for first group
+      const targetPaneId = group.paneId || (index === 0 ? $ctx.editPaneId : `pane_BBI_${index + 1}`);
+      
+      console.log('🔄 Updating BBI group', index, 'in pane:', targetPaneId);
+      
+      // Update the indicator in the correct pane
+      $chart?.overrideIndicator({
+        name: 'BBI',
+        calcParams: calcParams,
+        styles: indicatorStyles,
+        paneId: targetPaneId
+      });
+      
+      // Update the group's paneId if it wasn't set
+      if (!group.paneId) {
+        group.paneId = targetPaneId;
       }
     });
 
@@ -6108,21 +6851,20 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         }
       });
       
-      // Save each BBI group separately
+      // Save each BBI group with its correct paneId
       bbiGroups.forEach((group, index) => {
-        const saveKey = index === 0 ? `${$ctx.editPaneId}_BBI` : `pane_BBI_${index + 1}_BBI`;
-        const paneId = index === 0 ? $ctx.editPaneId : `pane_BBI_${index + 1}`;
+        const saveKey = `${group.paneId}_BBI`;
         const saveData: any = {
           name: 'BBI',
           bbiGroup: group,
-          pane_id: paneId,
+          pane_id: group.paneId,
           groupIndex: index,
           bbiGroups: index === 0 ? [...bbiGroups] : undefined,
           params: [group.period1, group.period2, group.period3, group.period4]
         };
         
         s.saveInds[saveKey] = saveData;
-        console.log('💾 Saved BBI group', index, 'with key:', saveKey, 'and pane ID:', paneId);
+        console.log('💾 Saved BBI group', index, 'with key:', saveKey, 'and pane ID:', group.paneId);
       });
       
       return s;
@@ -8042,25 +8784,6 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     });
     
     if (from === 'close' || from === 'cancel') {
-      // If this is a BBI indicator being edited and user clicks close (X button), delete the indicator
-      if (from === 'close' && isBbi && $ctx.editIndName && $ctx.editPaneId) {
-        // Delete the BBI indicator from chart and save data
-        const bbiEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'BBI');
-        bbiEntries.forEach(([key, ind]) => {
-          delInd(ind.pane_id, 'BBI');
-        });
-        
-        // Clear all BBI-related saved data
-        save.update(s => {
-          Object.keys(s.saveInds).forEach(key => {
-            if (s.saveInds[key].name === 'BBI') {
-              delete s.saveInds[key];
-            }
-          });
-          return s;
-        });
-      }
-      
       // Clear edit state to prevent modal from getting stuck
       ctx.update(c => {
         c.editIndName = '';
@@ -8157,6 +8880,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     // Handle BIAS groups specially
     if (from === 'confirm' && isBias && $ctx.editIndName && $ctx.editPaneId) {
       handleBiasConfirm();
+      return;
+    }
+
+    // Handle SMA groups specially
+    if (from === 'confirm' && isSma && $ctx.editIndName && $ctx.editPaneId) {
+      handleSmaConfirm();
       return;
     }
 
@@ -8390,7 +9119,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
 </script>
 
-<Modal title={$ctx.editIndName} width="min(90vw, 800px)" maxHeight="90vh" bind:show={show} click={handleConfirm}>
+<Modal title={$ctx.editIndName} width={600} maxWidth="min(600px, 95vw)" maxHeight="90vh" bind:show={show} theme={$save.theme} click={handleConfirm}>
   <div class="responsive-modal-content">
     {#if isMacd}
     <!-- MACD Minimalist UI -->
@@ -8888,7 +9617,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
           
           <!-- Parameters Row -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <div class="grid grid-cols-2 gap-2 sm:gap-3">
             <div class="flex flex-col gap-1">
               <label class="text-xs text-base-content/60">Period</label>
               <input 
@@ -8911,7 +9640,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               />
             </div>
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-base-content/60">Middle</label>
+              <label class="text-xs text-base-content/60">Middle Level</label>
               <input 
                 type="number" 
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
@@ -9071,7 +9800,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
           
           <!-- Parameters Row -->
-          <div class="grid grid-cols-3 gap-2 sm:gap-3">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
             <div class="flex flex-col gap-1">
               <label class="text-xs text-base-content/60">Period</label>
               <input 
@@ -9090,7 +9819,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 min="1"
               />
             </div>
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1 sm:col-span-1 col-span-2">
               <label class="text-xs text-base-content/60">Long Period</label>
               <input 
                 type="number" 
@@ -9104,7 +9833,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           <!-- VR Main Line Style Controls -->
           <div class="space-y-2">
             <div class="text-xs font-medium text-base-content/70">VR Main Line</div>
-            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
                 <button 
@@ -9116,7 +9845,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               </div>
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.vr.thickness} onchange={() => updateVrIndicator(groupIndex)}>
+                <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles.vr.thickness} onchange={() => updateVrIndicator(groupIndex)}>
                   <option value={1}>1px</option>
                   <option value={2}>2px</option>
                   <option value={3}>3px</option>
@@ -9126,7 +9855,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               </div>
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.vr.lineStyle} onchange={() => updateVrIndicator(groupIndex)}>
+                <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles.vr.lineStyle} onchange={() => updateVrIndicator(groupIndex)}>
                   <option value="solid">Solid</option>
                   <option value="dashed">Dashed</option>
                   <option value="dotted">Dotted</option>
@@ -9138,7 +9867,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           <!-- VR Short Line Style Controls -->
           <div class="space-y-2">
             <div class="text-xs font-medium text-base-content/70">VR Short Line</div>
-            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
                 <button 
@@ -9150,7 +9879,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               </div>
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.vrShort.thickness} onchange={() => updateVrIndicator(groupIndex)}>
+                <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles.vrShort.thickness} onchange={() => updateVrIndicator(groupIndex)}>
                   <option value={1}>1px</option>
                   <option value={2}>2px</option>
                   <option value={3}>3px</option>
@@ -9160,7 +9889,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               </div>
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.vrShort.lineStyle} onchange={() => updateVrIndicator(groupIndex)}>
+                <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles.vrShort.lineStyle} onchange={() => updateVrIndicator(groupIndex)}>
                   <option value="solid">Solid</option>
                   <option value="dashed">Dashed</option>
                   <option value="dotted">Dotted</option>
@@ -9172,7 +9901,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           <!-- VR Long Line Style Controls -->
           <div class="space-y-2">
             <div class="text-xs font-medium text-base-content/70">VR Long Line</div>
-            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
                 <button 
@@ -9184,7 +9913,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               </div>
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.vrLong.thickness} onchange={() => updateVrIndicator(groupIndex)}>
+                <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles.vrLong.thickness} onchange={() => updateVrIndicator(groupIndex)}>
                   <option value={1}>1px</option>
                   <option value={2}>2px</option>
                   <option value={3}>3px</option>
@@ -9194,7 +9923,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               </div>
               <div class="flex items-center gap-2">
                 <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.vrLong.lineStyle} onchange={() => updateVrIndicator(groupIndex)}>
+                <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles.vrLong.lineStyle} onchange={() => updateVrIndicator(groupIndex)}>
                   <option value="solid">Solid</option>
                   <option value="dashed">Dashed</option>
                   <option value="dotted">Dotted</option>
@@ -9241,47 +9970,51 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
           
           <!-- Periods Row -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <div class="grid grid-cols-2 gap-2 sm:gap-3">
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-base-content/60">P1</label>
+              <label class="text-xs text-base-content/60">Period 1</label>
               <input 
                 type="number" 
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.period1} 
                 min="1"
+                onchange={() => updateBbiIndicator(groupIndex)}
               />
             </div>
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-base-content/60">P2</label>
+              <label class="text-xs text-base-content/60">Period 2</label>
               <input 
                 type="number" 
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.period2} 
                 min="1"
+                onchange={() => updateBbiIndicator(groupIndex)}
               />
             </div>
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-base-content/60">P3</label>
+              <label class="text-xs text-base-content/60">Period 3</label>
               <input 
                 type="number" 
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.period3} 
                 min="1"
+                onchange={() => updateBbiIndicator(groupIndex)}
               />
             </div>
             <div class="flex flex-col gap-1">
-              <label class="text-xs text-base-content/60">P4</label>
+              <label class="text-xs text-base-content/60">Period 4</label>
               <input 
                 type="number" 
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.period4} 
                 min="1"
+                onchange={() => updateBbiIndicator(groupIndex)}
               />
             </div>
           </div>
           
           <!-- Style Controls Row -->
-          <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
               <button 
@@ -9293,7 +10026,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             </div>
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.thickness}>
+              <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.thickness} onchange={() => updateBbiIndicator(groupIndex)}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
@@ -9303,7 +10036,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             </div>
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.lineStyle}>
+              <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.lineStyle} onchange={() => updateBbiIndicator(groupIndex)}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -9611,7 +10344,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
           
           <!-- Parameters Section -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+          <div class="grid grid-cols-2 gap-2 sm:gap-3">
             <div class="flex flex-col gap-1">
               <label class="text-xs text-base-content/60">CR Period</label>
               <input 
@@ -10052,7 +10785,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">{field.title}</span>
             <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]}/>
+              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]} onchange={() => updateEmaIndicator()}/>
               {#if params.length > 1}
                 <button 
                   class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" 
@@ -10070,6 +10803,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
           
           <!-- Styling Controls -->
+          {#if styles[i]}
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <!-- Color Picker -->
             <div class="flex items-center gap-2">
@@ -10085,7 +10819,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Thickness Dropdown -->
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness}>
+              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness} onchange={() => updateEmaIndicator()}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
@@ -10097,13 +10831,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Line Style Selector -->
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle}>
+              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle} onchange={() => updateEmaIndicator()}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
               </select>
             </div>
           </div>
+          {/if}
         </div>
       {/each}
       
@@ -10122,6 +10857,108 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </button>
         </div>
       {/if}
+    </div>
+  {:else if isSma}
+    <!-- SMA Multi-Instance UI (like MA/EMA) -->
+    <div class="space-y-3 mt-3">
+      {#each smaGroups as group, groupIndex}
+        <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3">
+          <!-- SMA Header -->
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-base-content/80">SMA ({group.period})</span>
+            {#if smaGroups.length > 1}
+              <button 
+                class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" 
+                onclick={() => removeSmaGroup(groupIndex)}
+                title="Delete this SMA"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            {/if}
+          </div>
+          
+          <!-- Period Input -->
+          <div class="flex flex-col gap-2">
+            <label class="text-xs text-base-content/70 font-medium">Period</label>
+            <input 
+              type="number" 
+              class="input input-bordered input-sm" 
+              bind:value={group.period}
+              onchange={() => updateSmaIndicator(groupIndex)}
+              min="1" 
+              max="500"
+            />
+          </div>
+          
+          <!-- Style Controls -->
+          <div class="space-y-3">
+            <!-- Color -->
+            <div class="flex items-center justify-between">
+              <label class="text-xs text-base-content/70">Color</label>
+              <button 
+                class="btn btn-sm btn-outline"
+                onclick={(e) => {
+                  smaColorPaletteIndex = groupIndex;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  smaColorPalettePosition = { 
+                    x: rect.left + rect.width / 2, 
+                    y: rect.bottom + 5 
+                  };
+                  showSmaColorPalette = true;
+                }}
+              >
+                <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.color}"></div>
+              </button>
+            </div>
+            
+            <!-- Thickness -->
+            <div class="flex items-center justify-between">
+              <label class="text-xs text-base-content/70">Line Thickness</label>
+              <select 
+                class="select select-bordered select-xs w-20"
+                bind:value={group.thickness}
+                onchange={() => updateSmaIndicator(groupIndex)}
+              >
+                <option value={1}>1px</option>
+                <option value={2}>2px</option>
+                <option value={3}>3px</option>
+                <option value={4}>4px</option>
+                <option value={5}>5px</option>
+              </select>
+            </div>
+            
+            <!-- Line Style -->
+            <div class="flex items-center justify-between">
+              <label class="text-xs text-base-content/70">Line Style</label>
+              <select 
+                class="select select-bordered select-xs w-24"
+                bind:value={group.lineStyle}
+                onchange={() => updateSmaIndicator(groupIndex)}
+              >
+                <option value="solid">Solid</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      {/each}
+      
+      <!-- Add More SMA Button -->
+      <div class="flex justify-center mt-3">
+        <button 
+          class="btn btn-sm btn-outline btn-primary" 
+          onclick={addSmaGroup}
+          title="Add more SMA"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Add SMA
+        </button>
+      </div>
     </div>
   {:else if isVol}
     <!-- Volume Groups UI (VR-style implementation) -->
@@ -10547,55 +11384,93 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       </div>
     </div>
   {:else if isIchimoku}
-    <!-- Ichimoku Specific UI -->
-    <div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5">
-      {#each fields as field, i}
-        <div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3">
-          <!-- Parameter Value -->
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <span class="w-full sm:w-32 text-base-content/70 text-sm font-medium min-w-fit">{field.title}</span>
-            <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]}/>
-            </div>
+    <!-- Ichimoku Specific UI - Single Unified Card -->
+    <div class="mt-3 sm:mt-5">
+      <div class="border border-base-300 rounded-lg p-4 bg-base-50/50">
+        <!-- Ichimoku Header -->
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-base-200">
+          <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path>
+            </svg>
           </div>
-          
-          <!-- Styling Controls -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <!-- Color Picker -->
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
-              <button 
-                class="btn btn-sm btn-outline"
-                onclick={showIchimokuColorPaletteHandler(i)}
-              >
-                <div class="w-4 h-4 rounded border border-base-300" style="background-color: {styles[i].color}"></div>
-              </button>
-            </div>
-            
-            <!-- Thickness Dropdown -->
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness}>
-                <option value={1}>1px</option>
-                <option value={2}>2px</option>
-                <option value={3}>3px</option>
-                <option value={4}>4px</option>
-                <option value={5}>5px</option>
-              </select>
-            </div>
-            
-            <!-- Line Style Selector -->
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle}>
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
-            </div>
+          <div>
+            <h3 class="text-lg font-semibold text-base-content">Ichimoku Kinko Hyo</h3>
+            <p class="text-sm text-base-content/60">Complete cloud indicator with all components</p>
           </div>
         </div>
-      {/each}
+
+        <!-- All Parameters in Single Section -->
+        <div class="space-y-5">
+          {#each fields as field, i}
+            <!-- Parameter Row -->
+            <div class="flex flex-col gap-3 p-3 bg-base-100/50 rounded-lg">
+              <!-- Parameter Info & Period -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="flex items-center gap-3">
+                  <div class="w-4 h-4 rounded-full border-2 border-white shadow-sm" style="background-color: {styles[i].color}"></div>
+                  <span class="text-sm font-medium text-base-content min-w-fit">{field.title}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-base-content/60 min-w-fit">Period:</span>
+                  <input 
+                    type="number" 
+                    class="input input-bordered input-sm w-20 text-center" 
+                    bind:value={params[i]}
+                    min="1"
+                    max="200"
+                    onchange={() => updateIchimokuIndicator()}
+                  />
+                </div>
+              </div>
+              
+              <!-- Styling Controls -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                <!-- Color Picker -->
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
+                  <button 
+                    class="btn btn-sm btn-outline"
+                    onclick={showIchimokuColorPaletteHandler(i)}
+                  >
+                    <div class="w-4 h-4 rounded border border-base-300" style="background-color: {styles[i].color}"></div>
+                  </button>
+                </div>
+                
+                <!-- Thickness -->
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
+                  <select class="select select-bordered select-xs flex-1 text-xs" bind:value={styles[i].thickness} onchange={() => updateIchimokuIndicator()}>
+                    <option value={1}>1px</option>
+                    <option value={2}>2px</option>
+                    <option value={3}>3px</option>
+                    <option value={4}>4px</option>
+                    <option value={5}>5px</option>
+                  </select>
+                </div>
+                
+                <!-- Line Style -->
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
+                  <select class="select select-bordered select-xs flex-1 text-xs" bind:value={styles[i].lineStyle} onchange={() => updateIchimokuIndicator()}>
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <!-- Ichimoku Info Footer -->
+        <div class="mt-6 pt-4 border-t border-base-200">
+          <div class="text-xs text-base-content/60 space-y-1">
+            <p><strong>Components:</strong> Tenkan Sen (Conversion), Kijun Sen (Base), Senkou Span A & B (Cloud)</p>
+            <p><strong>Usage:</strong> Trend direction, support/resistance levels, and momentum analysis</p>
+          </div>
+        </div>
+      </div>
     </div>
   {:else if isSma}
     <!-- SMA Specific UI -->
@@ -10686,7 +11561,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">{field.title}</span>
             <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]}/>
+              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]} onchange={() => updateMaIndicator()}/>
               {#if params.length > 1}
                 <button 
                   class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" 
@@ -10704,6 +11579,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
           
           <!-- Styling Controls -->
+          {#if styles[i]}
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <!-- Color Picker -->
             <div class="flex items-center gap-2">
@@ -10719,7 +11595,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Thickness Dropdown -->
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness}>
+              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness} onchange={() => updateMaIndicator()}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
@@ -10731,13 +11607,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Line Style Selector -->
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle}>
+              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle} onchange={() => updateMaIndicator()}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
               </select>
             </div>
           </div>
+          {/if}
         </div>
       {/each}
       
@@ -11833,6 +12710,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (styles.length > ichimokuColorPaletteIndex) {
       styles[ichimokuColorPaletteIndex].color = e.detail.color;
+      updateIchimokuIndicator();
     }
   }}
 />
@@ -12014,17 +12892,19 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (styles.length > emaColorPaletteIndex) {
       styles[emaColorPaletteIndex].color = e.detail.color;
+      updateEmaIndicator();
     }
   }}
 />
 
 <ColorPalette 
   bind:show={showSmaColorPalette}
-  selectedColor={styles[smaColorPaletteIndex]?.color || '#2563eb'}
+  selectedColor={smaGroups[smaColorPaletteIndex]?.color || '#FF6C37'}
   position={smaColorPalettePosition}
   on:colorChange={(e) => {
-    if (styles.length > smaColorPaletteIndex) {
-      styles[smaColorPaletteIndex].color = e.detail.color;
+    if (smaGroups.length > smaColorPaletteIndex) {
+      smaGroups[smaColorPaletteIndex].color = e.detail.color;
+      updateSmaIndicator(smaColorPaletteIndex);
     }
   }}
 />
@@ -12037,6 +12917,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (styles.length > maColorPaletteIndex) {
       styles[maColorPaletteIndex].color = e.detail.color;
+      updateMaIndicator();
     }
   }}
 />
@@ -12049,6 +12930,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (bbiGroups.length > bbiColorPaletteIndex) {
       bbiGroups[bbiColorPaletteIndex].color = e.detail.color;
+      updateBbiIndicator(bbiColorPaletteIndex);
     }
   }}
 />
@@ -12197,67 +13079,613 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 />
 
 <style>
+  /* ========================================
+     PREMIUM MODAL CONTENT CONTAINER
+     ======================================== */
   .responsive-modal-content {
-    /* Ensure content is scrollable and responsive */
-    max-height: calc(90vh - 120px); /* Account for header and buttons */
+    max-height: calc(90vh - 180px);
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 0;
-  }
-  
-  /* Responsive grid improvements */
-  @media (max-width: 640px) {
-    .responsive-modal-content .grid {
-      grid-template-columns: 1fr;
-      gap: 0.75rem;
-    }
-    
-    .responsive-modal-content .grid-cols-3 {
-      grid-template-columns: 1fr;
-    }
-    
-    .responsive-modal-content .grid-cols-2 {
-      grid-template-columns: 1fr;
-    }
-  }
-  
-  @media (min-width: 641px) and (max-width: 768px) {
-    .responsive-modal-content .grid-cols-3 {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-  
-  /* Better spacing for mobile */
-  @media (max-width: 640px) {
-    .responsive-modal-content .space-y-2 > * + * {
-      margin-top: 0.5rem;
-    }
-    
-    .responsive-modal-content .space-y-3 > * + * {
-      margin-top: 0.75rem;
-    }
-  }
-  
-  /* Custom scrollbar for modal content */
-  .responsive-modal-content {
     scrollbar-width: thin;
-    scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Prevent any horizontal overflow */
+  .responsive-modal-content * {
+    box-sizing: border-box;
+  }
+
+  .responsive-modal-content :global(.grid),
+  .responsive-modal-content :global(.flex) {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  /* ========================================
+     PREMIUM CARD STYLING (All Indicators)
+     ======================================== */
+  
+  /* Light Mode Cards */
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.bg-base-50) {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 250, 252, 0.95) 100%);
+    border: 1px solid rgba(59, 130, 246, 0.12);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.06);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.bg-base-50:hover) {
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.border-base-200) {
+    border-color: rgba(59, 130, 246, 0.12);
+  }
+
+  /* Dark Mode Cards */
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.bg-base-50) {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(51, 65, 85, 0.4) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.bg-base-50:hover) {
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.25);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.border-base-200) {
+    border-color: rgba(139, 92, 246, 0.15);
+  }
+
+  /* ========================================
+     PREMIUM INPUT FIELDS
+     ======================================== */
+  
+  /* Light Mode Inputs */
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.input) {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(59, 130, 246, 0.15);
+    color: rgb(30, 41, 59);
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0.625rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.input:focus) {
+    outline: none;
+    border-color: rgb(59, 130, 246);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background: rgba(255, 255, 255, 1);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.input:hover:not(:focus)) {
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+
+  /* Dark Mode Inputs */
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.input) {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1.5px solid rgba(139, 92, 246, 0.2);
+    color: rgb(226, 232, 240);
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0.625rem;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.input:focus) {
+    outline: none;
+    border-color: rgb(139, 92, 246);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    background: rgba(30, 41, 59, 0.8);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.input:hover:not(:focus)) {
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+
+  /* ========================================
+     PREMIUM SELECT DROPDOWNS
+     ======================================== */
+  
+  /* Light Mode Selects */
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.select) {
+    background: rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(59, 130, 246, 0.15);
+    color: rgb(30, 41, 59);
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0.625rem;
+    cursor: pointer;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Specific width selects - keep them compact on desktop */
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.select.select-xs) {
+    padding-left: 0.5rem;
+    padding-right: 1.75rem;
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.select:focus) {
+    outline: none;
+    border-color: rgb(59, 130, 246);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background: rgba(255, 255, 255, 1);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.select:hover:not(:focus)) {
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+
+  /* Dark Mode Selects */
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.select) {
+    background: rgba(30, 41, 59, 0.5);
+    border: 1.5px solid rgba(139, 92, 246, 0.2);
+    color: rgb(226, 232, 240);
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0.625rem;
+    cursor: pointer;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Specific width selects - keep them compact on desktop */
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.select.select-xs) {
+    padding-left: 0.5rem;
+    padding-right: 1.75rem;
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.select:focus) {
+    outline: none;
+    border-color: rgb(139, 92, 246);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    background: rgba(30, 41, 59, 0.8);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.select:hover:not(:focus)) {
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+
+  /* ========================================
+     PREMIUM BUTTONS
+     ======================================== */
+  
+  /* Light Mode Buttons */
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn) {
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-width: 1.5px;
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn:hover) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn:active) {
+    transform: translateY(0);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn-outline) {
+    background: rgba(255, 255, 255, 0.6);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: rgb(37, 99, 235);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn-outline:hover) {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgb(59, 130, 246);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn-primary) {
+    background: linear-gradient(135deg, rgb(59, 130, 246) 0%, rgb(37, 99, 235) 100%);
+    border: none;
+    color: white;
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn-primary:hover) {
+    background: linear-gradient(135deg, rgb(37, 99, 235) 0%, rgb(29, 78, 216) 100%);
+  }
+
+  /* Dark Mode Buttons */
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn) {
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-width: 1.5px;
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn:hover) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.25);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn:active) {
+    transform: translateY(0);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn-outline) {
+    background: rgba(30, 41, 59, 0.4);
+    border-color: rgba(139, 92, 246, 0.3);
+    color: rgb(167, 139, 250);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn-outline:hover) {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgb(139, 92, 246);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn-primary) {
+    background: linear-gradient(135deg, rgb(139, 92, 246) 0%, rgb(124, 58, 237) 100%);
+    border: none;
+    color: white;
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn-primary:hover) {
+    background: linear-gradient(135deg, rgb(124, 58, 237) 0%, rgb(109, 40, 217) 100%);
+  }
+
+  /* ========================================
+     PREMIUM LABELS & TEXT
+     ======================================== */
+  
+  /* Light Mode Text */
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.text-base-content) {
+    color: rgb(30, 41, 59);
+  }
+
+  /* Dark Mode Text */
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.text-base-content) {
+    color: rgb(226, 232, 240);
+  }
+
+  /* ========================================
+     PREMIUM SCROLLBAR
+     ======================================== */
+  
+  /* Light Mode Scrollbar */
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content {
+    scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
   }
   
-  .responsive-modal-content::-webkit-scrollbar {
-    width: 6px;
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content::-webkit-scrollbar {
+    width: 8px;
   }
   
-  .responsive-modal-content::-webkit-scrollbar-track {
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content::-webkit-scrollbar-track {
     background: transparent;
   }
   
-  .responsive-modal-content::-webkit-scrollbar-thumb {
-    background: rgba(156, 163, 175, 0.3);
-    border-radius: 3px;
-    transition: background 0.2s;
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.2));
+    border-radius: 10px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
-  .responsive-modal-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(156, 163, 175, 0.5);
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(59, 130, 246, 0.5), rgba(59, 130, 246, 0.4));
+  }
+
+  /* Dark Mode Scrollbar */
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content {
+    scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+  }
+  
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(139, 92, 246, 0.4), rgba(139, 92, 246, 0.25));
+    border-radius: 10px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(139, 92, 246, 0.6), rgba(139, 92, 246, 0.45));
+  }
+
+  /* ========================================
+     RESPONSIVE DESIGN (Mobile-First)
+     ======================================== */
+  
+  /* Mobile (< 640px) */
+  @media (max-width: 640px) {
+    .responsive-modal-content {
+      max-height: calc(90vh - 180px);
+      padding: 0.5rem;
+    }
+
+    /* Reset all grids */
+    .responsive-modal-content :global(.grid) {
+      gap: 0.75rem;
+    }
+    
+    /* 3-column grids become 1 column on mobile */
+    .responsive-modal-content :global(.grid-cols-3) {
+      grid-template-columns: 1fr;
+    }
+    
+    /* 2-column grids stay 2 columns on mobile for better space usage */
+    .responsive-modal-content :global(.grid-cols-2) {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+    }
+
+    /* sm:grid-cols-* become 1 column on mobile */
+    .responsive-modal-content :global([class*="sm:grid-cols-"]) {
+      grid-template-columns: 1fr;
+    }
+    
+    /* But sm:grid-cols-2 stays 2 columns if parent is already grid-cols-2 */
+    .responsive-modal-content :global(.grid-cols-2.sm\:grid-cols-3) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .responsive-modal-content :global(.space-y-2 > * + *) {
+      margin-top: 0.5rem;
+    }
+    
+    .responsive-modal-content :global(.space-y-3 > * + *) {
+      margin-top: 0.75rem;
+    }
+
+    /* Touch targets for mobile - but not full width for style controls */
+    .responsive-modal-content :global(.btn:not(.btn-outline)) {
+      min-height: 2.75rem;
+      padding: 0.625rem 1rem;
+      width: 100%;
+    }
+
+    /* Input fields full width */
+    .responsive-modal-content :global(.input) {
+      min-height: 2.5rem;
+      font-size: 16px; /* Prevent zoom on iOS */
+      padding: 0.5rem 0.75rem;
+      width: 100%;
+    }
+
+    /* Select dropdowns - default styling */
+    .responsive-modal-content :global(.select) {
+      min-height: 2.5rem;
+      font-size: 16px; /* Prevent zoom on iOS */
+      padding: 0.5rem 0.75rem;
+    }
+
+    /* Make cards more compact on mobile */
+    .responsive-modal-content :global(.bg-base-50) {
+      padding: 0.75rem !important;
+    }
+
+    /* Better spacing for mobile */
+    .responsive-modal-content :global(.mt-3) {
+      margin-top: 0.75rem;
+    }
+
+    /* Force all grid items to not overflow */
+    .responsive-modal-content :global(.grid > *) {
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    /* Force flex items to wrap and not overflow */
+    .responsive-modal-content :global(.flex) {
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .responsive-modal-content :global(.flex > *) {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    /* Make style control sections more compact on mobile */
+    .responsive-modal-content :global(.grid-cols-1.sm\\:grid-cols-3) {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    /* Each style control row fits label + control */
+    .responsive-modal-content :global(.grid-cols-1.sm\\:grid-cols-3) > :global(*) {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      width: 100%;
+      min-height: 2.5rem;
+    }
+
+    /* Color/thickness/style controls - label + control side by side on mobile */
+    .responsive-modal-content :global(.flex.items-center.gap-2) {
+      width: 100%;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: space-between;
+      gap: 0.5rem !important;
+    }
+
+    /* Labels compact on mobile - don't take full width */
+    .responsive-modal-content :global(.flex.items-center.gap-2) :global(.min-w-fit) {
+      flex-shrink: 0;
+      white-space: nowrap;
+      width: auto;
+    }
+
+    /* Buttons and selects take remaining space on mobile */
+    .responsive-modal-content :global(.flex.items-center.gap-2) :global(.btn) {
+      flex: 1;
+      min-width: 0;
+      width: auto;
+      padding: 0.5rem 0.75rem;
+      min-height: 2.5rem;
+    }
+
+    .responsive-modal-content :global(.flex.items-center.gap-2) :global(.select) {
+      flex: 1;
+      min-width: 0;
+      width: auto;
+    }
+
+    /* Make space-y sections more compact */
+    .responsive-modal-content :global(.space-y-2) {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+  }
+  
+  /* Tablet (641px - 768px) */
+  @media (min-width: 641px) and (max-width: 768px) {
+    .responsive-modal-content :global(.grid-cols-3) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* Style controls should wrap nicely on tablet */
+    .responsive-modal-content :global(.grid-cols-1.sm\\:grid-cols-3) {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .responsive-modal-content :global(.grid-cols-1.sm\\:grid-cols-3) > :global(*) {
+      flex: 1 1 45%;
+      min-width: 0;
+    }
+
+    /* Selects should be responsive on tablet */
+    .responsive-modal-content :global(.select.select-xs) {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  /* Desktop (> 768px) */
+  @media (min-width: 769px) {
+    .responsive-modal-content :global(.rounded-md) {
+      border-radius: 0.875rem;
+    }
+
+    /* Make style controls compact and efficient on desktop */
+    .responsive-modal-content :global(.grid-cols-1.sm\\:grid-cols-3) {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .responsive-modal-content :global(.grid-cols-1.sm\\:grid-cols-3) > :global(*) {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Color picker button - just fit content */
+    .responsive-modal-content :global(.btn.btn-sm.btn-outline) {
+      padding: 0.375rem 0.5rem;
+      min-width: auto;
+    }
+
+    /* Select dropdowns - only take needed space */
+    .responsive-modal-content :global(.select.select-xs.w-14),
+    .responsive-modal-content :global(.select.select-xs.w-16),
+    .responsive-modal-content :global(.select.select-xs.w-20) {
+      width: auto !important;
+      min-width: 70px;
+      max-width: 120px;
+    }
+
+    /* Flex-1 selects on desktop should be flexible but not too wide */
+    .responsive-modal-content :global(.select.select-xs.flex-1) {
+      flex: 0 1 auto;
+      min-width: 80px;
+      max-width: 140px;
+    }
+
+    /* Labels should be compact */
+    .responsive-modal-content :global(.text-xs) {
+      white-space: nowrap;
+    }
+  }
+
+  /* ========================================
+     PREMIUM ROUNDED CORNERS
+     ======================================== */
+  
+  .responsive-modal-content :global(.rounded-md) {
+    border-radius: 0.75rem;
+  }
+
+  .responsive-modal-content :global(.rounded) {
+    border-radius: 0.5rem;
+  }
+
+  /* ========================================
+     COLOR PICKER BUTTON ENHANCEMENT
+     ======================================== */
+  
+  .responsive-modal-content :global(.btn-outline) :global(> div) {
+    border-radius: 0.375rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn-outline) :global(> div) {
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn-outline) :global(> div) {
+    border-color: rgba(139, 92, 246, 0.3);
+  }
+
+  /* ========================================
+     FOCUS VISIBLE (Accessibility)
+     ======================================== */
+  
+  .responsive-modal-content :global(.btn:focus-visible),
+  .responsive-modal-content :global(.input:focus-visible),
+  .responsive-modal-content :global(.select:focus-visible) {
+    outline: 2px solid;
+    outline-offset: 2px;
+  }
+
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.btn:focus-visible),
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.input:focus-visible),
+  :global(.modal-container[data-theme="light"]) .responsive-modal-content :global(.select:focus-visible) {
+    outline-color: rgb(59, 130, 246);
+  }
+
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.btn:focus-visible),
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.input:focus-visible),
+  :global(.modal-container[data-theme="dark"]) .responsive-modal-content :global(.select:focus-visible) {
+    outline-color: rgb(139, 92, 246);
+  }
+
+  /* ========================================
+     SMOOTH TRANSITIONS
+     ======================================== */
+  
+  .responsive-modal-content :global(*) {
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 </style>

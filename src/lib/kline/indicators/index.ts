@@ -19,5 +19,6 @@ import { emv } from './emv';
 import { mtm } from './mtm';
 import { trix } from './trix';
 import { volume } from './volume';
+import { sma } from './sma';
 
-export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume]
+export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma]

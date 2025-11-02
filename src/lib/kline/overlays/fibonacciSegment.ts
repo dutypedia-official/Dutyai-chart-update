@@ -47,9 +47,18 @@ const fibonacciSegment: OverlayTemplate = {
     
     if (coordinates.length > 1) {
       const points = overlay.points
-      // @ts-expect-error
-      const valueDif = points[1].value - points[0].value
-      const yDif = coordinates[1].y - coordinates[0].y
+      const startValue = points[0]?.value
+      const endValue = points[1]?.value
+      
+      if (startValue === undefined || endValue === undefined) {
+        return figures
+      }
+      
+      const valueDif = endValue - startValue
+      
+      const startY = coordinates[0].y
+      const endY = coordinates[1].y
+      const yDif = endY - startY
       
       // Get Fibonacci levels from overlay extendData or use defaults
       const fibonacciLevels = (overlay as any).extendData?.fibonacciLevels || (overlay as any).fibonacciLevels || DEFAULT_FIBONACCI_LEVELS
@@ -60,8 +69,10 @@ const fibonacciSegment: OverlayTemplate = {
         const currentLevel = visibleLevels[i]
         const nextLevel = visibleLevels[i + 1]
         
-        const y1 = coordinates[0].y + yDif * currentLevel.value
-        const y2 = coordinates[0].y + yDif * nextLevel.value
+        // For Fibonacci retracement, levels are calculated from the end point back towards start
+        // This ensures proper direction regardless of drawing direction
+        const y1 = endY - (yDif * currentLevel.value)
+        const y2 = endY - (yDif * nextLevel.value)
         
         figures.push({
           type: 'polygon',
@@ -85,9 +96,10 @@ const fibonacciSegment: OverlayTemplate = {
       const levelTexts: TextAttrs[] = []
       
       visibleLevels.forEach((level: any) => {
-        const y = coordinates[0].y + yDif * level.value
-        // @ts-expect-error
-        const price = (points[0].value + valueDif * level.value).toFixed(precision)
+        // Calculate Y position: retracement from end point back towards start
+        const y = endY - (yDif * level.value)
+        // Calculate price: retracement from end value back towards start
+        const price = (endValue - (valueDif * level.value)).toFixed(precision)
         
         levelLines.push({
           coordinates: [

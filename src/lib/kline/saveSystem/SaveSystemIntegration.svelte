@@ -3,14 +3,16 @@
   import { derived, type Writable } from 'svelte/store';
   import { SaveManager } from './SaveManager';
   import { LocalStorageProvider } from './storage';
-  import { collectGlobalState, collectDrawings, applyGlobalState, clearAllDrawings, renderDrawings, getCurrentSymbol, normalizeSymbolKey } from './chartStateCollector';
+  import { collectGlobalState, applyGlobalState, getCurrentSymbol, normalizeSymbolKey } from './chartStateCollector';
   import type { ChartSave, ChartCtx } from '../chart';
-  import type { ChartRuntimeContracts, SymbolKey } from './types';
+  import type { ChartRuntimeContracts, SymbolKey, Drawing } from './types';
+  import type { DrawingManager } from '../drawingManager';
 
   // Get chart context
   const save = getContext('save') as Writable<ChartSave>;
   const ctx = getContext('ctx') as Writable<ChartCtx>;
   const chart = getContext('chart') as Writable<any>;
+  const drawingManagerContext = getContext('drawingManager') as { get: () => DrawingManager | null };
 
   // Initialize save system
   const storage = new LocalStorageProvider();
@@ -36,19 +38,68 @@
 
   async function initializeSaveSystem(chartInstance: any) {
     try {
+      // Wait for drawing manager to be initialized
+      let retryCount = 0;
+      const maxRetries = 20; // 2 seconds max wait
+      
+      while (!drawingManagerContext.get() && retryCount < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retryCount++;
+      }
+      
+      const drawingManager = drawingManagerContext.get();
+      if (!drawingManager) {
+        console.error('❌ DrawingManager not available after waiting');
+        // Continue without drawing manager - save system will work without drawings
+      } else {
+        console.log('✅ DrawingManager is available for save system');
+      }
+
       // Create runtime contracts
       const runtime: ChartRuntimeContracts = {
         getCurrentSymbol: () => getCurrentSymbol($save),
         
         collectGlobalState: () => collectGlobalState($save, chartInstance),
         
-        collectDrawings: (symbol: SymbolKey) => collectDrawings($save.symbol, $save.period, {}),
+        collectDrawings: (symbol: SymbolKey) => {
+          // Use DrawingManager to collect drawings
+          if (!drawingManager) {
+            console.warn('⚠️ DrawingManager not available, returning empty drawings');
+            return [];
+          }
+          
+          const drawings = drawingManager.getDrawingsForSymbol(symbol);
+          console.log(`📥 Collected ${drawings.length} drawings for symbol:`, symbol);
+          return drawings;
+        },
         
         applyGlobalState: async (globalState) => await applyGlobalState(globalState, save, chartInstance),
         
-        clearAllDrawings: () => clearAllDrawings($save.symbol, $save.period, {}),
+        clearAllDrawings: () => {
+          // Use DrawingManager to clear drawings
+          if (!drawingManager) {
+            console.warn('⚠️ DrawingManager not available, cannot clear drawings');
+            return;
+          }
+          
+          const currentSymbol = getCurrentSymbol($save);
+          drawingManager.clearDrawingsForSymbol(currentSymbol);
+          console.log('🗑️ Cleared all drawings for current symbol via DrawingManager');
+        },
         
-        renderDrawings: (drawings) => renderDrawings(drawings, $save.symbol, $save.period, chartInstance, {}),
+        renderDrawings: (drawings: Drawing[]) => {
+          // Use DrawingManager to render drawings
+          if (!drawingManager) {
+            console.warn('⚠️ DrawingManager not available, cannot render drawings');
+            return;
+          }
+          
+          const currentSymbol = getCurrentSymbol($save);
+          console.log(`🎨 Rendering ${drawings.length} drawings for symbol:`, currentSymbol);
+          
+          // Load drawings into the drawing manager
+          drawingManager.loadDrawingsForSymbol(currentSymbol, drawings);
+        },
         
         onSymbolChange: (callback) => {
           // Subscribe to symbol changes
@@ -112,7 +163,6 @@
         
         if (result.success) {
           console.log('✅ Active saved data restored successfully:', activeSaveId);
-          console.log('✅ Restored data includes indicators:', result.data?.indicators?.length || 0);
         } else {
           console.warn('⚠️ Failed to restore active saved data:', result.error);
         }

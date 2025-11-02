@@ -169,7 +169,7 @@
   });
 </script>
 
-<Modal title={m.settings()} width={760} bind:show={show} click={click} buttons={['confirm', 'reset']}>
+<Modal title={m.settings()} width={760} bind:show={show} theme={$save.theme} click={click} buttons={['confirm', 'reset']}>
   <div class="grid grid-cols-[3fr_2fr_3fr_2fr] gap-5 mx-7 my-5 items-center">
     {#each options as item}
       <span class="text-base-content/70 text-right">{(m as any)[item.text]?.()}</span>

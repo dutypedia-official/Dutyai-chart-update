@@ -1,9 +1,15 @@
-<script>
+<script lang="ts">
+  import { getContext } from "svelte";
+  import { ChartSave } from "./chart";
+  import type { Writable } from "svelte/store";
+
   // Props for customization
   export let className = '';
+  
+  const save = getContext('save') as Writable<ChartSave>;
 </script>
 
-<div class="right-sidebar hidden md:flex {className}">
+<div class="right-sidebar hidden md:flex {className}" data-theme={$save.theme}>
   <!-- Top section with 3 icons -->
   <div class="top-section">
     <!-- Watch List Icon -->
@@ -113,14 +119,14 @@
   }
   
   /* Theme support */
-  :global([data-theme="dark"]) .right-sidebar {
+  .right-sidebar[data-theme="dark"] {
     --text-color: #e5e5e5;
     --hover-bg: rgba(255, 255, 255, 0.1);
     --primary-color: #0084ff;
     --primary-hover: #0066cc;
   }
   
-  :global([data-theme="light"]) .right-sidebar {
+  .right-sidebar[data-theme="light"] {
     --text-color: #666666;
     --hover-bg: rgba(0, 123, 255, 0.1);
     --primary-color: #007bff;

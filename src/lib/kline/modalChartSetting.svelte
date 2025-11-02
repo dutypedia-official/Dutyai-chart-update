@@ -1416,7 +1416,7 @@
   }
 </script>
 
-<Modal title="Chart Setting" width="min(90vw, 700px)" bind:show={show} click={click} buttons={['confirm', 'reset']}>
+<Modal title="Chart Setting" width="min(90vw, 700px)" bind:show={show} theme={$save.theme} click={click} buttons={['confirm', 'reset']}>
   <div class="flex flex-col lg:flex-row min-h-[400px] max-h-[70vh] overflow-hidden">
     <!-- Left Column - Tab Menu -->
     <div class="w-full lg:w-48 border-b lg:border-b-0 lg:border-r border-base-300 pb-4 lg:pb-0 lg:pr-4 mb-4 lg:mb-0">
