@@ -95,7 +95,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div onkeydown={handleKeydown}>
-  <Modal {title} width={650} bind:show={show} buttons={[]}>
+  <Modal {title} width={650} maxHeight="85vh" bind:show={show} buttons={[]}>
     <div class="flex flex-col gap-6">
       
       <!-- Search Bar -->
@@ -144,36 +144,28 @@
                            : 'hover:bg-base-200/50 text-base-content'}"
                   onclick={() => selectSymbol(symbol)}
                 >
-                  <!-- Simple Logo Container -->
+                  <!-- Symbol Logo Container -->
                   <div class="relative w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-base-200/50">
-                    {#if symbol.logo}
-                      <img
-                         src={symbol.logo}
-                         alt={symbol.ticker}
-                         class="w-full h-full object-cover"
-                         onerror={(e) => {
-                           const target = e.target as HTMLImageElement;
-                           if (target) {
-                             target.style.display='none';
-                             const sibling = target.nextElementSibling as HTMLElement;
-                             if (sibling) {
-                               sibling.style.display='flex';
-                             }
+                    <img
+                       src={`https://s3-api.bayah.app/cdn/symbol/logo/${symbol.ticker}.svg`}
+                       alt={symbol.ticker}
+                       class="w-full h-full object-cover"
+                       onerror={(e) => {
+                         const target = e.target as HTMLImageElement;
+                         if (target) {
+                           target.style.display='none';
+                           const sibling = target.nextElementSibling as HTMLElement;
+                           if (sibling) {
+                             sibling.style.display='flex';
                            }
-                         }}
-                       />
-                      <div class="absolute inset-0 bg-base-200 flex items-center justify-center hidden">
-                        <span class="text-xs font-medium text-base-content/60">
-                          {symbol.ticker.charAt(0)}
-                        </span>
-                      </div>
-                    {:else}
-                      <div class="w-full h-full bg-base-200 flex items-center justify-center">
-                        <span class="text-xs font-medium text-base-content/60">
-                          {symbol.ticker.charAt(0)}
-                        </span>
-                      </div>
-                    {/if}
+                         }
+                       }}
+                     />
+                    <div class="absolute inset-0 bg-base-200 flex items-center justify-center hidden">
+                      <span class="text-xs font-medium text-base-content/60">
+                        {symbol.ticker.charAt(0)}
+                      </span>
+                    </div>
                   </div>
 
                   <!-- Symbol Information -->
