@@ -2173,6 +2173,50 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
      }
   }
 
+  function updateEmaIndicator() {
+    if ($ctx.editIndName !== 'EMA' || !$chart) return;
+    
+    try {
+      console.log('🔄 Updating EMA indicator');
+      
+      // Remove the existing EMA indicator from the edit pane
+      $chart.removeIndicator({ paneId: $ctx.editPaneId, name: 'EMA' });
+      
+      // Re-create the EMA indicator with updated parameters
+      const indicatorId = $chart.createIndicator({
+        name: 'EMA',
+        calcParams: params,
+        styles: {
+          lines: params.map((_, index) => {
+            const style = styles[index];
+            let lineStyle = kc.LineType.Solid;
+            let dashedValue = [2, 2];
+            
+            if (style?.lineStyle === 'dashed') {
+              lineStyle = kc.LineType.Dashed;
+              dashedValue = [4, 4];
+            } else if (style?.lineStyle === 'dotted') {
+              lineStyle = kc.LineType.Dashed;
+              dashedValue = [2, 2];
+            }
+            
+            return {
+              color: style?.color || '#FF6B6B',
+              size: style?.thickness || 1,
+              style: lineStyle,
+              dashedValue: dashedValue
+            };
+          })
+        }
+      }, true, { id: $ctx.editPaneId });
+      
+      console.log('✅ EMA indicator updated successfully');
+       
+     } catch (error) {
+       console.error('❌ Error updating EMA indicator:', error);
+     }
+  }
+
   // Initialize default BBI group
   function initializeBbiGroups() {
     if (!isBbi) return;
@@ -4389,6 +4433,47 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     });
     
     console.log('🎨 Updated KDJ color:', lineType, group.styles[lineType].color);
+  }
+
+  // Update Ichimoku indicator immediately when parameters change
+  function updateIchimokuIndicator() {
+    if (!isIchimoku || !$chart) return;
+    
+    const paneId = $ctx.editPaneId;
+    
+    // Create indicator styles for all Ichimoku lines
+    const indicatorStyles: any = {
+      lines: fields.map((field, i) => ({
+        color: styles[i].color,
+        size: styles[i].thickness,
+        style: styles[i].lineStyle === 'dashed' ? kc.LineType.Dashed : 
+               styles[i].lineStyle === 'dotted' ? kc.LineType.Dashed : kc.LineType.Solid,
+        dashedValue: styles[i].lineStyle === 'dashed' ? [4, 4] : [2, 2]
+      }))
+    };
+    
+    // Update the existing indicator with new parameters and styles
+    $chart?.overrideIndicator({
+      name: 'ICHIMOKU',
+      paneId: paneId,
+      styles: indicatorStyles,
+      calcParams: params
+    });
+    
+    // Persist changes to save data immediately
+    const saveKey = `${paneId}_ICHIMOKU`;
+    
+    save.update(s => {
+      if (s.saveInds[saveKey]) {
+        // Update existing saved indicator
+        s.saveInds[saveKey].params = [...params];
+        s.saveInds[saveKey].styles = styles.map(style => ({...style})); // Deep copy styles
+        console.log('💾 Persisted Ichimoku changes to save data:', saveKey, params, styles);
+      }
+      return s;
+    });
+    
+    console.log('🔄 Updated Ichimoku indicator:', params, styles);
   }
 
   function removeKdjGroup(groupId: string) {
@@ -10052,7 +10137,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
             <span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">{field.title}</span>
             <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]}/>
+              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]} onchange={() => updateEmaIndicator()}/>
               {#if params.length > 1}
                 <button 
                   class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" 
@@ -10070,6 +10155,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
           
           <!-- Styling Controls -->
+          {#if styles[i]}
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <!-- Color Picker -->
             <div class="flex items-center gap-2">
@@ -10085,7 +10171,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Thickness Dropdown -->
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness}>
+              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness} onchange={() => updateEmaIndicator()}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
@@ -10097,13 +10183,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Line Style Selector -->
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle}>
+              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle} onchange={() => updateEmaIndicator()}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
               </select>
             </div>
           </div>
+          {/if}
         </div>
       {/each}
       
@@ -10547,55 +10634,93 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       </div>
     </div>
   {:else if isIchimoku}
-    <!-- Ichimoku Specific UI -->
-    <div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5">
-      {#each fields as field, i}
-        <div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3">
-          <!-- Parameter Value -->
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <span class="w-full sm:w-32 text-base-content/70 text-sm font-medium min-w-fit">{field.title}</span>
-            <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-              <input type="number" class="flex-1 input input-bordered input-sm min-w-0" bind:value={params[i]}/>
-            </div>
+    <!-- Ichimoku Specific UI - Single Unified Card -->
+    <div class="mt-3 sm:mt-5">
+      <div class="border border-base-300 rounded-lg p-4 bg-base-50/50">
+        <!-- Ichimoku Header -->
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-base-200">
+          <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path>
+            </svg>
           </div>
-          
-          <!-- Styling Controls -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <!-- Color Picker -->
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
-              <button 
-                class="btn btn-sm btn-outline"
-                onclick={showIchimokuColorPaletteHandler(i)}
-              >
-                <div class="w-4 h-4 rounded border border-base-300" style="background-color: {styles[i].color}"></div>
-              </button>
-            </div>
-            
-            <!-- Thickness Dropdown -->
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].thickness}>
-                <option value={1}>1px</option>
-                <option value={2}>2px</option>
-                <option value={3}>3px</option>
-                <option value={4}>4px</option>
-                <option value={5}>5px</option>
-              </select>
-            </div>
-            
-            <!-- Line Style Selector -->
-            <div class="flex items-center gap-2">
-              <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-              <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={styles[i].lineStyle}>
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
-            </div>
+          <div>
+            <h3 class="text-lg font-semibold text-base-content">Ichimoku Kinko Hyo</h3>
+            <p class="text-sm text-base-content/60">Complete cloud indicator with all components</p>
           </div>
         </div>
-      {/each}
+
+        <!-- All Parameters in Single Section -->
+        <div class="space-y-5">
+          {#each fields as field, i}
+            <!-- Parameter Row -->
+            <div class="flex flex-col lg:flex-row lg:items-center gap-4 p-3 bg-base-100/50 rounded-lg">
+              <!-- Parameter Info & Period -->
+              <div class="flex items-center justify-between lg:justify-start lg:gap-4 flex-1">
+                <div class="flex items-center gap-3">
+                  <div class="w-4 h-4 rounded-full border-2 border-white shadow-sm" style="background-color: {styles[i].color}"></div>
+                  <span class="text-sm font-medium text-base-content min-w-fit">{field.title}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-base-content/60">Period:</span>
+                  <input 
+                    type="number" 
+                    class="input input-bordered input-sm w-16 text-center" 
+                    bind:value={params[i]}
+                    min="1"
+                    max="200"
+                    onchange={() => updateIchimokuIndicator()}
+                  />
+                </div>
+              </div>
+              
+              <!-- Styling Controls -->
+              <div class="flex flex-wrap lg:flex-nowrap items-center gap-3 lg:gap-4">
+                <!-- Color Picker -->
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60">Color:</label>
+                  <button 
+                    class="btn btn-sm btn-outline"
+                    onclick={showIchimokuColorPaletteHandler(i)}
+                  >
+                    <div class="w-4 h-4 rounded border border-base-300" style="background-color: {styles[i].color}"></div>
+                  </button>
+                </div>
+                
+                <!-- Thickness -->
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60">Thickness:</label>
+                  <select class="select select-bordered select-xs w-16" bind:value={styles[i].thickness} onchange={() => updateIchimokuIndicator()}>
+                    <option value={1}>1px</option>
+                    <option value={2}>2px</option>
+                    <option value={3}>3px</option>
+                    <option value={4}>4px</option>
+                    <option value={5}>5px</option>
+                  </select>
+                </div>
+                
+                <!-- Line Style -->
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60">Style:</label>
+                  <select class="select select-bordered select-xs w-20" bind:value={styles[i].lineStyle} onchange={() => updateIchimokuIndicator()}>
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <!-- Ichimoku Info Footer -->
+        <div class="mt-6 pt-4 border-t border-base-200">
+          <div class="text-xs text-base-content/60 space-y-1">
+            <p><strong>Components:</strong> Tenkan Sen (Conversion), Kijun Sen (Base), Senkou Span A & B (Cloud)</p>
+            <p><strong>Usage:</strong> Trend direction, support/resistance levels, and momentum analysis</p>
+          </div>
+        </div>
+      </div>
     </div>
   {:else if isSma}
     <!-- SMA Specific UI -->
@@ -11833,6 +11958,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (styles.length > ichimokuColorPaletteIndex) {
       styles[ichimokuColorPaletteIndex].color = e.detail.color;
+      updateIchimokuIndicator();
     }
   }}
 />
@@ -12014,6 +12140,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (styles.length > emaColorPaletteIndex) {
       styles[emaColorPaletteIndex].color = e.detail.color;
+      updateEmaIndicator();
     }
   }}
 />

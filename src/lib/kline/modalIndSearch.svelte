@@ -193,6 +193,11 @@
       const paneId = 'pane_BBI';
       const result = createIndicator(name, [3, 6, 12, 24], true, {id: paneId});
       success = !!result;
+    } else if (name === 'EMA') {
+      // For EMA, only add one EMA with default period 20 when clicked from indicator list
+      const paneId = 'candle_pane'; // EMA is a main indicator (overlay)
+      const result = createIndicator(name, [20], true, {id: paneId});
+      success = !!result;
     } else if (name === 'RSI') {
       // For RSI, add with configuration from saved RSI groups or default
       const paneId = 'pane_RSI';
