@@ -53,7 +53,7 @@
     showList = $save.allSymbols.filter(symbol => 
       symbol.ticker.toLowerCase().includes(searchTerm) ||
       symbol.shortName?.toLowerCase().includes(searchTerm) ||
-      symbol.exchange.toLowerCase().includes(searchTerm)
+      symbol.exchange?.toLowerCase().includes(searchTerm)
     );
     console.log('🔍 Filtered symbols:', showList);
     selectedIndex = -1; // Reset selection when search changes
@@ -93,84 +93,162 @@
   }
 </script>
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div onkeydown={handleKeydown}>
-  <Modal {title} width={600} bind:show={show} buttons={[]}>
-    <div class="p-4">
+  <Modal {title} width={650} bind:show={show} buttons={[]}>
+    <div class="flex flex-col gap-6">
       
-      <!-- Simple Search Bar -->
-      <div class="mb-4">
+      <!-- Search Bar -->
+      <div class="relative">
+        <div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/50 pointer-events-none">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
         <input
           type="text"
-          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
-          placeholder="Search"
+          class="w-full pl-12 pr-4 py-3 text-sm bg-base-100 border border-base-300/50 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 placeholder:text-base-content/50"
+          placeholder="Search symbols..."
           bind:value={$keyword}
           autofocus
         />
       </div>
 
-
-
       <!-- Symbol List -->
-      <div class="max-h-80 overflow-y-auto">
-        {#if $ctx.loadingPairs}
-          <div class="flex justify-center py-8">
-            <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        {:else if showList.length === 0}
-          <div class="text-center py-8 text-gray-500 dark:text-gray-400">
-            No symbols found
-          </div>
-        {:else}
-          <div class="space-y-1">
-            {#each showList as symbol, i}
-              <div
-                class="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer rounded {selectedIndex === i ? 'bg-blue-50 dark:bg-blue-900' : ''}"
-                onclick={() => selectSymbol(symbol)}
-              >
-                <!-- Logo -->
-                <div class="w-8 h-8 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
-                  {#if symbol.logo}
-                    <img
-                       src={symbol.logo}
-                       alt={symbol.ticker}
-                       class="w-6 h-6 rounded-full object-cover"
-                       onerror={(e) => {e.target.style.display='none'; e.target.nextElementSibling.style.display='flex';}}
-                     />
-                    <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 hidden">
-                      {symbol.ticker.charAt(0)}
-                    </span>
-                  {:else}
-                    <span class="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                      {symbol.ticker.charAt(0)}
-                    </span>
-                  {/if}
-                </div>
-
-                <!-- Symbol Info -->
-                <div class="flex-1 min-w-0">
-                  <div class="font-semibold text-gray-900 dark:text-white">{symbol.ticker}</div>
-                  {#if symbol.shortName && symbol.shortName !== symbol.ticker}
-                    <div class="text-sm text-gray-600 dark:text-gray-300 truncate">{symbol.shortName}</div>
-                  {/if}
-                </div>
-
-                <!-- Exchange -->
-                <div class="text-right flex-shrink-0">
-                  <div class="text-xs font-semibold text-gray-700 dark:text-gray-300">{symbol.exchange}</div>
-                </div>
+      <div class="relative rounded-lg overflow-hidden bg-base-100 border border-base-300/30">
+        <div class="max-h-96 overflow-y-auto luxury-scrollbar">
+          {#if $ctx.loadingPairs}
+            <div class="flex justify-center py-16">
+              <div class="relative">
+                <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+                <div class="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-primary/60 rounded-full animate-spin" style="animation-delay: -0.15s;"></div>
               </div>
-            {/each}
-          </div>
-        {/if}
+            </div>
+          {:else if showList.length === 0}
+            <div class="flex flex-col items-center justify-center py-16 text-center">
+              <div class="w-16 h-16 rounded-full bg-base-200/50 flex items-center justify-center mb-4">
+                <svg class="w-8 h-8 text-base-content/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </div>
+              <p class="text-lg font-semibold text-base-content/60 mb-2">No symbols found</p>
+              <p class="text-sm text-base-content/40">Try a different search term</p>
+            </div>
+          {:else}
+            <div class="divide-y divide-base-300/20">
+              {#each showList as symbol, i}
+                <div
+                  class="group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-200
+                         {selectedIndex === i 
+                           ? 'bg-primary/10 text-primary border-l-2 border-primary' 
+                           : 'hover:bg-base-200/50 text-base-content'}"
+                  onclick={() => selectSymbol(symbol)}
+                >
+                  <!-- Simple Logo Container -->
+                  <div class="relative w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-base-200/50">
+                    {#if symbol.logo}
+                      <img
+                         src={symbol.logo}
+                         alt={symbol.ticker}
+                         class="w-full h-full object-cover"
+                         onerror={(e) => {
+                           const target = e.target as HTMLImageElement;
+                           if (target) {
+                             target.style.display='none';
+                             const sibling = target.nextElementSibling as HTMLElement;
+                             if (sibling) {
+                               sibling.style.display='flex';
+                             }
+                           }
+                         }}
+                       />
+                      <div class="absolute inset-0 bg-base-200 flex items-center justify-center hidden">
+                        <span class="text-xs font-medium text-base-content/60">
+                          {symbol.ticker.charAt(0)}
+                        </span>
+                      </div>
+                    {:else}
+                      <div class="w-full h-full bg-base-200 flex items-center justify-center">
+                        <span class="text-xs font-medium text-base-content/60">
+                          {symbol.ticker.charAt(0)}
+                        </span>
+                      </div>
+                    {/if}
+                  </div>
+
+                  <!-- Symbol Information -->
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <h3 class="font-medium text-base">{symbol.ticker}</h3>
+                      <span class="text-xs text-base-content/50">
+                        {symbol.exchange}
+                      </span>
+                    </div>
+                    {#if symbol.shortName && symbol.shortName !== symbol.ticker}
+                      <p class="text-sm text-base-content/60 truncate mt-0.5">{symbol.shortName}</p>
+                    {/if}
+                  </div>
+
+                  <!-- Selection Indicator -->
+                  {#if selectedIndex === i}
+                    <div class="flex-shrink-0">
+                      <svg class="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                      </svg>
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
 
-      <!-- Footer -->
-       <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600 text-center">
-         <p class="text-xs text-gray-500 dark:text-gray-400">
-           Powered by Duty AI
-         </p>
-       </div>
+      <!-- Luxury Premium Footer -->
+      <div class="flex justify-center items-center py-2 mt-1">
+        <div class="group relative cursor-pointer">
+          <div class="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out blur-xl"></div>
+          <div class="relative flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-base-100/80 to-base-200/60 backdrop-blur-sm border border-base-300/30 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-500 ease-out">
+            <div class="w-2 h-2 rounded-full bg-gradient-to-r from-primary to-secondary animate-pulse"></div>
+            <span class="text-sm font-medium text-base-content/70 group-hover:text-primary transition-colors duration-300">
+              Powered by
+            </span>
+            <span class="text-sm font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent group-hover:from-secondary group-hover:to-primary transition-all duration-500">
+              Duty AI
+            </span>
+            <div class="w-2 h-2 rounded-full bg-gradient-to-r from-secondary to-primary animate-pulse" style="animation-delay: 0.5s;"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </Modal>
 </div>
+
+<style>
+  /* Premium Luxury Scrollbar */
+  .luxury-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .luxury-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .luxury-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.3), rgba(99, 102, 241, 0.6));
+    border-radius: 3px;
+    transition: all 0.3s ease;
+  }
+  
+  .luxury-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(99, 102, 241, 0.5), rgba(99, 102, 241, 0.8));
+    width: 8px;
+  }
+  
+  /* Mobile responsive enhancements */
+  @media (max-width: 640px) {
+    .luxury-scrollbar {
+      max-height: 300px;
+    }
+  }
+</style>
