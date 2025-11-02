@@ -6070,7 +6070,7 @@ class MyDatafeed {
   }
   async getSymbols() {
     console.log("🚀 getSymbols() method called");
-    const symbols = [
+    const fallbackSymbols = [
       {
         ticker: "GP",
         name: "Grameen Phone Limited",
@@ -6122,8 +6122,38 @@ class MyDatafeed {
         logo: ""
       }
     ];
-    console.log("📋 Returning symbols:", symbols);
-    return symbols;
+    try {
+      console.log("🌐 Fetching symbols from API...");
+      const response = await fetch("https://heart.dutyai.app/finance/get/stock/list");
+      if (!response.ok) {
+        console.warn(`⚠️ API request failed with status: ${response.status}`);
+        return fallbackSymbols;
+      }
+      const apiData = await response.json();
+      if (!Array.isArray(apiData)) {
+        console.warn("⚠️ API response is not an array, using fallback symbols");
+        return fallbackSymbols;
+      }
+      console.log(`📊 Received ${apiData.length} symbols from API`);
+      const symbols = apiData.map((item) => ({
+        ticker: item.symbol || "",
+        name: item.fullName || item.symbol || "",
+        shortName: item.symbol || "",
+        market: "stock",
+        exchange: item.country === "BD" ? "DSEBD" : "UNKNOWN",
+        priceCurrency: "BDT",
+        type: "stock",
+        logo: ""
+      }));
+      const validSymbols = symbols.filter((symbol) => symbol.ticker && symbol.ticker.trim() !== "");
+      console.log(`✅ Successfully processed ${validSymbols.length} valid symbols`);
+      console.log("📋 Sample symbols:", validSymbols.slice(0, 5));
+      return validSymbols.length > 0 ? validSymbols : fallbackSymbols;
+    } catch (error) {
+      console.error("❌ Error fetching symbols from API:", error);
+      console.log("🔄 Falling back to hardcoded symbols");
+      return fallbackSymbols;
+    }
   }
   watch(key, callback) {
     if (!this._ws) return;
@@ -24986,11 +25016,13 @@ function Modal($$payload, $$props) {
   push();
   let {
     width = 400,
+    maxWidth = "90vw",
     maxHeight = "80vh",
     title = "",
     buttons = ["confirm"],
     show = false,
     center = false,
+    class: className = "",
     children,
     click
   } = $$props;
@@ -25006,7 +25038,7 @@ function Modal($$payload, $$props) {
   }
   if (show) {
     $$payload.out += "<!--[-->";
-    $$payload.out += `<div class="fixed inset-0 z-[70] flex items-center justify-center px-4 animate-in fade-in duration-200 svelte-baj2y9"><div class="relative bg-base-100 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden flex flex-col svelte-baj2y9"${attr("style", `width: ${stringify(typeof width === "string" ? width : width + "px")}; max-width: 90vw; max-height: ${stringify(maxHeight)}; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);`)}><div class="relative px-6 py-5 border-b border-base-300/50 bg-gradient-to-r from-base-200/30 to-base-300/20"><div class="flex justify-between items-center"><h3 class="font-semibold text-xl tracking-tight text-base-content">${escape_html(title)}</h3> <button class="btn btn-sm btn-ghost btn-circle hover:bg-base-300/50 hover:rotate-90 transition-all duration-300 svelte-baj2y9"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div> <div${attr("class", `flex-1 overflow-y-auto custom-scrollbar ${stringify(center ? "flex justify-center items-center" : "")} px-6 py-4 svelte-baj2y9`)}>`;
+    $$payload.out += `<div class="fixed inset-0 z-[70] flex items-center justify-center px-4 animate-in fade-in duration-200 svelte-wgizil"><div${attr("class", `relative bg-base-100 dark:bg-base-100/95 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden flex flex-col backdrop-blur-xl modal-container ${stringify(className)} svelte-wgizil`)}${attr("style", `width: ${stringify(typeof width === "string" ? width : width + "px")}; max-width: ${stringify(maxWidth)}; max-height: ${stringify(maxHeight)};`)}><div class="relative px-6 py-5 border-b border-base-300/40 dark:border-base-300/60 bg-gradient-to-r from-base-200/25 dark:from-base-200/15 to-base-300/15 dark:to-base-300/25 modal-header svelte-wgizil"><div class="flex justify-between items-center"><h3 class="font-semibold text-xl tracking-tight text-base-content">${escape_html(title)}</h3> <button class="btn btn-sm btn-ghost btn-circle hover:bg-base-300/40 dark:hover:bg-base-300/60 hover:rotate-90 transition-all duration-300 svelte-wgizil"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div> <div${attr("class", `flex-1 overflow-y-auto custom-scrollbar ${stringify(center ? "flex justify-center items-center" : "")} px-6 py-4 svelte-wgizil`)}>`;
     if (children) {
       $$payload.out += "<!--[-->";
       children($$payload);
@@ -25018,10 +25050,10 @@ function Modal($$payload, $$props) {
     if (buttons.length > 0) {
       $$payload.out += "<!--[-->";
       const each_array = ensure_array_like(buttons);
-      $$payload.out += `<div class="modal-action px-6 py-4 border-t border-base-300/50 bg-base-200/20"><div class="flex gap-3 justify-end w-full"><!--[-->`;
+      $$payload.out += `<div class="modal-action px-6 py-4 border-t border-base-300/40 dark:border-base-300/60 bg-base-200/15 dark:bg-base-200/25 modal-footer svelte-wgizil"><div class="flex gap-3 justify-end w-full"><!--[-->`;
       for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
         let btn = each_array[$$index];
-        $$payload.out += `<button${attr("class", `btn ${stringify(getButtonClass(btn))} min-w-[100px] rounded-lg font-medium transition-all duration-200 hover:scale-105 svelte-baj2y9`)}>${escape_html(m[btn]())}</button>`;
+        $$payload.out += `<button${attr("class", `btn ${stringify(getButtonClass(btn))} min-w-[100px] rounded-lg font-medium transition-all duration-200 hover:scale-105 svelte-wgizil`)}>${escape_html(m[btn]())}</button>`;
       }
       $$payload.out += `<!--]--></div></div>`;
     } else {
@@ -25066,7 +25098,7 @@ function ModalSymbol($$payload, $$props) {
       return;
     }
     const searchTerm = store_get($$store_subs ??= {}, "$keyword", keyword).toLowerCase();
-    showList = store_get($$store_subs ??= {}, "$save", save).allSymbols.filter((symbol) => symbol.ticker.toLowerCase().includes(searchTerm) || symbol.shortName?.toLowerCase().includes(searchTerm) || symbol.exchange.toLowerCase().includes(searchTerm));
+    showList = store_get($$store_subs ??= {}, "$save", save).allSymbols.filter((symbol) => symbol.ticker.toLowerCase().includes(searchTerm) || symbol.shortName?.toLowerCase().includes(searchTerm) || symbol.exchange?.toLowerCase().includes(searchTerm));
     console.log("🔍 Filtered symbols:", showList);
     selectedIndex = -1;
   });
@@ -25083,7 +25115,8 @@ function ModalSymbol($$payload, $$props) {
     $$payload2.out += `<div>`;
     Modal($$payload2, {
       title,
-      width: 600,
+      width: 650,
+      maxHeight: "85vh",
       get show() {
         return show;
       },
@@ -25093,43 +25126,42 @@ function ModalSymbol($$payload, $$props) {
       },
       buttons: [],
       children: ($$payload3) => {
-        $$payload3.out += `<div class="p-4"><div class="mb-4"><input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400" placeholder="Search"${attr("value", store_get($$store_subs ??= {}, "$keyword", keyword))} autofocus></div> <div class="max-h-80 overflow-y-auto">`;
+        $$payload3.out += `<div class="flex flex-col gap-6"><div class="relative"><div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/50 pointer-events-none"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div> <input type="text" class="w-full pl-12 pr-4 py-3 text-sm bg-base-100 border border-base-300/50 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 placeholder:text-base-content/50" placeholder="Search symbols..."${attr("value", store_get($$store_subs ??= {}, "$keyword", keyword))} autofocus></div> <div class="relative rounded-lg overflow-hidden bg-base-100 border border-base-300/30"><div class="max-h-96 overflow-y-auto luxury-scrollbar svelte-1cn1jdu">`;
         if (store_get($$store_subs ??= {}, "$ctx", ctx).loadingPairs) {
           $$payload3.out += "<!--[-->";
-          $$payload3.out += `<div class="flex justify-center py-8"><div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>`;
+          $$payload3.out += `<div class="flex justify-center py-16"><div class="relative"><div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div> <div class="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-primary/60 rounded-full animate-spin" style="animation-delay: -0.15s;"></div></div></div>`;
         } else {
           $$payload3.out += "<!--[!-->";
           if (showList.length === 0) {
             $$payload3.out += "<!--[-->";
-            $$payload3.out += `<div class="text-center py-8 text-gray-500 dark:text-gray-400">No symbols found</div>`;
+            $$payload3.out += `<div class="flex flex-col items-center justify-center py-16 text-center"><div class="w-16 h-16 rounded-full bg-base-200/50 flex items-center justify-center mb-4"><svg class="w-8 h-8 text-base-content/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div> <p class="text-lg font-semibold text-base-content/60 mb-2">No symbols found</p> <p class="text-sm text-base-content/40">Try a different search term</p></div>`;
           } else {
             $$payload3.out += "<!--[!-->";
             const each_array = ensure_array_like(showList);
-            $$payload3.out += `<div class="space-y-1"><!--[-->`;
+            $$payload3.out += `<div class="divide-y divide-base-300/20"><!--[-->`;
             for (let i = 0, $$length = each_array.length; i < $$length; i++) {
               let symbol = each_array[i];
-              $$payload3.out += `<div${attr("class", `flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer rounded ${stringify(selectedIndex === i ? "bg-blue-50 dark:bg-blue-900" : "")}`)}><div class="w-8 h-8 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">`;
-              if (symbol.logo) {
-                $$payload3.out += "<!--[-->";
-                $$payload3.out += `<img${attr("src", symbol.logo)}${attr("alt", symbol.ticker)} class="w-6 h-6 rounded-full object-cover" onerror="this.__e=event"> <span class="text-xs font-semibold text-gray-600 dark:text-gray-300 hidden">${escape_html(symbol.ticker.charAt(0))}</span>`;
-              } else {
-                $$payload3.out += "<!--[!-->";
-                $$payload3.out += `<span class="text-xs font-semibold text-gray-600 dark:text-gray-300">${escape_html(symbol.ticker.charAt(0))}</span>`;
-              }
-              $$payload3.out += `<!--]--></div> <div class="flex-1 min-w-0"><div class="font-semibold text-gray-900 dark:text-white">${escape_html(symbol.ticker)}</div> `;
+              $$payload3.out += `<div${attr("class", `group flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-200 ${stringify(selectedIndex === i ? "bg-primary/10 text-primary border-l-2 border-primary" : "hover:bg-base-200/50 text-base-content")}`)}><div class="relative w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 bg-base-200/50"><img${attr("src", `https://s3-api.bayah.app/cdn/symbol/logo/${symbol.ticker}.svg`)}${attr("alt", symbol.ticker)} class="w-full h-full object-cover" onerror="this.__e=event"> <div class="absolute inset-0 bg-base-200 flex items-center justify-center hidden"><span class="text-xs font-medium text-base-content/60">${escape_html(symbol.ticker.charAt(0))}</span></div></div> <div class="flex-1 min-w-0"><div class="flex items-center gap-2"><h3 class="font-medium text-base">${escape_html(symbol.ticker)}</h3> <span class="text-xs text-base-content/50">${escape_html(symbol.exchange)}</span></div> `;
               if (symbol.shortName && symbol.shortName !== symbol.ticker) {
                 $$payload3.out += "<!--[-->";
-                $$payload3.out += `<div class="text-sm text-gray-600 dark:text-gray-300 truncate">${escape_html(symbol.shortName)}</div>`;
+                $$payload3.out += `<p class="text-sm text-base-content/60 truncate mt-0.5">${escape_html(symbol.shortName)}</p>`;
               } else {
                 $$payload3.out += "<!--[!-->";
               }
-              $$payload3.out += `<!--]--></div> <div class="text-right flex-shrink-0"><div class="text-xs font-semibold text-gray-700 dark:text-gray-300">${escape_html(symbol.exchange)}</div></div></div>`;
+              $$payload3.out += `<!--]--></div> `;
+              if (selectedIndex === i) {
+                $$payload3.out += "<!--[-->";
+                $$payload3.out += `<div class="flex-shrink-0"><svg class="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"></path></svg></div>`;
+              } else {
+                $$payload3.out += "<!--[!-->";
+              }
+              $$payload3.out += `<!--]--></div>`;
             }
             $$payload3.out += `<!--]--></div>`;
           }
           $$payload3.out += `<!--]-->`;
         }
-        $$payload3.out += `<!--]--></div> <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600 text-center"><p class="text-xs text-gray-500 dark:text-gray-400">Powered by Duty AI</p></div></div>`;
+        $$payload3.out += `<!--]--></div></div> <div class="flex justify-center items-center py-2 mt-1"><div class="group relative cursor-pointer"><div class="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out blur-xl"></div> <div class="relative flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-base-100/80 to-base-200/60 backdrop-blur-sm border border-base-300/30 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-500 ease-out"><div class="w-2 h-2 rounded-full bg-gradient-to-r from-primary to-secondary animate-pulse"></div> <span class="text-sm font-medium text-base-content/70 group-hover:text-primary transition-colors duration-300">Powered by</span> <span class="text-sm font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent group-hover:from-secondary group-hover:to-primary transition-all duration-500">Duty AI</span> <div class="w-2 h-2 rounded-full bg-gradient-to-r from-secondary to-primary animate-pulse" style="animation-delay: 0.5s;"></div></div></div></div></div>`;
       },
       $$slots: { default: true }
     });
@@ -25660,18 +25692,18 @@ function ModalIndSearch($$payload, $$props) {
       buttons: [],
       children: ($$payload3) => {
         const each_array = ensure_array_like(showInds);
-        $$payload3.out += `<div class="flex flex-col gap-5"><div class="relative group"><div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/40 pointer-events-none"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div> <input type="text" class="input input-bordered w-full pl-12 pr-12 h-12 rounded-xl bg-base-200/50 border-base-300/50 focus:border-primary/50 focus:bg-base-100 transition-all duration-300 placeholder:text-base-content/40"${attr("placeholder", /* @__PURE__ */ search())}${attr("value", keyword)}> `;
+        $$payload3.out += `<div class="flex flex-col gap-6 svelte-133nkh7"><div${attr("class", `relative group transition-all duration-300 ease-out ${stringify("opacity-100 translate-y-0")} svelte-133nkh7`)}><div class="absolute left-4 top-1/2 transform -translate-y-1/2 pointer-events-none z-10 transition-all duration-300 search-icon svelte-133nkh7"><svg class="w-4 h-4 svelte-133nkh7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" class="svelte-133nkh7"></path></svg></div> <input type="text" class="w-full pl-12 pr-12 py-3.5 text-[15px] font-medium tracking-wide backdrop-blur-sm rounded-2xl focus:outline-none transition-all duration-500 ease-out placeholder:font-normal search-input svelte-133nkh7"${attr("placeholder", /* @__PURE__ */ search())}${attr("value", keyword)}> `;
         {
           $$payload3.out += "<!--[!-->";
         }
-        $$payload3.out += `<!--]--></div> <div class="relative rounded-lg overflow-hidden border border-base-300/30"><div class="h-[450px] overflow-y-auto custom-scrollbar svelte-1ho0heh"><!--[-->`;
+        $$payload3.out += `<!--]--></div> <div class="relative rounded-2xl overflow-hidden backdrop-blur-sm indicator-list-container svelte-133nkh7"><div class="h-[480px] overflow-y-auto ultra-minimal-scrollbar svelte-133nkh7"><!--[-->`;
         for (let index = 0, $$length = each_array.length; index < $$length; index++) {
           let ind = each_array[index];
           const isSelected = selectedIndicators.has(ind.name);
-          $$payload3.out += `<div${attr("class", `group relative flex items-center min-h-[48px] px-4 py-2 cursor-pointer ${stringify(isSelected ? "bg-primary/10 text-primary" : "hover:bg-base-200/30 text-base-content")} ${stringify(index < showInds.length - 1 ? "border-b border-base-300/20" : "")}`)}><div class="flex items-center flex-1"><span class="text-sm font-medium">${escape_html(ind.title)}</span></div> `;
+          $$payload3.out += `<div${attr("class", `group relative flex items-center min-h-[56px] px-5 py-3 cursor-pointer transition-all duration-500 ease-out ${stringify(index < showInds.length - 1 ? "border-b" : "")} ${stringify(isSelected ? "indicator-item-selected" : "indicator-item-unselected")} svelte-133nkh7`)}><div${attr("class", `flex items-center justify-center w-2 h-2 rounded-full mr-4 transition-all duration-500 ${stringify(isSelected ? "indicator-dot-selected" : "indicator-dot-unselected")} svelte-133nkh7`)}></div> <div class="flex-1 min-w-0 svelte-133nkh7"><span${attr("class", `text-[15px] font-medium tracking-wide leading-relaxed ${stringify(isSelected ? "indicator-text-selected" : "indicator-text-unselected")} svelte-133nkh7`)}>${escape_html(ind.title)}</span></div> `;
           if (isSelected) {
             $$payload3.out += "<!--[-->";
-            $$payload3.out += `<div class="flex items-center gap-2 ml-4"><button class="btn btn-xs btn-ghost hover:bg-info/20 hover:text-info" title="Edit Parameters"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg></button> <button class="btn btn-xs btn-ghost hover:bg-error/20 hover:text-error" title="Delete Indicator"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>`;
+            $$payload3.out += `<div class="flex items-center gap-2 ml-4 opacity-100 transition-all duration-300 svelte-133nkh7"><button class="w-8 h-8 rounded-full hover:scale-110 transition-all duration-300 flex items-center justify-center backdrop-blur-sm edit-btn svelte-133nkh7" title="Edit Parameters"><svg class="w-3.5 h-3.5 svelte-133nkh7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" class="svelte-133nkh7"></path></svg></button> <button class="w-8 h-8 rounded-full hover:scale-110 transition-all duration-300 flex items-center justify-center backdrop-blur-sm delete-btn svelte-133nkh7" title="Remove Indicator"><svg class="w-3.5 h-3.5 svelte-133nkh7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" class="svelte-133nkh7"></path></svg></button></div>`;
           } else {
             $$payload3.out += "<!--[!-->";
           }
@@ -25680,11 +25712,11 @@ function ModalIndSearch($$payload, $$props) {
         $$payload3.out += `<!--]--> `;
         if (showInds.length === 0) {
           $$payload3.out += "<!--[-->";
-          $$payload3.out += `<div class="flex flex-col items-center justify-center h-full text-base-content/50 gap-3"><svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> <p class="text-lg font-medium">No indicators found</p> <p class="text-sm">Try a different search term</p></div>`;
+          $$payload3.out += `<div class="flex flex-col items-center justify-center py-16 text-center svelte-133nkh7"><div class="w-16 h-16 rounded-full bg-base-200/50 flex items-center justify-center mb-4 svelte-133nkh7"><svg class="w-8 h-8 text-base-content/40 svelte-133nkh7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" class="svelte-133nkh7"></path></svg></div> <p class="text-lg font-semibold text-base-content/60 mb-2 svelte-133nkh7">No indicators found</p> <p class="text-sm text-base-content/40 svelte-133nkh7">Try a different search term</p></div>`;
         } else {
           $$payload3.out += "<!--[!-->";
         }
-        $$payload3.out += `<!--]--></div></div></div>`;
+        $$payload3.out += `<!--]--></div></div> <div class="flex justify-center items-center py-2 mt-1 svelte-133nkh7"><div class="group relative cursor-pointer svelte-133nkh7"><div class="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-700 ease-out blur-xl svelte-133nkh7"></div> <div class="relative flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-base-100/80 to-base-200/60 backdrop-blur-sm border border-base-300/30 shadow-lg group-hover:shadow-xl group-hover:scale-105 transition-all duration-500 ease-out svelte-133nkh7"><div class="w-2 h-2 rounded-full bg-gradient-to-r from-primary to-secondary animate-pulse svelte-133nkh7"></div> <span class="text-sm font-medium text-base-content/70 group-hover:text-primary transition-colors duration-300 svelte-133nkh7">Powered by</span> <span class="text-sm font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent group-hover:from-secondary group-hover:to-primary transition-all duration-500 svelte-133nkh7">Duty AI</span> <div class="w-2 h-2 rounded-full bg-gradient-to-r from-secondary to-primary animate-pulse svelte-133nkh7" style="animation-delay: 0.5s;"></div></div></div></div></div>`;
       },
       $$slots: { default: true }
     });
