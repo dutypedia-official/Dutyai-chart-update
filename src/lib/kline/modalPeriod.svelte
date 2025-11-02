@@ -41,7 +41,7 @@
   }
 </script>
 
-<Modal {title} width={500} bind:show={show} buttons={[]}>
+<Modal {title} width={500} bind:show={show} theme={$save.theme} buttons={[]}>
   <div class="p-2">
     <ul class="flex flex-wrap justify-center gap-2">
       {#each periods as period}

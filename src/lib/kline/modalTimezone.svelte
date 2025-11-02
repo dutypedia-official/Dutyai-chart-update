@@ -22,7 +22,7 @@
   }
 </script>
 
-<Modal title={m.timezone()} width={400} bind:show={show} click={handleConfirm}>
+<Modal title={m.timezone()} width={400} bind:show={show} theme={$save.theme} click={handleConfirm}>
   <div class="flex justify-center items-center min-h-[70px]">
     <select 
       class="select select-bordered w-[70%]"

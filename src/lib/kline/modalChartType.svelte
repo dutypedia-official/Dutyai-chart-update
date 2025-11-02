@@ -27,9 +27,20 @@
     { id: 'line_chart', name: 'Line', icon: 'line' } // Changed from 'line' to 'line_chart'
   ];
 
-  function handleChartTypeClick(param: unknown) {
+  function handleChartTypeClick(param: unknown, event?: MouseEvent) {
     const chartType = param as { id: string; name: string; icon: string };
     console.log('📊 CHART TYPE CLICK:', chartType.id);
+    
+    // Add selection animation
+    if (event) {
+      const item = event.currentTarget as HTMLElement;
+      item.classList.add('selecting');
+      
+      // Remove the class after animation completes
+      setTimeout(() => {
+        item.classList.remove('selecting');
+      }, 800);
+    }
     
     // Update chart type in styles
     if (!$save.styles.candle) {
@@ -112,374 +123,455 @@
     const currentType = $save.styles?.candle?.type || 'candle_solid';
     return currentType;
   }
-
-  // Mouse tracking for premium hover effects
-  function handleItemHover(event: MouseEvent, chartType: any) {
-    const item = event.currentTarget as HTMLElement;
-    const rect = item.getBoundingClientRect();
-    
-    // Calculate mouse position relative to the item
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    
-    // Update CSS variables for the hover effect
-    item.style.setProperty('--mouse-x', `${x}px`);
-    item.style.setProperty('--mouse-y', `${y}px`);
-  }
 </script>
 
-<Modal bind:show title="Chart Type" width="auto" maxWidth="95vw" maxHeight="90vh" buttons={[]} class="chart-type-modal">
-  <div class="premium-chart-grid p-4 sm:p-5">
+<Modal bind:show title="Chart Type" width="550px" maxWidth="95vw" maxHeight="90vh" buttons={[]} theme={$save.theme} class="chart-type-modal-premium">
+  <div class="premium-grid">
     {#each chartTypes as chartType (chartType.id)}
-      <div 
-        class="premium-chart-item group"
+      <button 
+        class="chart-card"
         class:active={getCurrentChartType() === chartType.id}
-        onclick={() => handleChartTypeClick(chartType)}
-        onmousemove={(e) => handleItemHover(e, chartType)}
+        onclick={(e) => handleChartTypeClick(chartType, e)}
       >
-        <!-- Simplified icon with direct styling -->
-        <div class="premium-icon-container">
+        <!-- Animated background gradient -->
+        <div class="card-bg"></div>
+        
+        <!-- Selection badge -->
+        {#if getCurrentChartType() === chartType.id}
+          <div class="selection-badge">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M13.3 4.3L6 11.6 2.7 8.3l1.1-1.1L6 9.4l6.2-6.2 1.1 1.1z" 
+                    fill="currentColor" stroke="currentColor" stroke-width="0.5"/>
+            </svg>
+          </div>
+        {/if}
+        
+        <!-- Icon container with glow effect -->
+        <div class="icon-container">
+          <div class="icon-glow"></div>
           <Icon 
             name={chartType.icon} 
-            size={20} 
-            class="premium-icon {getCurrentChartType() === chartType.id ? 'active-icon' : ''}"
+            size={26} 
+            class="chart-icon"
           />
-          {#if getCurrentChartType() === chartType.id}
-            <svg class="active-indicator" width="16" height="16" viewBox="0 0 20 20" fill="none">
-              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" 
-                    fill="currentColor" 
-                    class="checkmark"
-              />
-            </svg>
-          {/if}
         </div>
         
-        <!-- Chart type name -->
-        <div class="premium-chart-name">
+        <!-- Label with modern typography -->
+        <span class="chart-name">
           {chartType.name}
-        </div>
+        </span>
         
-        <!-- Visual effects -->
-        <div class="premium-hover-effect"></div>
-        {#if getCurrentChartType() === chartType.id}
-          <div class="active-glow"></div>
-        {/if}
-      </div>
+        <!-- Shine effect on hover -->
+        <div class="shine-effect"></div>
+      </button>
     {/each}
   </div>
   
   <style>
-    .premium-chart-grid {
+    /* ===== PREMIUM GRID LAYOUT ===== */
+    .premium-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      max-width: 400px;
-      margin: 0 auto;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      padding: 8px;
     }
     
-    @media (max-width: 480px) {
-      .premium-chart-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-        max-width: none;
+    @media (max-width: 640px) {
+      .premium-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        padding: 6px;
       }
     }
     
-    .premium-chart-item {
+    @media (max-width: 480px) {
+      .premium-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        padding: 8px;
+      }
+    }
+    
+    /* ===== PREMIUM CHART CARD ===== */
+    .chart-card {
       position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 12px 8px;
-      border-radius: 16px;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px 12px 18px;
+      background: linear-gradient(145deg, 
+        rgba(30, 35, 48, 0.6) 0%, 
+        rgba(20, 25, 35, 0.4) 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.05) 0%, 
-        rgba(255, 255, 255, 0.02) 50%, 
-        rgba(255, 255, 255, 0.05) 100%
-      );
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 
+        0 4px 20px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
     
-    @media (max-width: 480px) {
-      .premium-chart-item {
-        padding: 10px 6px;
-        border-radius: 14px;
+    @media (max-width: 640px) {
+      .chart-card {
+        padding: 16px 10px 14px;
+        gap: 8px;
       }
     }
     
-    .premium-chart-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-      border-color: rgba(138, 43, 226, 0.3);
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.1) 0%, 
-        rgba(138, 43, 226, 0.05) 50%, 
-        rgba(138, 43, 226, 0.1) 100%
-      );
+    @media (max-width: 480px) {
+      .chart-card {
+        padding: 22px 14px 20px;
+        gap: 12px;
+      }
     }
     
-    .premium-chart-item.active {
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.2) 0%, 
-        rgba(138, 43, 226, 0.15) 50%, 
-        rgba(138, 43, 226, 0.2) 100%
-      );
-      border-color: rgba(138, 43, 226, 0.4);
+    /* Animated background */
+    .card-bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(145deg,
+        rgba(45, 55, 75, 0.3) 0%,
+        rgba(30, 40, 60, 0.2) 50%,
+        rgba(20, 30, 50, 0.3) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 0;
+    }
+    
+    /* Hover state */
+    .chart-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 255, 255, 0.12);
+      background: linear-gradient(145deg, 
+        rgba(35, 45, 60, 0.7) 0%, 
+        rgba(25, 35, 50, 0.5) 100%);
       box-shadow: 
-        0 4px 20px rgba(138, 43, 226, 0.25),
-        0 0 0 1px rgba(138, 43, 226, 0.3);
+        0 12px 40px rgba(0, 0, 0, 0.4),
+        0 6px 20px rgba(20, 30, 50, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
     
-    .premium-icon-container {
-      position: relative;
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
+    .chart-card:hover .card-bg {
+      opacity: 1;
+    }
+    
+    /* Active state */
+    .chart-card.active {
+      background: linear-gradient(145deg, 
+        rgba(30, 50, 80, 0.5) 0%,
+        rgba(20, 40, 70, 0.4) 50%,
+        rgba(25, 45, 75, 0.5) 100%);
+      border-color: rgba(70, 120, 180, 0.4);
+      box-shadow: 
+        0 8px 32px rgba(30, 60, 100, 0.3),
+        0 4px 16px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 0 0 1px rgba(60, 100, 150, 0.2);
+      transform: translateY(-2px);
+    }
+    
+    .chart-card.active .card-bg {
+      background: linear-gradient(145deg,
+        rgba(40, 65, 95, 0.4) 0%,
+        rgba(30, 55, 85, 0.3) 50%,
+        rgba(35, 60, 90, 0.4) 100%);
+      opacity: 1;
+    }
+    
+    .chart-card.active:hover {
+      transform: translateY(-2px);
+      border-color: rgba(80, 130, 190, 0.5);
+    }
+    
+    /* ===== SELECTION BADGE ===== */
+    .selection-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 20px;
+      height: 20px;
+      background: linear-gradient(135deg, 
+        rgba(70, 120, 180, 0.9) 0%, 
+        rgba(50, 100, 160, 0.85) 100%);
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 10px;
-      background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.1) 0%, 
-        rgba(255, 255, 255, 0.05) 100%
-      );
-      transition: all 0.3s ease;
+      color: white;
+      z-index: 10;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 
+        0 3px 10px rgba(30, 60, 100, 0.4),
+        0 1px 3px rgba(0, 0, 0, 0.3);
+      animation: badgePulse 2.5s ease-in-out infinite;
     }
     
-    @media (max-width: 480px) {
-      .premium-icon-container {
-        width: 40px;
-        height: 40px;
-        margin-bottom: 8px;
+    @keyframes badgePulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 
+          0 3px 10px rgba(30, 60, 100, 0.4),
+          0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+      50% {
+        transform: scale(1.05);
+        box-shadow: 
+          0 4px 14px rgba(40, 70, 110, 0.5),
+          0 2px 5px rgba(0, 0, 0, 0.35);
+      }
+    }
+    
+    /* ===== ICON CONTAINER ===== */
+    .icon-container {
+      position: relative;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: linear-gradient(145deg, 
+        rgba(40, 50, 65, 0.5) 0%, 
+        rgba(25, 35, 50, 0.3) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 
+        0 3px 12px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      z-index: 1;
+    }
+    
+    @media (max-width: 640px) {
+      .icon-container {
+        width: 42px;
+        height: 42px;
         border-radius: 10px;
       }
     }
     
-    .premium-chart-item:hover .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.2) 0%, 
-        rgba(138, 43, 226, 0.1) 100%
-      );
+    @media (max-width: 480px) {
+      .icon-container {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+      }
     }
     
-    .premium-chart-item.active .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.3) 0%, 
-        rgba(138, 43, 226, 0.2) 100%
-      );
-    }
-    
-    .premium-icon {
-      color: rgba(255, 255, 255, 0.8);
-      transition: all 0.3s ease;
-    }
-    
-    .premium-chart-item:hover .premium-icon {
-      color: rgba(255, 255, 255, 0.95);
-    }
-    
-    .active-icon {
-      color: #ffffff !important;
-    }
-    
-    .active-indicator {
+    .icon-glow {
       position: absolute;
-      top: -4px;
-      right: -4px;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #8a2be2 0%, #6a0dad 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(138, 43, 226, 0.4);
+      inset: -3px;
+      background: linear-gradient(145deg, 
+        rgba(50, 90, 140, 0.3) 0%, 
+        rgba(35, 70, 120, 0.25) 100%);
+      border-radius: inherit;
+      opacity: 0;
+      filter: blur(10px);
+      transition: opacity 0.3s ease;
+      z-index: -1;
     }
     
-    .checkmark {
-      color: #ffffff;
-      width: 12px;
-      height: 12px;
+    .chart-card:hover .icon-container {
+      transform: scale(1.06);
+      background: linear-gradient(145deg, 
+        rgba(50, 65, 85, 0.6) 0%, 
+        rgba(35, 50, 70, 0.4) 100%);
+      box-shadow: 
+        0 5px 18px rgba(0, 0, 0, 0.25),
+        0 2px 10px rgba(30, 50, 80, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
     
-    .premium-chart-name {
-      font-size: 13px;
+    .chart-card.active .icon-container {
+      background: linear-gradient(145deg, 
+        rgba(40, 70, 110, 0.5) 0%, 
+        rgba(30, 60, 95, 0.4) 100%);
+      border-color: rgba(70, 110, 160, 0.3);
+      transform: scale(1.04);
+      box-shadow: 
+        0 6px 20px rgba(30, 60, 100, 0.3),
+        0 3px 12px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    
+    .chart-card.active .icon-glow {
+      opacity: 0.5;
+    }
+    
+    /* ===== CHART ICON ===== */
+    :global(.chart-icon) {
+      color: rgba(200, 210, 230, 0.85);
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2;
+    }
+    
+    .chart-card:hover :global(.chart-icon) {
+      color: rgba(220, 230, 245, 0.95);
+      filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.35));
+      transform: scale(1.05);
+    }
+    
+    .chart-card.active :global(.chart-icon) {
+      color: rgba(160, 200, 240, 1);
+      filter: drop-shadow(0 4px 12px rgba(40, 80, 130, 0.5));
+      transform: scale(1.03);
+    }
+    
+    /* ===== CHART NAME ===== */
+    .chart-name {
+      color: rgba(180, 190, 210, 0.85);
+      font-size: 12px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.9);
       text-align: center;
-      transition: all 0.3s ease;
+      line-height: 1.3;
+      letter-spacing: 0.4px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1;
     }
     
-    .premium-chart-item:hover .premium-chart-name {
-      color: #ffffff;
+    @media (max-width: 640px) {
+      .chart-name {
+        font-size: 11px;
+      }
     }
     
-    .premium-chart-item.active .premium-chart-name {
-      color: #ffffff;
+    @media (max-width: 480px) {
+      .chart-name {
+        font-size: 12.5px;
+      }
+    }
+    
+    .chart-card:hover .chart-name {
+      color: rgba(210, 220, 235, 0.95);
+      transform: translateY(-1px);
+    }
+    
+    .chart-card.active .chart-name {
+      color: rgba(180, 210, 240, 1);
       font-weight: 600;
+      letter-spacing: 0.5px;
     }
     
-    .premium-hover-effect {
+    /* ===== SHINE EFFECT ===== */
+    .shine-effect {
       position: absolute;
       inset: 0;
-      border-radius: 16px;
-      background: radial-gradient(
-        400px circle at var(--mouse-x) var(--mouse-y),
-        rgba(138, 43, 226, 0.1),
-        transparent 40%
+      background: linear-gradient(
+        115deg,
+        transparent 25%,
+        rgba(255, 255, 255, 0.08) 45%,
+        rgba(200, 220, 240, 0.12) 50%,
+        rgba(255, 255, 255, 0.08) 55%,
+        transparent 75%
       );
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      pointer-events: none;
+      transform: translateX(-100%) skewX(-15deg);
+      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
-    .premium-chart-item:hover .premium-hover-effect {
-      opacity: 1;
+    .chart-card:hover .shine-effect {
+      transform: translateX(100%) skewX(-15deg);
     }
     
-    .active-glow {
-      position: absolute;
-      inset: -2px;
-      border-radius: 18px;
-      background: linear-gradient(45deg, 
-        rgba(138, 43, 226, 0.4), 
-        rgba(138, 43, 226, 0.2), 
-        rgba(138, 43, 226, 0.4)
-      );
-      filter: blur(8px);
-      z-index: -1;
-      animation: activeGlow 2s ease-in-out infinite alternate;
-    }
-    
-    @keyframes activeGlow {
-      0% { opacity: 0.6; }
-      100% { opacity: 0.8; }
-    }
-    
-    /* Light theme adjustments - Fixed text colors */
-    :global([data-theme="light"]) .premium-chart-item {
-      background: linear-gradient(135deg, 
-        rgba(240, 240, 240, 0.8) 0%, 
-        rgba(245, 245, 245, 0.9) 50%, 
-        rgba(240, 240, 240, 0.8) 100%
-      );
-      border: 1px solid rgba(0, 0, 0, 0.15);
-    }
-    
-    :global([data-theme="light"]) .premium-chart-item:hover {
-      border-color: rgba(59, 130, 246, 0.3);
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.08) 0%, 
-        rgba(59, 130, 246, 0.04) 50%, 
-        rgba(59, 130, 246, 0.08) 100%
-      );
-    }
-    
-    :global([data-theme="light"]) .premium-chart-item.active {
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.15) 0%, 
-        rgba(59, 130, 246, 0.1) 50%, 
-        rgba(59, 130, 246, 0.15) 100%
-      );
-      border-color: rgba(59, 130, 246, 0.4);
+    /* ===== LIGHT THEME ===== */
+    :global([data-theme="light"]) .chart-card {
+      background: #ffffff;
+      border-color: rgba(0, 0, 0, 0.05);
       box-shadow: 
-        0 4px 20px rgba(59, 130, 246, 0.15),
-        0 0 0 1px rgba(59, 130, 246, 0.2);
+        0 1px 3px rgba(0, 0, 0, 0.03),
+        0 0px 1px rgba(0, 0, 0, 0.02);
     }
     
-    :global([data-theme="light"]) .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(230, 230, 230, 0.7) 0%, 
-        rgba(235, 235, 235, 0.8) 100%
-      );
+    :global([data-theme="light"]) .card-bg {
+      background: transparent;
+      opacity: 0;
     }
     
-    :global([data-theme="light"]) .premium-chart-item:hover .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.1) 0%, 
-        rgba(59, 130, 246, 0.05) 100%
-      );
+    :global([data-theme="light"]) .chart-card:hover {
+      background: #ffffff;
+      border-color: rgba(100, 150, 220, 0.2);
+      box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.06),
+        0 2px 6px rgba(0, 0, 0, 0.04);
     }
     
-    :global([data-theme="light"]) .premium-chart-item.active .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.2) 0%, 
-        rgba(59, 130, 246, 0.1) 100%
-      );
+    :global([data-theme="light"]) .chart-card.active {
+      background: linear-gradient(145deg, #e8f4ff 0%, #f0f8ff 100%);
+      border-color: rgba(100, 150, 220, 0.4);
+      box-shadow: 
+        0 3px 10px rgba(100, 150, 220, 0.15),
+        0 1px 4px rgba(0, 0, 0, 0.05);
     }
     
-    /* Light mode - Force black text for ALL unselected items */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) .premium-icon {
-      color: #000000 !important;
+    :global([data-theme="light"]) .chart-card.active .card-bg {
+      opacity: 0;
     }
     
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active):hover .premium-icon {
-      color: #000000 !important;
+    :global([data-theme="light"]) .icon-container {
+      background: #f8f9fa;
+      border-color: rgba(0, 0, 0, 0.05);
+      box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        inset 0 0.5px 0 rgba(255, 255, 255, 1);
     }
     
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) .premium-chart-name {
-      color: #000000 !important;
-      font-weight: 500;
+    :global([data-theme="light"]) .chart-card:hover .icon-container {
+      background: #f0f2f5;
+      box-shadow: 
+        0 2px 6px rgba(0, 0, 0, 0.05),
+        inset 0 0.5px 0 rgba(255, 255, 255, 1);
     }
     
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active):hover .premium-chart-name {
-      color: #000000 !important;
+    :global([data-theme="light"]) .chart-card.active .icon-container {
+      background: linear-gradient(145deg, #dceeff 0%, #e6f3ff 100%);
+      border-color: rgba(100, 150, 220, 0.2);
+      box-shadow: 
+        0 2px 8px rgba(100, 150, 220, 0.12),
+        inset 0 0.5px 0 rgba(255, 255, 255, 1);
+    }
+    
+    :global([data-theme="light"]) .icon-glow {
+      opacity: 0;
+    }
+    
+    :global([data-theme="light"]) :global(.chart-icon) {
+      color: #5a6c84;
+      filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.1));
+    }
+    
+    :global([data-theme="light"]) .chart-card:hover :global(.chart-icon) {
+      color: #4a5c74;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+    }
+    
+    :global([data-theme="light"]) .chart-card.active :global(.chart-icon) {
+      color: #4a90e2;
+      filter: drop-shadow(0 1px 3px rgba(74, 144, 226, 0.3));
+    }
+    
+    :global([data-theme="light"]) .chart-name {
+      color: #6b7a94;
+    }
+    
+    :global([data-theme="light"]) .chart-card:hover .chart-name {
+      color: #5a6c84;
+    }
+    
+    :global([data-theme="light"]) .chart-card.active .chart-name {
+      color: #4a90e2;
       font-weight: 600;
     }
     
-    /* Additional specificity for any nested elements */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) * {
-      color: #000000 !important;
-    }
-    
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) svg {
-      color: #000000 !important;
-      fill: #000000 !important;
-    }
-    
-    /* Light mode - Selected/Active items - Force white text */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active .premium-icon,
-    :global([data-theme="light"]) .chart-type-modal .active-icon {
-      color: #ffffff !important;
-    }
-    
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active .premium-chart-name {
-      color: #ffffff !important;
-      font-weight: 600;
-    }
-    
-    /* Override any nested elements in active items to be white */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active * {
-      color: #ffffff !important;
-    }
-    
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active svg {
-      color: #ffffff !important;
-      fill: #ffffff !important;
-    }
-    
-    :global([data-theme="light"]) .premium-hover-effect {
-      background: radial-gradient(
-        400px circle at var(--mouse-x) var(--mouse-y),
-        rgba(59, 130, 246, 0.08),
-        transparent 40%
-      );
-    }
-    
-    :global([data-theme="light"]) .active-glow {
-      background: linear-gradient(45deg, 
-        rgba(59, 130, 246, 0.3), 
-        rgba(59, 130, 246, 0.15), 
-        rgba(59, 130, 246, 0.3)
-      );
-    }
-    
-    :global([data-theme="light"]) .checkmark {
-      color: #ffffff !important;
+    :global([data-theme="light"]) .selection-badge {
+      background: linear-gradient(135deg, #5ba3f5 0%, #4a90e2 100%);
+      border-color: rgba(255, 255, 255, 0.8);
+      box-shadow: 
+        0 2px 8px rgba(74, 144, 226, 0.3),
+        0 1px 2px rgba(0, 0, 0, 0.1);
     }
   </style>
 </Modal>

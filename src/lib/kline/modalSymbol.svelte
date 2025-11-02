@@ -39,23 +39,114 @@
     };
   }
   
+  // Intelligent search function with relevance scoring
+  function intelligentSearch(symbols: SymbolInfo[], searchTerm: string): SymbolInfo[] {
+    if (!searchTerm || !searchTerm.trim()) {
+      return symbols;
+    }
+
+    const term = searchTerm.trim().toLowerCase();
+    const terms = term.split(/\s+/); // Support multiple words
+    
+    // Score each symbol based on relevance
+    const scoredSymbols = symbols.map(symbol => {
+      const ticker = symbol.ticker.toLowerCase();
+      const name = (symbol.shortName || '').toLowerCase();
+      const exchange = (symbol.exchange || '').toLowerCase();
+      
+      let score = 0;
+      
+      // For each search term
+      terms.forEach(searchWord => {
+        // Exact match (highest priority)
+        if (ticker === searchWord) {
+          score += 1000;
+        }
+        
+        // Ticker starts with search term (very high priority)
+        else if (ticker.startsWith(searchWord)) {
+          score += 500;
+        }
+        
+        // Ticker contains search term (high priority)
+        else if (ticker.includes(searchWord)) {
+          score += 300;
+        }
+        
+        // Name starts with search term (good priority)
+        else if (name.startsWith(searchWord)) {
+          score += 200;
+        }
+        
+        // Name contains search term (medium priority)
+        else if (name.includes(searchWord)) {
+          score += 100;
+        }
+        
+        // Exchange matches (low priority)
+        else if (exchange.includes(searchWord)) {
+          score += 50;
+        }
+        
+        // Fuzzy matching - check if characters appear in order
+        else if (fuzzyMatch(ticker, searchWord)) {
+          score += 30;
+        }
+        
+        // Fuzzy matching in name
+        else if (fuzzyMatch(name, searchWord)) {
+          score += 20;
+        }
+      });
+      
+      // Bonus points for shorter ticker (more specific)
+      if (score > 0 && ticker.length <= 5) {
+        score += 10;
+      }
+      
+      return { symbol, score };
+    });
+    
+    // Filter out non-matching symbols and sort by score
+    return scoredSymbols
+      .filter(item => item.score > 0)
+      .sort((a, b) => {
+        // Sort by score (descending)
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        // If same score, sort alphabetically by ticker
+        return a.symbol.ticker.localeCompare(b.symbol.ticker);
+      })
+      .map(item => item.symbol);
+  }
+  
+  // Fuzzy matching - checks if characters appear in order
+  function fuzzyMatch(text: string, pattern: string): boolean {
+    let patternIdx = 0;
+    for (let i = 0; i < text.length && patternIdx < pattern.length; i++) {
+      if (text[i] === pattern[patternIdx]) {
+        patternIdx++;
+      }
+    }
+    return patternIdx === pattern.length;
+  }
+
   keyword.subscribe(value => {
     console.log('🔍 Modal keyword changed:', value);
     console.log('🔍 Available allSymbols:', $save.allSymbols);
     console.log('🔍 allSymbols length:', $save.allSymbols.length);
-    if (!value) {
+    
+    if (!value || !value.trim()) {
       showList = $save.allSymbols;
       console.log('🔍 Showing all symbols:', showList);
+      selectedIndex = -1;
       return;
     }
     
-    const searchTerm = $keyword.toLowerCase();
-    showList = $save.allSymbols.filter(symbol => 
-      symbol.ticker.toLowerCase().includes(searchTerm) ||
-      symbol.shortName?.toLowerCase().includes(searchTerm) ||
-      symbol.exchange?.toLowerCase().includes(searchTerm)
-    );
-    console.log('🔍 Filtered symbols:', showList);
+    // Use intelligent search
+    showList = intelligentSearch($save.allSymbols, value);
+    console.log('🔍 Filtered symbols with intelligent search:', showList);
     selectedIndex = -1; // Reset selection when search changes
   });
 
@@ -95,7 +186,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div onkeydown={handleKeydown}>
-  <Modal {title} width={650} maxHeight="85vh" bind:show={show} buttons={[]}>
+  <Modal {title} width={650} maxHeight="85vh" bind:show={show} theme={$save.theme} buttons={[]}>
     <div class="flex flex-col gap-6">
       
       <!-- Search Bar -->
@@ -116,7 +207,7 @@
 
       <!-- Symbol List -->
       <div class="relative rounded-lg overflow-hidden bg-base-100 border border-base-300/30">
-        <div class="max-h-96 overflow-y-auto luxury-scrollbar">
+        <div class="h-96 overflow-y-auto luxury-scrollbar">
           {#if $ctx.loadingPairs}
             <div class="flex justify-center py-16">
               <div class="relative">
@@ -240,7 +331,7 @@
   /* Mobile responsive enhancements */
   @media (max-width: 640px) {
     .luxury-scrollbar {
-      max-height: 300px;
+      height: 300px !important;
     }
   }
 </style>

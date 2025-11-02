@@ -198,6 +198,88 @@
       const paneId = 'candle_pane'; // EMA is a main indicator (overlay)
       const result = createIndicator(name, [20], true, {id: paneId});
       success = !!result;
+    } else if (name === 'MA') {
+      // For MA, only add one MA with default period 20 when clicked from indicator list
+      const paneId = 'candle_pane'; // MA is a main indicator (overlay)
+      const chartObj = $chart;
+      if (chartObj) {
+        const ind_id = chartObj.createIndicator({
+          name: 'MA',
+          calcParams: [20],
+          styles: {
+            lines: [{
+              color: '#2563eb', // Blue color to match the default in edit popup
+              size: 1,
+              style: kc.LineType.Solid
+            }]
+          },
+          // @ts-expect-error
+          createTooltipDataSource: ({ indicator }) => {
+            const icon_ids = [indicator.visible ? 1: 0, 2, 3];
+            const styles = chartObj.getStyles().indicator.tooltip;
+            const icons = icon_ids.map(i => styles.features[i])
+            return { icons }
+          }
+        }, true, {id: paneId});
+        
+        if (ind_id) {
+          const ind = {
+            name: 'MA', 
+            pane_id: paneId, 
+            params: [20],
+            styles: [{color: '#2563eb', thickness: 1, lineStyle: 'solid'}]
+          };
+          const saveKey = `${paneId}_MA`;
+          
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          
+          success = true;
+        }
+      }
+    } else if (name === 'SMA') {
+      // For SMA, add with default period 20 and vibrant orange color
+      const paneId = 'candle_pane'; // SMA is a main indicator (overlay)
+      const chartObj = $chart;
+      if (chartObj) {
+        const ind_id = chartObj.createIndicator({
+          name: 'SMA',
+          calcParams: [20],
+          styles: {
+            lines: [{
+              color: '#FF6C37', // Vibrant orange color
+              size: 2, // 2px thickness
+              style: kc.LineType.Solid
+            }]
+          },
+          // @ts-expect-error
+          createTooltipDataSource: ({ indicator }) => {
+            const icon_ids = [indicator.visible ? 1: 0, 2, 3];
+            const styles = chartObj.getStyles().indicator.tooltip;
+            const icons = icon_ids.map(i => styles.features[i])
+            return { icons }
+          }
+        }, true, {id: paneId});
+        
+        if (ind_id) {
+          const ind = {
+            name: 'SMA', 
+            pane_id: paneId, 
+            params: [20],
+            styles: [{color: '#FF6C37', thickness: 2, lineStyle: 'solid'}]
+          };
+          const saveKey = `${paneId}_SMA`;
+          
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          
+          success = true;
+        }
+      }
     } else if (name === 'RSI') {
       // For RSI, add with configuration from saved RSI groups or default
       const paneId = 'pane_RSI';
@@ -1132,7 +1214,7 @@
 
 </script>
 
-<Modal title={m.indicator()} width={700} bind:show={show} buttons={[]}>
+<Modal title={m.indicator()} width={700} bind:show={show} theme={$save.theme} buttons={[]}>
   <div class="flex flex-col gap-6">
     <!-- Ultra-Minimalist Premium Search -->
     <div class="relative group transition-all duration-300 ease-out {isSearchBarVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}">

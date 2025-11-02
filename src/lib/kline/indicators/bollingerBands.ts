@@ -38,21 +38,21 @@ export const bollingerBands: IndicatorTemplate = {
   styles: {
     lines: [
       {
-        color: '#2196F3', // Blue for upper band
+        color: '#f23645', // Red for upper band
         size: 1,
         style: kc.LineType.Solid,
         smooth: false,
         dashedValue: [0, 0] // Ensure solid line
       },
       {
-        color: '#FF9800', // Orange for middle line
+        color: '#2962ff', // Blue for middle line
         size: 1,
         style: kc.LineType.Solid,
         smooth: false,
         dashedValue: [0, 0] // Ensure solid line
       },
       {
-        color: '#2196F3', // Blue for lower band
+        color: '#089981', // Green for lower band
         size: 1,
         style: kc.LineType.Solid,
         smooth: false,
