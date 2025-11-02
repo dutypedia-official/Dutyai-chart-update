@@ -52,6 +52,8 @@
   // Color palette states for all indicators
   let showMacdColorPalette = $state(false);
   let macdColorPalettePosition = $state({ x: 0, y: 0 });
+  let macdColorPaletteGroupIndex = $state(0); // Track which MACD group
+  let macdColorPaletteLineType = $state<'macdLine' | 'signalLine' | 'positiveHistogram' | 'negativeHistogram'>('macdLine'); // Track which line type
   let showCciColorPalette = $state(false);
   let cciColorPalettePosition = $state({ x: 0, y: 0 });
   let cciColorPaletteIndex = $state(0); // Track which CCI line is being edited
@@ -128,14 +130,6 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   let crColorPalettePosition = $state({ x: 0, y: 0 });
   let crColorPaletteIndex = $state(0); // Track which CR group is being edited
   let crColorPaletteType = $state('cr'); // Track which line type (cr, ma1, ma2, ma3, ma4)
-  
-  // Additional specific line color palette states for multi-line indicators
-  let showMacdLineColorPalette = $state(false);
-  let macdLineColorPalettePosition = $state({ x: 0, y: 0 });
-  let showMacdSignalColorPalette = $state(false);
-  let macdSignalColorPalettePosition = $state({ x: 0, y: 0 });
-  let showMacdHistColorPalette = $state(false);
-  let macdHistColorPalettePosition = $state({ x: 0, y: 0 });
   
   // RSI color palette states
   let showRsiOverboughtColorPalette = $state(false);
@@ -268,13 +262,6 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   let crMa2LineStyle = $state('solid');
   let crMa3LineStyle = $state('solid');
   let crMa4LineStyle = $state('solid');
-
-  // Debug show variable changes
-  $effect(() => {
-    if (isZigzag) {
-      console.log('🔍 ZigZag show variable changed:', show);
-    }
-  });
 
   // ROC initialization effect
   $effect(() => {
@@ -496,6 +483,176 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   });
 
+  // AO initialization effect
+  let aoInitialized = $state(false);
+  $effect(() => {
+    if (isAo && !aoInitialized) {
+      console.log('🎯 AO modal opened, initializing...');
+      aoInitialized = true;
+      initializeAoGroups();
+    } else if (!isAo && aoInitialized) {
+      // Reset flag when AO modal is closed
+      aoInitialized = false;
+    }
+  });
+
+  // AO real-time parameter update effects
+  $effect(() => {
+    if (isAo && aoInitialized && $chart) {
+      // Watch for changes in AO groups and update indicators in real-time
+      aoGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { shortPeriod, longPeriod, styles } = group;
+        
+        // Trigger update when parameters or styles change
+        if (shortPeriod && longPeriod && styles) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            applyAo();
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
+  // BIAS initialization effect
+  let biasInitialized = $state(false);
+  $effect(() => {
+    if (isBias && !biasInitialized) {
+      console.log('🎯 BIAS modal opened, initializing...');
+      biasInitialized = true;
+      initializeBiasGroups();
+    } else if (!isBias && biasInitialized) {
+      // Reset flag when BIAS modal is closed
+      biasInitialized = false;
+    }
+  });
+
+  // BIAS real-time parameter update effects
+  $effect(() => {
+    if (isBias && biasInitialized && $chart) {
+      // Watch for changes in BIAS groups and update indicators in real-time
+      biasGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { period, color, thickness, lineStyle } = group;
+        
+        // Trigger update when parameters or styles change
+        if (period && color && thickness && lineStyle) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            applyBias();
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
+  // CCI initialization effect
+  let cciInitialized = $state(false);
+  $effect(() => {
+    if (isCci && !cciInitialized) {
+      console.log('🎯 CCI modal opened, initializing...');
+      cciInitialized = true;
+      initializeCciGroups();
+    } else if (!isCci && cciInitialized) {
+      // Reset flag when CCI modal is closed
+      cciInitialized = false;
+    }
+  });
+
+  // CCI real-time parameter update effects
+  $effect(() => {
+    if (isCci && cciInitialized && $chart) {
+      // Watch for changes in CCI groups and update indicators in real-time
+      cciGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { period, color, thickness, lineStyle } = group;
+        
+        // Trigger update when parameters or styles change
+        if (period && color && thickness && lineStyle) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            applyCci();
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
+  // CR initialization effect
+  let crInitialized = $state(false);
+  $effect(() => {
+    if (isCr && !crInitialized) {
+      console.log('🎯 CR modal opened, initializing...');
+      crInitialized = true;
+      initializeCrGroups();
+    } else if (!isCr && crInitialized) {
+      // Reset flag when CR modal is closed
+      crInitialized = false;
+    }
+  });
+
+  // CR real-time parameter update effects
+  $effect(() => {
+    if (isCr && crInitialized && $chart) {
+      // Watch for changes in CR groups and update indicators in real-time
+      crGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { crPeriod, crMa1Period, crMa2Period, crMa3Period, crMa4Period, styles } = group;
+        
+        // Trigger update when parameters or styles change
+        if (crPeriod && crMa1Period && crMa2Period && crMa3Period && crMa4Period && styles) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            applyCr();
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
+  // DMI initialization effect
+  let dmiInitialized = $state(false);
+  $effect(() => {
+    if (isDmi && !dmiInitialized) {
+      console.log('🎯 DMI modal opened, initializing...');
+      dmiInitialized = true;
+      initializeDmiGroups();
+    } else if (!isDmi && dmiInitialized) {
+      // Reset flag when DMI modal is closed
+      dmiInitialized = false;
+    }
+  });
+
+  // DMI real-time parameter update effects
+  $effect(() => {
+    if (isDmi && dmiInitialized && $chart) {
+      // Watch for changes in DMI groups and update indicators in real-time
+      dmiGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { diPeriod, adxPeriod, styles } = group;
+        
+        // Trigger update when parameters or styles change
+        if (diPeriod && adxPeriod && styles) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            applyDmi();
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
   // VR real-time parameter update effects
   $effect(() => {
     if (isVr && vrInitialized && $chart) {
@@ -517,16 +674,39 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   });
 
+  // MACD real-time parameter update effects
+  $effect(() => {
+    if (isMacd && $chart && macdGroups.length > 0) {
+      // Watch for changes in MACD groups and update indicators in real-time
+      macdGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { fastPeriod, slowPeriod, signalPeriod, styles } = group;
+        
+        // Trigger update when parameters or styles change
+        if (fastPeriod && slowPeriod && signalPeriod && styles) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            updateMacdIndicator(index);
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
   // MACD groups management
   let macdGroups = $state<Array<{
     id: string;
     fastPeriod: number;
     slowPeriod: number;
     signalPeriod: number;
+    actualPaneId?: string;
     styles: {
-      macd: {color: string, thickness: number, lineStyle: string};
-      signal: {color: string, thickness: number, lineStyle: string};
-      histogram: {color: string, thickness: number, lineStyle: string};
+      macdLine: {color: string, thickness: number, lineStyle: string};
+      signalLine: {color: string, thickness: number, lineStyle: string};
+      positiveHistogram: {color: string};
+      negativeHistogram: {color: string};
     }
   }>>([]);
 
@@ -1350,48 +1530,353 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function initializeMacdGroups() {
     if (!isMacd) return;
     
-    // Check for saved MACD groups
-    const savedKey = `${$ctx.editPaneId}_MACD`;
-    const savedInd = $save.saveInds[savedKey];
+    // Find all existing MACD-related save keys
+    const existingMacdKeys = Object.keys($save.saveInds).filter(key => 
+      $save.saveInds[key].name === 'MACD'
+    ).sort();
     
-    if (savedInd && (savedInd as any).macdGroups && (savedInd as any).macdGroups.length > 0) {
-      // Load saved MACD groups
-      macdGroups = [...(savedInd as any).macdGroups];
+    console.log('🔍 Found existing MACD keys:', existingMacdKeys);
+    
+    if (existingMacdKeys.length > 0) {
+      // Load saved MACD groups from all keys
+      macdGroups = [];
+      existingMacdKeys.forEach((key, index) => {
+        const savedInd = $save.saveInds[key];
+        
+        if (savedInd) {
+          // Check if this saved indicator has a macdGroup property
+          if ((savedInd as any).macdGroup) {
+            // Load from macdGroup property and preserve actual pane ID
+            const group = {...(savedInd as any).macdGroup};
+            // For additional MACD indicators, preserve the actual pane ID
+            if (index > 0 && savedInd.pane_id) {
+              group.actualPaneId = savedInd.pane_id;
+            }
+            macdGroups.push(group);
+          } else if (savedInd.params && savedInd.params.length >= 3) {
+            // Create group from params if macdGroup doesn't exist
+            const group = {
+              id: generateUUID(),
+              fastPeriod: savedInd.params[0] || 12,
+              slowPeriod: savedInd.params[1] || 26,
+              signalPeriod: savedInd.params[2] || 9,
+              actualPaneId: undefined as string | undefined,
+              styles: {
+                macdLine: {color: '#2563eb', thickness: 1, lineStyle: 'solid'},
+                signalLine: {color: '#dc2626', thickness: 1, lineStyle: 'solid'},
+                positiveHistogram: {color: '#22c55e'},
+                negativeHistogram: {color: '#ef4444'}
+              }
+            };
+            // For additional MACD indicators, preserve the actual pane ID
+            if (index > 0 && savedInd.pane_id) {
+              group.actualPaneId = savedInd.pane_id;
+            }
+            macdGroups.push(group);
+          }
+        }
+      });
+      
+      console.log('✅ Loaded', macdGroups.length, 'existing MACD groups');
     } else if (macdGroups.length === 0) {
-      // Create default MACD group
+      // Create default MACD group if none exist
       macdGroups = [{
         id: generateUUID(),
         fastPeriod: 12,
         slowPeriod: 26,
         signalPeriod: 9,
         styles: {
-          macd: {color: '#2563eb', thickness: 1, lineStyle: 'solid'},
-          signal: {color: '#dc2626', thickness: 1, lineStyle: 'solid'},
-          histogram: {color: '#16a34a', thickness: 1, lineStyle: 'solid'}
+          macdLine: {color: '#2563eb', thickness: 1, lineStyle: 'solid'},
+          signalLine: {color: '#dc2626', thickness: 1, lineStyle: 'solid'},
+          positiveHistogram: {color: '#22c55e'},
+          negativeHistogram: {color: '#ef4444'}
         }
       }];
+      
+      console.log('🆕 Created default MACD group');
     }
   }
 
   function addMacdGroup() {
     if (!isMacd) return;
     
-    macdGroups.push({
+    // Add new MACD group with default values
+    const colors = [
+      {macdLine: '#2563eb', signalLine: '#dc2626', positiveHistogram: '#22c55e', negativeHistogram: '#ef4444'},
+      {macdLine: '#9333ea', signalLine: '#ea580c', positiveHistogram: '#059669', negativeHistogram: '#dc2626'},
+      {macdLine: '#ec4899', signalLine: '#f59e0b', positiveHistogram: '#0891b2', negativeHistogram: '#f97316'}
+    ];
+    const colorIndex = macdGroups.length % colors.length;
+    
+    const newGroup = {
       id: generateUUID(),
       fastPeriod: 12,
       slowPeriod: 26,
       signalPeriod: 9,
+      actualPaneId: undefined as string | undefined,
       styles: {
-        macd: {color: '#2563eb', thickness: 1, lineStyle: 'solid'},
-        signal: {color: '#dc2626', thickness: 1, lineStyle: 'solid'},
-        histogram: {color: '#16a34a', thickness: 1, lineStyle: 'solid'}
+        macdLine: {color: colors[colorIndex].macdLine, thickness: 1, lineStyle: 'solid'},
+        signalLine: {color: colors[colorIndex].signalLine, thickness: 1, lineStyle: 'solid'},
+        positiveHistogram: {color: colors[colorIndex].positiveHistogram},
+        negativeHistogram: {color: colors[colorIndex].negativeHistogram}
       }
-    });
+    };
+    
+    macdGroups.push(newGroup);
+    
+    // If this is not the first group, immediately create the new MACD indicator in a new sub-pane
+    if (macdGroups.length > 1) {
+      // Find the next available index for pane naming
+      // Check all existing MACD pane IDs to avoid conflicts
+      const existingPaneIds = Object.values($save.saveInds)
+        .filter((ind: any) => ind.name === 'MACD' && ind.pane_id)
+        .map((ind: any) => ind.pane_id);
+      
+      let nextIndex = 2;
+      while (existingPaneIds.includes(`pane_MACD_${nextIndex}`)) {
+        nextIndex++;
+      }
+      
+      const groupIndex = macdGroups.length - 1;
+      const calcParams = [newGroup.fastPeriod, newGroup.slowPeriod, newGroup.signalPeriod];
+      
+      // Create indicator styles for MACD Line, Signal Line, and Histogram
+      const indicatorStyles: any = {
+        lines: [
+          {
+            color: newGroup.styles.macdLine.color,
+            size: newGroup.styles.macdLine.thickness,
+            style: (newGroup.styles.macdLine.lineStyle === 'dashed' || newGroup.styles.macdLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+            dashedValue: newGroup.styles.macdLine.lineStyle === 'dashed' ? [4, 4] : newGroup.styles.macdLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+          },
+          {
+            color: newGroup.styles.signalLine.color,
+            size: newGroup.styles.signalLine.thickness,
+            style: (newGroup.styles.signalLine.lineStyle === 'dashed' || newGroup.styles.signalLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+            dashedValue: newGroup.styles.signalLine.lineStyle === 'dashed' ? [4, 4] : newGroup.styles.signalLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+          }
+        ],
+        bars: [
+          {
+            upColor: newGroup.styles.positiveHistogram.color,
+            downColor: newGroup.styles.negativeHistogram.color,
+            noChangeColor: newGroup.styles.positiveHistogram.color
+          }
+        ]
+      };
+      
+      // Create new MACD indicator in a new sub-pane with the next available index
+      const newPaneId = `pane_MACD_${nextIndex}`;
+      console.log(`🆕 Immediately creating MACD ${nextIndex} with pane ID:`, newPaneId);
+      
+      const result = $chart?.createIndicator({
+        name: 'MACD',
+        calcParams: calcParams,
+        styles: indicatorStyles
+      }, false, { id: newPaneId, axis: { gap: { bottom: 2 } } });
+      
+      // Store the pane ID for later reference
+      if (result) {
+        console.log(`✅ MACD ${nextIndex} created with pane ID:`, newPaneId);
+        newGroup.actualPaneId = newPaneId;
+        
+        // Immediately save this group configuration
+        save.update(s => {
+          const saveKey = `pane_MACD_${nextIndex}_MACD`;
+          s.saveInds[saveKey] = {
+            name: 'MACD',
+            macdGroup: newGroup,
+            pane_id: newPaneId,
+            groupIndex: groupIndex,
+            params: [newGroup.fastPeriod, newGroup.slowPeriod, newGroup.signalPeriod]
+          };
+          return s;
+        });
+      }
+    }
   }
 
   function removeMacdGroup(groupId: string) {
     if (!isMacd || macdGroups.length <= 1) return;
-    macdGroups = macdGroups.filter(group => group.id !== groupId);
+    
+    // Find the group index
+    const groupIndex = macdGroups.findIndex(group => group.id === groupId);
+    if (groupIndex === -1) return;
+    
+    console.log('🗑️ Removing MACD group at index:', groupIndex, 'ID:', groupId);
+    
+    try {
+      // Special handling when removing the first group
+      if (groupIndex === 0 && macdGroups.length > 1) {
+        console.log('🔄 Special handling: First MACD removed, promoting second MACD to first position');
+        
+        // Remove the group from the array FIRST
+        macdGroups = macdGroups.filter(group => group.id !== groupId);
+        console.log('✅ MACD group removed from array. Remaining groups:', macdGroups.length);
+        
+        // The new first group (previously second) needs to be moved to edit pane
+        const newFirstGroup = macdGroups[0];
+        
+        // Remove the old second MACD from its sub-pane first
+        if (newFirstGroup.actualPaneId) {
+          console.log('🗑️ Removing old second MACD from sub-pane:', newFirstGroup.actualPaneId);
+          $chart?.removeIndicator({ paneId: newFirstGroup.actualPaneId, name: 'MACD' });
+        }
+        
+        // Clear the actualPaneId since it's now going to edit pane
+        newFirstGroup.actualPaneId = undefined;
+        
+        // Update the MACD in edit pane with new first group's settings
+        console.log('📊 Updating MACD in edit pane with new first group settings');
+        updateMacdIndicator(0);
+        
+      } else {
+        // For non-first groups, remove from their specific panes
+        const group = macdGroups[groupIndex];
+        if (group.actualPaneId) {
+          console.log('🗑️ Removing MACD from actual pane:', group.actualPaneId);
+          $chart?.removeIndicator({ paneId: group.actualPaneId, name: 'MACD' });
+          console.log('✅ Successfully removed MACD from actual pane:', group.actualPaneId);
+        }
+        
+        // Remove the group from the array
+        macdGroups = macdGroups.filter(group => group.id !== groupId);
+        console.log('✅ MACD group removed from array. Remaining groups:', macdGroups.length);
+      }
+      
+      // Remove from saved data and reindex
+      save.update((s: ChartSave) => {
+        // Clear all MACD-related saved data
+        Object.keys(s.saveInds).forEach(key => {
+          if (s.saveInds[key].name === 'MACD') {
+            console.log('🧹 Cleaning saved state for key:', key);
+            delete s.saveInds[key];
+          }
+        });
+        
+        // Re-save remaining groups with correct indices
+        macdGroups.forEach((group, index) => {
+          const saveKey = index === 0 ? `${$ctx.editPaneId}_MACD` : `pane_MACD_${index + 1}_MACD`;
+          // Use actual pane ID if available, otherwise fallback to generated one
+          const paneId = index === 0 ? $ctx.editPaneId : (group.actualPaneId || `pane_MACD_${index + 1}`);
+          
+          console.log(`💾 Re-saving MACD group ${index + 1} with key:`, saveKey, 'pane ID:', paneId);
+          
+          s.saveInds[saveKey] = {
+            name: 'MACD',
+            macdGroup: group,
+            pane_id: paneId,
+            groupIndex: index,
+            macdGroups: index === 0 ? [...macdGroups] : undefined,
+            params: [group.fastPeriod, group.slowPeriod, group.signalPeriod]
+          };
+        });
+        
+        return s;
+      });
+      
+      console.log('🔄 MACD groups reindexed successfully');
+      
+    } catch (error) {
+      console.log('❌ Error removing MACD indicator:', error);
+    }
+  }
+
+  // Update MACD indicator immediately when parameters change
+  function updateMacdIndicator(groupIndex: number) {
+    const group = macdGroups[groupIndex];
+    if (!group || !$chart) return;
+    
+    const paneId = groupIndex === 0 ? $ctx.editPaneId : (group.actualPaneId || `pane_MACD_${groupIndex + 1}`);
+    
+    const indicatorStyles: any = {
+      lines: [
+        {
+          color: group.styles.macdLine.color,
+          size: group.styles.macdLine.thickness,
+          style: (group.styles.macdLine.lineStyle === 'dashed' || group.styles.macdLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+          dashedValue: group.styles.macdLine.lineStyle === 'dashed' ? [4, 4] : group.styles.macdLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+        },
+        {
+          color: group.styles.signalLine.color,
+          size: group.styles.signalLine.thickness,
+          style: (group.styles.signalLine.lineStyle === 'dashed' || group.styles.signalLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+          dashedValue: group.styles.signalLine.lineStyle === 'dashed' ? [4, 4] : group.styles.signalLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+        }
+      ],
+      bars: [
+        {
+          upColor: group.styles.positiveHistogram.color,
+          downColor: group.styles.negativeHistogram.color,
+          noChangeColor: group.styles.positiveHistogram.color
+        }
+      ]
+    };
+    
+    // Update the existing indicator with new parameters and styles
+    $chart?.overrideIndicator({
+      name: 'MACD',
+      paneId: paneId,
+      styles: indicatorStyles,
+      calcParams: [group.fastPeriod, group.slowPeriod, group.signalPeriod]
+    });
+    
+    // CRITICAL: Also persist changes to save data immediately
+    const saveKey = groupIndex === 0 ? `${$ctx.editPaneId}_MACD` : `pane_MACD_${groupIndex + 1}_MACD`;
+    
+    save.update(s => {
+      if (s.saveInds[saveKey]) {
+        // Update existing saved indicator
+        s.saveInds[saveKey].params = [group.fastPeriod, group.slowPeriod, group.signalPeriod];
+        s.saveInds[saveKey].macdGroup = {...group}; // Store complete group data
+        console.log('💾 Persisted MACD changes to save data:', saveKey, group);
+      }
+      return s;
+    });
+    
+    console.log('🔄 Updated MACD indicator:', groupIndex, group);
+  }
+  
+  // Update MACD color immediately when changed
+  function updateMacdColor(groupIndex: number, lineType: 'macdLine' | 'signalLine' | 'positiveHistogram' | 'negativeHistogram') {
+    const group = macdGroups[groupIndex];
+    if (!group || !$chart) return;
+    
+    const paneId = groupIndex === 0 ? $ctx.editPaneId : (group.actualPaneId || `pane_MACD_${groupIndex + 1}`);
+    
+    // Create indicator styles with updated colors
+    const indicatorStyles: any = {
+      lines: [
+        { 
+          color: group.styles.macdLine.color, 
+          size: group.styles.macdLine.thickness, 
+          style: (group.styles.macdLine.lineStyle === 'dashed' || group.styles.macdLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+          dashedValue: group.styles.macdLine.lineStyle === 'dashed' ? [4, 4] : group.styles.macdLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+        },
+        { 
+          color: group.styles.signalLine.color, 
+          size: group.styles.signalLine.thickness, 
+          style: (group.styles.signalLine.lineStyle === 'dashed' || group.styles.signalLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+          dashedValue: group.styles.signalLine.lineStyle === 'dashed' ? [4, 4] : group.styles.signalLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+        }
+      ],
+      bars: [
+        {
+          upColor: group.styles.positiveHistogram.color,
+          downColor: group.styles.negativeHistogram.color,
+          noChangeColor: group.styles.positiveHistogram.color
+        }
+      ]
+    };
+    
+    // Update the indicator with the new styles
+    $chart?.overrideIndicator({
+      name: 'MACD',
+      paneId: paneId,
+      styles: indicatorStyles
+    });
+    
+    console.log('🎨 Updated MACD color:', lineType, group.styles[lineType].color);
   }
 
   // Initialize default EMV group
@@ -3194,6 +3679,126 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   }
 
+  // Apply BIAS changes in real-time without closing modal
+  function applyBias() {
+    if (!isBias || !$chart) return;
+    
+    console.log('🔄 Applying BIAS changes in real-time, groups:', biasGroups.length);
+    
+    // Get existing BIAS indicators
+    const existingBiasKeys = Object.keys($save.saveInds).filter(key => 
+      $save.saveInds[key].name === 'BIAS'
+    ).sort((a, b) => {
+      // Sort to prioritize editPaneId_BIAS first
+      if (a === `${$ctx.editPaneId}_BIAS`) return -1;
+      if (b === `${$ctx.editPaneId}_BIAS`) return 1;
+      return a.localeCompare(b);
+    });
+    
+    console.log('🔍 Existing BIAS keys:', existingBiasKeys);
+    
+    // Remove excess indicators if needed
+    const currentGroupCount = biasGroups.length;
+    if (existingBiasKeys.length > currentGroupCount) {
+      console.log(`🗑️ Removing ${existingBiasKeys.length - currentGroupCount} excess BIAS indicators`);
+      for (let i = currentGroupCount; i < existingBiasKeys.length; i++) {
+        const key = existingBiasKeys[i];
+        const savedData = $save.saveInds[key];
+        if (savedData && savedData.pane_id) {
+          console.log('🗑️ Removing BIAS indicator from pane:', savedData.pane_id);
+          try {
+            $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'BIAS' });
+          } catch (error) {
+            console.log('Error removing excess BIAS indicator:', error);
+          }
+        }
+      }
+    }
+    
+    // Apply each BIAS group
+    biasGroups.forEach((group, index) => {
+      const calcParams = [group.period];
+      
+      // Create indicator styles for BIAS lines
+      const indicatorStyles: any = {
+        lines: [{
+          color: group.color,
+          size: group.thickness,
+          style: group.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+          dashedValue: group.lineStyle === 'dashed' ? [4, 4] : 
+                      group.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+          smooth: false
+        }]
+      };
+
+      if (index === 0) {
+        // Update first BIAS indicator in current pane
+        console.log('🔄 Updating first BIAS indicator in pane:', $ctx.editPaneId);
+        $chart?.overrideIndicator({
+          name: 'BIAS',
+          calcParams: calcParams,
+          styles: indicatorStyles,
+          paneId: $ctx.editPaneId
+        });
+      } else {
+        // Handle additional BIAS indicators
+        const expectedSaveKey = `pane_BIAS_${index + 1}_BIAS`;
+        const existingGroup = existingBiasKeys.find(key => key === expectedSaveKey);
+        
+        if (existingGroup) {
+          // Update existing additional BIAS indicator
+          const existingData = $save.saveInds[existingGroup];
+          if (existingData && existingData.pane_id) {
+            console.log(`🔄 Updating existing BIAS ${index + 1} in pane:`, existingData.pane_id);
+            $chart?.overrideIndicator({
+              name: 'BIAS',
+              calcParams: calcParams,
+              styles: indicatorStyles,
+              paneId: existingData.pane_id
+            });
+          }
+        } else {
+          // Create new BIAS indicator
+          const newPaneId = `pane_BIAS_${index + 1}`;
+          console.log(`🆕 Creating new BIAS ${index + 1} with pane ID:`, newPaneId);
+          $chart?.createIndicator({
+            name: 'BIAS',
+            calcParams: calcParams,
+            styles: indicatorStyles
+          }, true, { id: newPaneId });
+        }
+      }
+    });
+
+    // Save BIAS groups configuration (without closing modal)
+    save.update(s => {
+      // Clear existing BIAS data first
+      Object.keys(s.saveInds).forEach(key => {
+        if (s.saveInds[key].name === 'BIAS') {
+          delete s.saveInds[key];
+        }
+      });
+      
+      // Save each BIAS group separately
+      biasGroups.forEach((group, index) => {
+        const saveKey = index === 0 ? `${$ctx.editPaneId}_BIAS` : `pane_BIAS_${index + 1}_BIAS`;
+        const paneId = index === 0 ? $ctx.editPaneId : `pane_BIAS_${index + 1}`;
+        
+        console.log(`💾 Saving BIAS group ${index + 1} with key:`, saveKey);
+        
+        s.saveInds[saveKey] = {
+          name: 'BIAS',
+          biasGroup: group,
+          pane_id: paneId,
+          groupIndex: index,
+          biasGroups: index === 0 ? [...biasGroups] : undefined,
+          params: [group.period]
+        };
+      });
+      return s;
+    });
+  }
+
   function addBiasGroup() {
     if (!isBias) return;
     
@@ -3206,6 +3811,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       thickness: 1,
       lineStyle: 'solid'
     });
+    
+    // Apply changes to chart in real-time
+    applyBias();
   }
 
   function removeBiasGroup(groupId: string) {
@@ -3217,60 +3825,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     
     console.log('🗑️ Removing BIAS group at index:', groupIndex, 'ID:', groupId);
     
-    try {
-      // Remove from chart first
-      if (groupIndex === 0) {
-        // For the first group, remove from the edit pane
-        console.log('🗑️ Removing BIAS from edit pane:', $ctx.editPaneId);
-        $chart?.removeIndicator({ paneId: $ctx.editPaneId, name: 'BIAS' });
-        console.log('✅ Successfully removed BIAS from edit pane');
-      }
-      
-      // Remove from saved data
-      save.update((s: ChartSave) => {
-        const saveKey = groupIndex === 0 ? 
-          `${$ctx.editPaneId}_BIAS` : 
-          `pane_BIAS_${groupIndex + 1}_BIAS`;
-        
-        if (s.saveInds[saveKey]) {
-          const savedData = s.saveInds[saveKey];
-          
-          // For non-first groups, also remove from their specific panes
-          if (groupIndex > 0) {
-            const innerSaveKey = `pane_BIAS_${groupIndex + 1}_BIAS`;
-            if (s.saveInds[innerSaveKey]) {
-              const innerSavedData = s.saveInds[innerSaveKey];
-              console.log('🗑️ Removing BIAS from pane:', innerSavedData.pane_id);
-              $chart?.removeIndicator({ paneId: innerSavedData.pane_id, name: 'BIAS' });
-              console.log('✅ Successfully removed BIAS from pane:', innerSavedData.pane_id);
-            }
-          }
-          
-          console.log('🧹 Cleaning saved state for key:', saveKey);
-          delete s.saveInds[saveKey];
-        }
-        
-        // Reindex remaining groups to maintain consistency
-        const remainingGroups = Object.keys(s.saveInds).filter(key => 
-          key.startsWith('pane_BIAS_') && s.saveInds[key].name === 'BIAS'
-        ).sort();
-        
-        console.log('🔄 Reindexing remaining BIAS groups:', remainingGroups);
-        
-        // Remove all pane_BIAS_* entries and recreate them with correct indices
-        remainingGroups.forEach(key => {
-          delete s.saveInds[key];
-        });
-        
-        return s;
-      });
-    } catch (error) {
-      console.log('❌ Error removing BIAS indicator:', error);
-    }
-    
-    // Remove the group from the array AFTER removing from chart
+    // Remove from groups array
     biasGroups = biasGroups.filter(group => group.id !== groupId);
-    console.log('✅ BIAS group removed from array. Remaining groups:', biasGroups.length);
+    
+    // Apply changes to chart in real-time (handles removal automatically)
+    applyBias();
+    
+    console.log('✅ BIAS group removed. Remaining groups:', biasGroups.length);
   }
 
   // Initialize default CCI groups
@@ -3336,6 +3897,148 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   }
 
+  // Apply CCI changes in real-time without closing modal
+  function applyCci() {
+    if (!isCci || !$chart) return;
+    
+    console.log('🔄 Applying CCI changes in real-time, groups:', cciGroups.length);
+    
+    // Get existing CCI indicators
+    const existingCciKeys = Object.keys($save.saveInds).filter(key => 
+      $save.saveInds[key].name === 'CCI'
+    ).sort((a, b) => {
+      // Sort to prioritize editPaneId_CCI first
+      if (a === `${$ctx.editPaneId}_CCI`) return -1;
+      if (b === `${$ctx.editPaneId}_CCI`) return 1;
+      return a.localeCompare(b);
+    });
+    
+    console.log('🔍 Existing CCI keys:', existingCciKeys);
+    
+    // Create a mapping of existing CCI groups to their saved keys
+    const groupToKeyMap = new Map();
+    const usedKeys = new Set();
+    
+    // Match existing groups with their saved data
+    cciGroups.forEach((group, index) => {
+      let matchedKey = null;
+      
+      for (const key of existingCciKeys) {
+        if (usedKeys.has(key)) continue;
+        
+        const savedData = $save.saveInds[key];
+        if (savedData && savedData.cciGroup) {
+          if (savedData.cciGroup.id === group.id) {
+            matchedKey = key;
+            usedKeys.add(key);
+            break;
+          }
+        }
+      }
+      
+      if (!matchedKey) {
+        // Assign a new key for new groups
+        if (index === 0 && !usedKeys.has(`${$ctx.editPaneId}_CCI`)) {
+          matchedKey = `${$ctx.editPaneId}_CCI`;
+        } else {
+          let counter = 2;
+          while (usedKeys.has(`pane_CCI_${counter}_CCI`) || existingCciKeys.includes(`pane_CCI_${counter}_CCI`)) {
+            counter++;
+          }
+          matchedKey = `pane_CCI_${counter}_CCI`;
+        }
+        usedKeys.add(matchedKey);
+      }
+      
+      groupToKeyMap.set(group.id, matchedKey);
+    });
+    
+    // Find keys to remove (indicators that are no longer in groups)
+    const expectedKeys = Array.from(groupToKeyMap.values());
+    const keysToRemove = existingCciKeys.filter(key => !expectedKeys.includes(key));
+    
+    // Remove excess indicators
+    keysToRemove.forEach(key => {
+      const savedData = $save.saveInds[key];
+      if (savedData && savedData.pane_id) {
+        console.log('🗑️ Removing CCI indicator from pane:', savedData.pane_id, 'key:', key);
+        try {
+          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'CCI' });
+        } catch (error) {
+          console.log('Error removing excess CCI indicator:', error);
+        }
+      }
+    });
+    
+    // Apply each CCI group
+    cciGroups.forEach((group, index) => {
+      const calcParams = [group.period];
+      const saveKey = groupToKeyMap.get(group.id);
+      
+      // Create indicator styles for CCI lines
+      const indicatorStyles: any = {
+        lines: [{
+          color: group.color,
+          size: group.thickness,
+          style: group.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+          dashedValue: group.lineStyle === 'dashed' ? [4, 4] : 
+                      group.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+          smooth: false
+        }]
+      };
+
+      const existingSavedData = existingCciKeys.includes(saveKey) ? $save.saveInds[saveKey] : null;
+      
+      if (existingSavedData && existingSavedData.pane_id) {
+        // Update existing CCI indicator
+        console.log('🔄 Updating existing CCI in pane:', existingSavedData.pane_id);
+        $chart?.overrideIndicator({
+          name: 'CCI',
+          calcParams: calcParams,
+          styles: indicatorStyles,
+          paneId: existingSavedData.pane_id
+        });
+      } else {
+        // Create new CCI indicator
+        const paneId = saveKey === `${$ctx.editPaneId}_CCI` ? $ctx.editPaneId : saveKey.replace('_CCI', '');
+        console.log('🆕 Creating new CCI with pane ID:', paneId, 'key:', saveKey);
+        $chart?.createIndicator({
+          name: 'CCI',
+          calcParams: calcParams,
+          styles: indicatorStyles
+        }, true, { id: paneId });
+      }
+    });
+
+    // Save CCI groups configuration (without closing modal)
+    save.update(s => {
+      // Remove keys that should be deleted
+      keysToRemove.forEach(key => {
+        delete s.saveInds[key];
+        console.log('🗑️ Deleted save data for key:', key);
+      });
+      
+      // Save each CCI group separately
+      cciGroups.forEach((group, index) => {
+        const saveKey = groupToKeyMap.get(group.id);
+        const paneId = saveKey === `${$ctx.editPaneId}_CCI` ? $ctx.editPaneId : saveKey.replace('_CCI', '');
+        
+        console.log(`💾 Saving CCI group ${index + 1} with key:`, saveKey);
+        
+        s.saveInds[saveKey] = {
+          name: 'CCI',
+          cciGroup: group,
+          pane_id: paneId,
+          groupIndex: index,
+          cciGroups: index === 0 ? [...cciGroups] : undefined,
+          params: [group.period]
+        };
+      });
+      
+      return s;
+    });
+  }
+
   function addCciGroup() {
     if (!isCci) return;
     
@@ -3352,6 +4055,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     });
     
     console.log('➕ Added new CCI group:', groupName);
+    
+    // Apply changes to chart in real-time
+    applyCci();
   }
 
   function removeCciGroup(groupId: string) {
@@ -3363,60 +4069,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     
     console.log('🗑️ Removing CCI group at index:', groupIndex, 'ID:', groupId);
     
-    try {
-      // Remove from chart first
-      if (groupIndex === 0) {
-        // For the first group, remove from the edit pane
-        console.log('🗑️ Removing CCI from edit pane:', $ctx.editPaneId);
-        $chart?.removeIndicator({ paneId: $ctx.editPaneId, name: 'CCI' });
-        console.log('✅ Successfully removed CCI from edit pane');
-      }
-      
-      // Remove from saved data
-      save.update((s: ChartSave) => {
-        const saveKey = groupIndex === 0 ? 
-          `${$ctx.editPaneId}_CCI` : 
-          `pane_CCI_${groupIndex + 1}_CCI`;
-        
-        if (s.saveInds[saveKey]) {
-          const savedData = s.saveInds[saveKey];
-          
-          // For non-first groups, also remove from their specific panes
-          if (groupIndex > 0) {
-            const innerSaveKey = `pane_CCI_${groupIndex + 1}_CCI`;
-            if (s.saveInds[innerSaveKey]) {
-              const innerSavedData = s.saveInds[innerSaveKey];
-              console.log('🗑️ Removing CCI from pane:', innerSavedData.pane_id);
-              $chart?.removeIndicator({ paneId: innerSavedData.pane_id, name: 'CCI' });
-              console.log('✅ Successfully removed CCI from pane:', innerSavedData.pane_id);
-            }
-          }
-          
-          console.log('🧹 Cleaning saved state for key:', saveKey);
-          delete s.saveInds[saveKey];
-        }
-        
-        // Reindex remaining groups to maintain consistency
-        const remainingGroups = Object.keys(s.saveInds).filter(key => 
-          key.startsWith('pane_CCI_') && s.saveInds[key].name === 'CCI'
-        ).sort();
-        
-        console.log('🔄 Reindexing remaining CCI groups:', remainingGroups);
-        
-        // Remove all pane_CCI_* entries and recreate them with correct indices
-        remainingGroups.forEach(key => {
-          delete s.saveInds[key];
-        });
-        
-        return s;
-      });
-    } catch (error) {
-      console.log('❌ Error removing CCI indicator:', error);
-    }
-    
-    // Remove the group from the array AFTER removing from chart
+    // Remove from groups array
     cciGroups = cciGroups.filter(group => group.id !== groupId);
-    console.log('✅ CCI group removed from array. Remaining groups:', cciGroups.length);
+    
+    // Apply changes to chart in real-time (handles removal automatically)
+    applyCci();
+    
+    console.log('✅ CCI group removed. Remaining groups:', cciGroups.length);
   }
 
   // Initialize default SAR group
@@ -3525,31 +4184,37 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (allDmiKeys.length > 0) {
       // Load all existing DMI groups
       dmiGroups = [];
+      let groupCounter = 1; // Track actual group numbers for proper naming
 
       allDmiKeys.forEach((key, index) => {
         const savedInd = $save.saveInds[key];
 
         // Check if this saved indicator has a dmiGroup property
         if ((savedInd as any).dmiGroup) {
-          // Load from dmiGroup property
-          dmiGroups.push({...(savedInd as any).dmiGroup});
-        } else {
+          // Load from dmiGroup property and ensure proper naming
+          const group = {...(savedInd as any).dmiGroup};
+          // Update name to reflect current position
+          group.name = groupCounter === 1 ? 'DMI' : `DMI${groupCounter}`;
+          dmiGroups.push(group);
+          groupCounter++;
+        } else if (savedInd.params && savedInd.params.length >= 2) {
           // Create group from params if dmiGroup doesn't exist
           dmiGroups.push({
             id: generateUUID(),
-            name: `DMI${index + 1}`,
-            diPeriod: savedInd.params?.[0] || 14,
-            adxPeriod: savedInd.params?.[1] || 6,
+            name: groupCounter === 1 ? 'DMI' : `DMI${groupCounter}`,
+            diPeriod: savedInd.params[0] || 14,
+            adxPeriod: savedInd.params[1] || 6,
             styles: {
               diPlus: {color: '#22c55e', thickness: 1, lineStyle: 'solid'},
               diMinus: {color: '#ef4444', thickness: 1, lineStyle: 'solid'},
               adx: {color: '#3b82f6', thickness: 1, lineStyle: 'solid'}
             }
           });
+          groupCounter++;
         }
       });
 
-      console.log('✅ Loaded', dmiGroups.length, 'existing DMI groups');
+      console.log('✅ Loaded', dmiGroups.length, 'existing DMI groups with proper naming');
     } else if (dmiGroups.length === 0) {
       // Create default DMI group if none exist
       dmiGroups = [{
@@ -3639,6 +4304,194 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   }
 
+  // Apply DMI changes in real-time without closing modal
+  function applyDmi() {
+    if (!isDmi || !$chart) return;
+    
+    console.log('🔄 Applying DMI changes in real-time, groups:', dmiGroups.length);
+    
+    // Get existing DMI indicators
+    const existingDmiKeys = Object.keys($save.saveInds).filter(key => 
+      $save.saveInds[key].name === 'DMI'
+    ).sort((a, b) => {
+      // Sort to prioritize editPaneId_DMI first
+      if (a === `${$ctx.editPaneId}_DMI`) return -1;
+      if (b === `${$ctx.editPaneId}_DMI`) return 1;
+      return a.localeCompare(b);
+    });
+    
+    console.log('🔍 Existing DMI keys:', existingDmiKeys);
+    
+    // Create a mapping of existing DMI groups to their saved keys
+    const groupToKeyMap = new Map();
+    const usedKeys = new Set();
+    
+    // First pass: Match groups with their existing saved data by ID
+    dmiGroups.forEach((group, index) => {
+      for (const key of existingDmiKeys) {
+        if (usedKeys.has(key)) continue;
+        
+        const savedData = $save.saveInds[key];
+        if (savedData && savedData.dmiGroup && savedData.dmiGroup.id === group.id) {
+          groupToKeyMap.set(group.id, key);
+          usedKeys.add(key);
+          console.log(`✅ Matched group ${index + 1} (ID: ${group.id}) to existing key: ${key}`);
+          break;
+        }
+      }
+    });
+    
+    // Second pass: Assign new keys for unmatched groups
+    dmiGroups.forEach((group, index) => {
+      if (groupToKeyMap.has(group.id)) return; // Already matched
+      
+      let newKey = null;
+      
+      // For first group, try to use editPaneId key if available
+      if (index === 0 && !usedKeys.has(`${$ctx.editPaneId}_DMI`) && 
+          !existingDmiKeys.includes(`${$ctx.editPaneId}_DMI`)) {
+        newKey = `${$ctx.editPaneId}_DMI`;
+      } else {
+        // Find the next available pane_DMI_X_DMI key
+        let counter = 2;
+        while (usedKeys.has(`pane_DMI_${counter}_DMI`) || 
+               existingDmiKeys.includes(`pane_DMI_${counter}_DMI`)) {
+          counter++;
+        }
+        newKey = `pane_DMI_${counter}_DMI`;
+      }
+      
+      groupToKeyMap.set(group.id, newKey);
+      usedKeys.add(newKey);
+      console.log(`🆕 Assigned new key for group ${index + 1} (ID: ${group.id}): ${newKey}`);
+    });
+    
+    // Find keys to remove (indicators that are no longer in groups)
+    const expectedKeys = Array.from(groupToKeyMap.values());
+    const keysToRemove = existingDmiKeys.filter(key => !expectedKeys.includes(key));
+    
+    // Remove excess indicators
+    keysToRemove.forEach(key => {
+      const savedData = $save.saveInds[key];
+      if (savedData && savedData.pane_id) {
+        console.log('🗑️ Removing DMI indicator from pane:', savedData.pane_id, 'key:', key);
+        try {
+          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'DMI' });
+        } catch (error) {
+          console.log('Error removing excess DMI indicator:', error);
+        }
+      }
+    });
+    
+    // Apply each DMI group
+    dmiGroups.forEach((group, index) => {
+      const calcParams = [group.diPeriod, group.adxPeriod];
+      const saveKey = groupToKeyMap.get(group.id);
+      
+      // Determine the correct pane ID based on current position
+      // First group (index 0) always uses editPaneId, others use position-based IDs
+      const targetPaneId = index === 0 ? $ctx.editPaneId : `pane_DMI_${index + 1}`;
+      
+      console.log(`📍 Group ${index + 1} (ID: ${group.id}) -> Target pane: ${targetPaneId}, Save key: ${saveKey}`);
+      
+      // Create indicator styles for DMI lines (+DI, -DI, ADX)
+      const indicatorStyles: any = {
+        lines: [
+          {
+            color: group.styles.diPlus.color,
+            size: group.styles.diPlus.thickness,
+            style: group.styles.diPlus.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.diPlus.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.diPlus.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          },
+          {
+            color: group.styles.diMinus.color,
+            size: group.styles.diMinus.thickness,
+            style: group.styles.diMinus.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.diMinus.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.diMinus.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          },
+          {
+            color: group.styles.adx.color,
+            size: group.styles.adx.thickness,
+            style: group.styles.adx.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.adx.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.adx.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          }
+        ]
+      };
+
+      const existingSavedData = existingDmiKeys.includes(saveKey) ? $save.saveInds[saveKey] : null;
+      const existingPaneId = existingSavedData?.pane_id;
+      
+      // Check if we need to move the indicator to a different pane
+      if (existingPaneId && existingPaneId !== targetPaneId) {
+        console.log(`🔀 Moving DMI from pane ${existingPaneId} to ${targetPaneId}`);
+        // Remove from old pane
+        try {
+          $chart?.removeIndicator({ paneId: existingPaneId, name: 'DMI' });
+        } catch (error) {
+          console.log('Note: Indicator may not exist in old pane:', error);
+        }
+        // Create in new pane
+        $chart?.createIndicator({
+          name: 'DMI',
+          calcParams: calcParams,
+          styles: indicatorStyles
+        }, true, { id: targetPaneId });
+      } else if (existingPaneId) {
+        // Update existing DMI indicator in the same pane
+        console.log(`🔄 Updating existing DMI in pane: ${targetPaneId}`);
+        $chart?.overrideIndicator({
+          name: 'DMI',
+          calcParams: calcParams,
+          styles: indicatorStyles,
+          paneId: targetPaneId
+        });
+      } else {
+        // Create new DMI indicator
+        console.log(`🆕 Creating new DMI in pane: ${targetPaneId}`);
+        $chart?.createIndicator({
+          name: 'DMI',
+          calcParams: calcParams,
+          styles: indicatorStyles
+        }, true, { id: targetPaneId });
+      }
+    });
+
+    // Save DMI groups configuration (without closing modal)
+    save.update(s => {
+      // Remove keys that should be deleted
+      keysToRemove.forEach(key => {
+        delete s.saveInds[key];
+        console.log('🗑️ Deleted save data for key:', key);
+      });
+      
+      // Save each DMI group separately with position-based pane IDs
+      dmiGroups.forEach((group, index) => {
+        const saveKey = groupToKeyMap.get(group.id);
+        // Use position-based pane ID: first group uses editPaneId, others use pane_DMI_X
+        const paneId = index === 0 ? $ctx.editPaneId : `pane_DMI_${index + 1}`;
+        
+        console.log(`💾 Saving DMI group ${index + 1} with key: ${saveKey}, pane: ${paneId}`);
+        
+        s.saveInds[saveKey] = {
+          name: 'DMI',
+          dmiGroup: group,
+          pane_id: paneId,
+          groupIndex: index,
+          dmiGroups: index === 0 ? [...dmiGroups] : undefined,
+          params: [group.diPeriod, group.adxPeriod]
+        };
+      });
+      
+      return s;
+    });
+  }
+
   function addDmiGroup() {
     if (!isDmi) return;
     
@@ -3654,81 +4507,205 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         adx: {color: '#3b82f6', thickness: 1, lineStyle: 'solid'}
       }
     });
+    
+    console.log('➕ Added new DMI group');
+    
+    // Apply changes to chart in real-time
+    applyDmi();
   }
 
   function removeDmiGroup(groupId: string) {
     if (!isDmi || dmiGroups.length <= 1) return;
 
-    // Find the group index to determine which indicator to remove
+    // Find the group index
     const groupIndex = dmiGroups.findIndex(group => group.id === groupId);
     if (groupIndex === -1) return;
 
     console.log('🗑️ Removing DMI group at index:', groupIndex, 'ID:', groupId);
 
-    // Remove the indicator from the chart
-    if (groupIndex === 0) {
-      // First group - remove from current edit pane
-      try {
-        console.log('🗑️ Removing DMI from edit pane:', $ctx.editPaneId);
-        $chart?.removeIndicator({ paneId: $ctx.editPaneId, name: 'DMI' });
-        console.log('✅ Successfully removed DMI from edit pane');
-      } catch (error) {
-        console.log('❌ Error removing DMI indicator from edit pane:', error);
-      }
-
-      // Remove from save data
-      save.update(s => {
-        const saveKey = `${$ctx.editPaneId}_DMI`;
-        delete s.saveInds[saveKey];
-        return s;
-      });
-    } else {
-      // Other groups - remove from their specific panes
-      const saveKey = `pane_DMI_${groupIndex + 1}_DMI`;
-      const savedData = $save.saveInds[saveKey];
-      
-      if (savedData) {
-        try {
-          console.log('🗑️ Removing DMI from pane:', savedData.pane_id);
-          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'DMI' });
-          console.log('✅ Successfully removed DMI from pane:', savedData.pane_id);
-        } catch (error) {
-          console.log('❌ Error removing DMI indicator from pane:', savedData.pane_id, error);
-        }
-      }
-
-      // Remove from save data and reindex remaining groups
-      save.update(s => {
-        // Get all remaining DMI groups after this one
-        const remainingGroups = Object.keys(s.saveInds).filter(key => 
-          key.startsWith('pane_DMI_') && s.saveInds[key].name === 'DMI'
-        ).sort();
-
-        console.log('🔄 Reindexing remaining DMI groups:', remainingGroups);
-
-        // Remove all pane_DMI_* entries and recreate them with correct indices
-        remainingGroups.forEach(key => delete s.saveInds[key]);
-
-        // Recreate with correct indices (excluding the removed group)
-        const filteredGroups = dmiGroups.filter((_, idx) => idx !== groupIndex);
-        filteredGroups.slice(1).forEach((group, idx) => {
-          const newKey = `pane_DMI_${idx + 2}_DMI`;
-          const newPaneId = `pane_DMI_${idx + 2}`;
-          s.saveInds[newKey] = {
-            name: 'DMI',
-            dmiGroup: group,
-            pane_id: newPaneId,
-            params: [group.diPeriod, group.adxPeriod]
-          };
-        });
-
-        return s;
-      });
-    }
-
     // Remove from groups array
     dmiGroups = dmiGroups.filter(group => group.id !== groupId);
-    console.log('✅ DMI group removed from array. Remaining groups:', dmiGroups.length);
+    
+    // Apply changes to chart in real-time (handles removal automatically)
+    applyDmi();
+    
+    console.log('✅ DMI group removed. Remaining groups:', dmiGroups.length);
+  }
+
+  // Apply CR changes in real-time without closing modal
+  function applyCr() {
+    if (!isCr || !$chart) return;
+    
+    console.log('🔄 Applying CR changes in real-time, groups:', crGroups.length);
+    
+    // Get existing CR indicators
+    const existingCrKeys = Object.keys($save.saveInds).filter(key => 
+      $save.saveInds[key].name === 'CR'
+    ).sort((a, b) => {
+      // Sort to prioritize editPaneId_CR first
+      if (a === `${$ctx.editPaneId}_CR`) return -1;
+      if (b === `${$ctx.editPaneId}_CR`) return 1;
+      return a.localeCompare(b);
+    });
+    
+    console.log('🔍 Existing CR keys:', existingCrKeys);
+    
+    // Create a mapping of existing CR groups to their saved keys
+    const groupToKeyMap = new Map();
+    const usedKeys = new Set();
+    
+    // Match existing groups with their saved data
+    crGroups.forEach((group, index) => {
+      let matchedKey = null;
+      
+      for (const key of existingCrKeys) {
+        if (usedKeys.has(key)) continue;
+        
+        const savedData = $save.saveInds[key];
+        if (savedData && savedData.crGroup) {
+          if (savedData.crGroup.id === group.id) {
+            matchedKey = key;
+            usedKeys.add(key);
+            break;
+          }
+        }
+      }
+      
+      if (!matchedKey) {
+        // Assign a new key for new groups
+        if (index === 0 && !usedKeys.has(`${$ctx.editPaneId}_CR`)) {
+          matchedKey = `${$ctx.editPaneId}_CR`;
+        } else {
+          let counter = 2;
+          while (usedKeys.has(`pane_CR_${counter}_CR`) || existingCrKeys.includes(`pane_CR_${counter}_CR`)) {
+            counter++;
+          }
+          matchedKey = `pane_CR_${counter}_CR`;
+        }
+        usedKeys.add(matchedKey);
+      }
+      
+      groupToKeyMap.set(group.id, matchedKey);
+    });
+    
+    // Find keys to remove (indicators that are no longer in groups)
+    const expectedKeys = Array.from(groupToKeyMap.values());
+    const keysToRemove = existingCrKeys.filter(key => !expectedKeys.includes(key));
+    
+    // Remove excess indicators
+    keysToRemove.forEach(key => {
+      const savedData = $save.saveInds[key];
+      if (savedData && savedData.pane_id) {
+        console.log('🗑️ Removing CR indicator from pane:', savedData.pane_id, 'key:', key);
+        try {
+          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'CR' });
+        } catch (error) {
+          console.log('Error removing excess CR indicator:', error);
+        }
+      }
+    });
+    
+    // Apply each CR group
+    crGroups.forEach((group, index) => {
+      const calcParams = [group.crPeriod, group.crMa1Period, group.crMa2Period, group.crMa3Period, group.crMa4Period];
+      const saveKey = groupToKeyMap.get(group.id);
+      
+      // Create indicator styles for CR lines
+      const indicatorStyles: any = {
+        lines: [
+          {
+            color: group.styles.cr.color,
+            size: group.styles.cr.thickness,
+            style: group.styles.cr.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.cr.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.cr.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          },
+          {
+            color: group.styles.ma1.color,
+            size: group.styles.ma1.thickness,
+            style: group.styles.ma1.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.ma1.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.ma1.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          },
+          {
+            color: group.styles.ma2.color,
+            size: group.styles.ma2.thickness,
+            style: group.styles.ma2.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.ma2.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.ma2.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          },
+          {
+            color: group.styles.ma3.color,
+            size: group.styles.ma3.thickness,
+            style: group.styles.ma3.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.ma3.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.ma3.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          },
+          {
+            color: group.styles.ma4.color,
+            size: group.styles.ma4.thickness,
+            style: group.styles.ma4.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.styles.ma4.lineStyle === 'dashed' ? [4, 4] : 
+                        group.styles.ma4.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          }
+        ]
+      };
+
+      const existingSavedData = existingCrKeys.includes(saveKey) ? $save.saveInds[saveKey] : null;
+      
+      if (existingSavedData && existingSavedData.pane_id) {
+        // Update existing CR indicator
+        console.log('🔄 Updating existing CR in pane:', existingSavedData.pane_id);
+        $chart?.overrideIndicator({
+          name: 'CR',
+          calcParams: calcParams,
+          styles: indicatorStyles,
+          paneId: existingSavedData.pane_id
+        });
+      } else {
+        // Create new CR indicator
+        const paneId = saveKey === `${$ctx.editPaneId}_CR` ? $ctx.editPaneId : saveKey.replace('_CR', '');
+        console.log('🆕 Creating new CR with pane ID:', paneId, 'key:', saveKey);
+        $chart?.createIndicator({
+          name: 'CR',
+          calcParams: calcParams,
+          styles: indicatorStyles
+        }, true, { id: paneId });
+      }
+    });
+
+    // Save CR groups configuration (without closing modal)
+    save.update(s => {
+      // Remove keys that should be deleted
+      keysToRemove.forEach(key => {
+        delete s.saveInds[key];
+        console.log('🗑️ Deleted save data for key:', key);
+      });
+      
+      // Save each CR group separately
+      crGroups.forEach((group, index) => {
+        const saveKey = groupToKeyMap.get(group.id);
+        const paneId = saveKey === `${$ctx.editPaneId}_CR` ? $ctx.editPaneId : saveKey.replace('_CR', '');
+        
+        console.log(`💾 Saving CR group ${index + 1} with key:`, saveKey);
+        
+        s.saveInds[saveKey] = {
+          name: 'CR',
+          crGroup: group,
+          pane_id: paneId,
+          groupIndex: index,
+          crGroups: index === 0 ? [...crGroups] : undefined,
+          params: [group.crPeriod, group.crMa1Period, group.crMa2Period, group.crMa3Period, group.crMa4Period]
+        };
+      });
+      
+      return s;
+    });
   }
 
   function addCrGroup() {
@@ -3751,81 +4728,29 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         ma4: {color: '#9C27B0', thickness: 1, lineStyle: 'solid'}
       }
     });
+    
+    console.log('➕ Added new CR group');
+    
+    // Apply changes to chart in real-time
+    applyCr();
   }
 
   function removeCrGroup(groupId: string) {
     if (!isCr || crGroups.length <= 1) return;
 
-    // Find the group index to determine which indicator to remove
+    // Find the group index
     const groupIndex = crGroups.findIndex(group => group.id === groupId);
     if (groupIndex === -1) return;
 
     console.log('🗑️ Removing CR group at index:', groupIndex, 'ID:', groupId);
 
-    // Remove the indicator from the chart
-    if (groupIndex === 0) {
-      // First group - remove from current edit pane
-      try {
-        console.log('🗑️ Removing CR from edit pane:', $ctx.editPaneId);
-        $chart?.removeIndicator({ paneId: $ctx.editPaneId, name: 'CR' });
-        console.log('✅ Successfully removed CR from edit pane');
-      } catch (error) {
-        console.log('❌ Error removing CR indicator from edit pane:', error);
-      }
-
-      // Remove from save data
-      save.update(s => {
-        const saveKey = `${$ctx.editPaneId}_CR`;
-        delete s.saveInds[saveKey];
-        return s;
-      });
-    } else {
-      // Other groups - remove from their specific panes
-      const saveKey = `pane_CR_${groupIndex + 1}_CR`;
-      const savedData = $save.saveInds[saveKey];
-      
-      if (savedData) {
-        try {
-          console.log('🗑️ Removing CR from pane:', savedData.pane_id);
-          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'CR' });
-          console.log('✅ Successfully removed CR from pane:', savedData.pane_id);
-        } catch (error) {
-          console.log('❌ Error removing CR indicator from pane:', savedData.pane_id, error);
-        }
-      }
-
-      // Remove from save data and reindex remaining groups
-      save.update(s => {
-        // Get all remaining CR groups after this one
-        const remainingGroups = Object.keys(s.saveInds).filter(key => 
-          key.startsWith('pane_CR_') && s.saveInds[key].name === 'CR'
-        ).sort();
-
-        console.log('🔄 Reindexing remaining CR groups:', remainingGroups);
-
-        // Remove all pane_CR_* entries and recreate them with correct indices
-        remainingGroups.forEach(key => delete s.saveInds[key]);
-
-        // Recreate with correct indices (excluding the removed group)
-        const filteredGroups = crGroups.filter((_, idx) => idx !== groupIndex);
-        filteredGroups.slice(1).forEach((group, idx) => {
-          const newKey = `pane_CR_${idx + 2}_CR`;
-          const newPaneId = `pane_CR_${idx + 2}`;
-          s.saveInds[newKey] = {
-            name: 'CR',
-            crGroup: group,
-            pane_id: newPaneId,
-            params: [group.crPeriod, group.crMa1Period, group.crMa2Period, group.crMa3Period, group.crMa4Period]
-          };
-        });
-
-        return s;
-      });
-    }
-
     // Remove from groups array
     crGroups = crGroups.filter(group => group.id !== groupId);
-    console.log('✅ CR group removed from array. Remaining groups:', crGroups.length);
+    
+    // Apply changes to chart in real-time (handles removal automatically)
+    applyCr();
+    
+    console.log('✅ CR group removed. Remaining groups:', crGroups.length);
   }
 
   // Initialize default ROC group
@@ -4923,6 +5848,17 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     
     // If this is not the first group, immediately create the new KDJ indicator in a new sub-pane
     if (kdjGroups.length > 1) {
+      // Find the next available index for pane naming
+      // Check all existing KDJ pane IDs to avoid conflicts
+      const existingPaneIds = Object.values($save.saveInds)
+        .filter((ind: any) => ind.name === 'KDJ' && ind.pane_id)
+        .map((ind: any) => ind.pane_id);
+      
+      let nextIndex = 2;
+      while (existingPaneIds.includes(`pane_KDJ_${nextIndex}`)) {
+        nextIndex++;
+      }
+      
       const groupIndex = kdjGroups.length - 1;
       const calcParams = [newGroup.kPeriod, newGroup.dPeriod, 3];
       
@@ -4950,9 +5886,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         ]
       };
       
-      // Create new KDJ indicator in a new sub-pane
-      const newPaneId = `pane_KDJ_${groupIndex + 1}`;
-      console.log(`🆕 Immediately creating KDJ ${groupIndex + 1} with pane ID:`, newPaneId);
+      // Create new KDJ indicator in a new sub-pane with the next available index
+      const newPaneId = `pane_KDJ_${nextIndex}`;
+      console.log(`🆕 Immediately creating KDJ ${nextIndex} with pane ID:`, newPaneId);
       
       const result = $chart?.createIndicator({
         name: 'KDJ',
@@ -4962,12 +5898,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       
       // Store the pane ID for later reference
       if (result) {
-        console.log(`✅ KDJ ${groupIndex + 1} created with pane ID:`, newPaneId);
+        console.log(`✅ KDJ ${nextIndex} created with pane ID:`, newPaneId);
         newGroup.actualPaneId = newPaneId;
         
         // Immediately save this group configuration
         save.update(s => {
-          const saveKey = `pane_KDJ_${groupIndex + 1}_KDJ`;
+          const saveKey = `pane_KDJ_${nextIndex}_KDJ`;
           s.saveInds[saveKey] = {
             name: 'KDJ',
             kdjGroup: newGroup,
@@ -5130,34 +6066,43 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     console.log('🗑️ Removing KDJ group at index:', groupIndex, 'ID:', groupId);
     
     try {
-      // Remove from chart first
-      if (groupIndex === 0) {
-        // For the first group, remove from the edit pane
-        console.log('🗑️ Removing KDJ from edit pane:', $ctx.editPaneId);
-        $chart?.removeIndicator({ paneId: $ctx.editPaneId, name: 'KDJ' });
-        console.log('✅ Successfully removed KDJ from edit pane');
+      // Special handling when removing the first group
+      if (groupIndex === 0 && kdjGroups.length > 1) {
+        console.log('🔄 Special handling: First KDJ removed, promoting second KDJ to first position');
+        
+        // Remove the group from the array FIRST
+        kdjGroups = kdjGroups.filter(group => group.id !== groupId);
+        console.log('✅ KDJ group removed from array. Remaining groups:', kdjGroups.length);
+        
+        // The new first group (previously second) needs to be moved to edit pane
+        const newFirstGroup = kdjGroups[0];
+        
+        // Remove the old second KDJ from its sub-pane first
+        if (newFirstGroup.actualPaneId) {
+          console.log('🗑️ Removing old second KDJ from sub-pane:', newFirstGroup.actualPaneId);
+          $chart?.removeIndicator({ paneId: newFirstGroup.actualPaneId, name: 'KDJ' });
+        }
+        
+        // Clear the actualPaneId since it's now going to edit pane
+        newFirstGroup.actualPaneId = undefined;
+        
+        // Update the KDJ in edit pane with new first group's settings
+        console.log('📊 Updating KDJ in edit pane with new first group settings');
+        updateKdjIndicator(0);
+        
       } else {
         // For non-first groups, remove from their specific panes
-        const saveKey = `pane_KDJ_${groupIndex + 1}_KDJ`;
-        if ($save.saveInds[saveKey]) {
-          const savedData = $save.saveInds[saveKey];
-          console.log('🗑️ Removing KDJ from pane:', savedData.pane_id);
-          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'KDJ' });
-          console.log('✅ Successfully removed KDJ from pane:', savedData.pane_id);
-        } else {
-          // Try to remove using the group's actual pane ID if available
-          const group = kdjGroups[groupIndex];
-          if (group.actualPaneId) {
-            console.log('🗑️ Removing KDJ from actual pane:', group.actualPaneId);
-            $chart?.removeIndicator({ paneId: group.actualPaneId, name: 'KDJ' });
-            console.log('✅ Successfully removed KDJ from actual pane:', group.actualPaneId);
-          }
+        const group = kdjGroups[groupIndex];
+        if (group.actualPaneId) {
+          console.log('🗑️ Removing KDJ from actual pane:', group.actualPaneId);
+          $chart?.removeIndicator({ paneId: group.actualPaneId, name: 'KDJ' });
+          console.log('✅ Successfully removed KDJ from actual pane:', group.actualPaneId);
         }
+        
+        // Remove the group from the array
+        kdjGroups = kdjGroups.filter(group => group.id !== groupId);
+        console.log('✅ KDJ group removed from array. Remaining groups:', kdjGroups.length);
       }
-      
-      // Remove the group from the array FIRST
-      kdjGroups = kdjGroups.filter(group => group.id !== groupId);
-      console.log('✅ KDJ group removed from array. Remaining groups:', kdjGroups.length);
       
       // Remove from saved data and reindex
       save.update((s: ChartSave) => {
@@ -5172,6 +6117,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         // Re-save remaining groups with correct indices
         kdjGroups.forEach((group, index) => {
           const saveKey = index === 0 ? `${$ctx.editPaneId}_KDJ` : `pane_KDJ_${index + 1}_KDJ`;
+          // Use actual pane ID if available, otherwise fallback to generated one
           const paneId = index === 0 ? $ctx.editPaneId : (group.actualPaneId || `pane_KDJ_${index + 1}`);
           
           console.log(`💾 Re-saving KDJ group ${index + 1} with key:`, saveKey, 'pane ID:', paneId);
@@ -5440,6 +6386,125 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   }
 
+  // Apply AO changes in real-time without closing modal
+  function applyAo() {
+    if (!isAo || !$chart) return;
+    
+    console.log('🔄 Applying AO changes in real-time, groups:', aoGroups.length);
+    
+    // Get existing AO indicators
+    const existingAoKeys = Object.keys($save.saveInds).filter(key => 
+      $save.saveInds[key].name === 'AO'
+    ).sort((a, b) => {
+      // Sort to prioritize editPaneId_AO first
+      if (a === `${$ctx.editPaneId}_AO`) return -1;
+      if (b === `${$ctx.editPaneId}_AO`) return 1;
+      return a.localeCompare(b);
+    });
+    
+    console.log('🔍 Existing AO keys:', existingAoKeys);
+    
+    // Remove excess indicators if needed
+    const currentGroupCount = aoGroups.length;
+    if (existingAoKeys.length > currentGroupCount) {
+      console.log(`🗑️ Removing ${existingAoKeys.length - currentGroupCount} excess AO indicators`);
+      for (let i = currentGroupCount; i < existingAoKeys.length; i++) {
+        const key = existingAoKeys[i];
+        const savedData = $save.saveInds[key];
+        if (savedData && savedData.pane_id) {
+          console.log('🗑️ Removing AO indicator from pane:', savedData.pane_id);
+          try {
+            $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'AO' });
+          } catch (error) {
+            console.log('Error removing excess AO indicator:', error);
+          }
+        }
+      }
+    }
+    
+    // Apply each AO group
+    aoGroups.forEach((group, index) => {
+      const calcParams = [group.shortPeriod, group.longPeriod];
+      
+      // Create indicator styles for AO bars
+      const indicatorStyles: any = {
+        bars: [
+          {
+            upColor: group.styles.increasing.color,
+            downColor: group.styles.decreasing.color,
+            noChangeColor: '#888888'
+          }
+        ]
+      };
+
+      if (index === 0) {
+        // Update first AO indicator in current pane
+        console.log('🔄 Updating first AO indicator in pane:', $ctx.editPaneId);
+        $chart?.overrideIndicator({
+          name: 'AO',
+          calcParams: calcParams,
+          styles: indicatorStyles,
+          paneId: $ctx.editPaneId
+        });
+      } else {
+        // Handle additional AO indicators
+        const expectedSaveKey = `pane_AO_${index + 1}_AO`;
+        const existingGroup = existingAoKeys.find(key => key === expectedSaveKey);
+        
+        if (existingGroup) {
+          // Update existing additional AO indicator
+          const existingData = $save.saveInds[existingGroup];
+          if (existingData && existingData.pane_id) {
+            console.log(`🔄 Updating existing AO ${index + 1} in pane:`, existingData.pane_id);
+            $chart?.overrideIndicator({
+              name: 'AO',
+              calcParams: calcParams,
+              styles: indicatorStyles,
+              paneId: existingData.pane_id
+            });
+          }
+        } else {
+          // Create new AO indicator
+          const newPaneId = `pane_AO_${index + 1}`;
+          console.log(`🆕 Creating new AO ${index + 1} with pane ID:`, newPaneId);
+          $chart?.createIndicator({
+            name: 'AO',
+            calcParams: calcParams,
+            styles: indicatorStyles
+          }, true, { id: newPaneId });
+        }
+      }
+    });
+
+    // Save AO groups configuration (without closing modal)
+    save.update(s => {
+      // Clear existing AO data first
+      Object.keys(s.saveInds).forEach(key => {
+        if (s.saveInds[key].name === 'AO') {
+          delete s.saveInds[key];
+        }
+      });
+      
+      // Save each AO group separately
+      aoGroups.forEach((group, index) => {
+        const saveKey = index === 0 ? `${$ctx.editPaneId}_AO` : `pane_AO_${index + 1}_AO`;
+        const paneId = index === 0 ? $ctx.editPaneId : `pane_AO_${index + 1}`;
+        
+        console.log(`💾 Saving AO group ${index + 1} with key:`, saveKey);
+        
+        s.saveInds[saveKey] = {
+          name: 'AO',
+          aoGroup: group,
+          pane_id: paneId,
+          groupIndex: index,
+          aoGroups: index === 0 ? [...aoGroups] : undefined,
+          params: [group.shortPeriod, group.longPeriod]
+        };
+      });
+      return s;
+    });
+  }
+
   function addAoGroup() {
     if (!isAo) return;
     
@@ -5455,6 +6520,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         decreasing: {color: colors[(colorIndex + 1) % colors.length]}
       }
     });
+    
+    // Apply changes to chart in real-time
+    applyAo();
   }
 
   function removeAoGroup(groupId: string) {
@@ -5470,34 +6538,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     // Find the index of the group to remove
     const groupIndex = aoGroups.findIndex(group => group.id === groupId);
     
-    // Remove from chart if it's not the first group (first group uses current edit pane)
-    if (groupIndex > 0) {
-      // For additional groups, we need to find the corresponding chart indicator
-      // Since we can't directly identify which chart indicator corresponds to which group,
-      // we'll need to remove all AO indicators and recreate them
-      const allAoEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'AO');
-      
-      // Remove all AO indicators from chart
-      allAoEntries.forEach(([key, ind]) => {
-        if (ind.pane_id && ind.pane_id !== $ctx.editPaneId) {
-          // Remove additional AO indicators (not the first one)
-          $chart?.removeIndicator({ paneId: ind.pane_id, name: 'AO' });
-        }
-      });
-      
-      // Clean up saved data for additional groups
-      save.update(s => {
-        Object.keys(s.saveInds).forEach(key => {
-          if (s.saveInds[key].name === 'AO' && s.saveInds[key].groupIndex > 0) {
-            delete s.saveInds[key];
-          }
-        });
-        return s;
-      });
-    }
-    
     // Remove from groups array
     aoGroups = aoGroups.filter(group => group.id !== groupId);
+    
+    // Apply changes to chart in real-time (will handle removal automatically)
+    applyAo();
   }
 
 
@@ -5533,10 +6578,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   }
 
   // Color palette handlers for all indicators
-  function showMacdColorPaletteHandler(event: MouseEvent) {
-    // Center the color palette in the viewport
-    macdColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    showMacdColorPalette = true;
+  function showMacdColorPaletteHandler(groupIndex: number, lineType: 'macdLine' | 'signalLine' | 'positiveHistogram' | 'negativeHistogram') {
+    return (event: MouseEvent) => {
+      macdColorPaletteGroupIndex = groupIndex;
+      macdColorPaletteLineType = lineType;
+      macdColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+      showMacdColorPalette = true;
+    };
   }
 
   function showCciColorPaletteHandler(index: number) {
@@ -5754,24 +6802,6 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       showCustomAoColorPalette = true;
     };
   }
-
-  // Specific line color palette handlers for multi-line indicators
-  function showMacdLineColorPaletteHandler(event: MouseEvent) {
-    macdLineColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    showMacdLineColorPalette = true;
-  }
-
-  function showMacdSignalColorPaletteHandler(event: MouseEvent) {
-    macdSignalColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    showMacdSignalColorPalette = true;
-  }
-
-  function showMacdHistColorPaletteHandler(event: MouseEvent) {
-    macdHistColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    showMacdHistColorPalette = true;
-  }
-
-
 
   function showVolIncreasingColorPaletteHandler(event: MouseEvent) {
     volIncreasingColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
@@ -6508,68 +7538,36 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   }
 
   function handleMacdConfirm() {
-    // Apply each MACD group as a separate indicator in different panes
+    // Update existing MACD indicators with current settings
+    // Don't create new indicators - they're already created by addMacdGroup()
     macdGroups.forEach((group, index) => {
-      const indicatorName = index === 0 ? 'MACD' : `MACD_${index + 1}`;
-      const calcParams = [group.fastPeriod, group.slowPeriod, group.signalPeriod];
-      
-      // Create indicator styles for MACD, Signal, and Histogram lines
-      const indicatorStyles: any = {
-        lines: [
-          {
-            color: group.styles.macd.color,
-            size: group.styles.macd.thickness,
-            style: group.styles.macd.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid,
-            dashedValue: group.styles.macd.lineStyle === 'dashed' ? [4, 4] : [2, 2]
-          },
-          {
-            color: group.styles.signal.color,
-            size: group.styles.signal.thickness,
-            style: group.styles.signal.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid,
-            dashedValue: group.styles.signal.lineStyle === 'dashed' ? [4, 4] : [2, 2]
-          },
-          {
-            color: group.styles.histogram.color,
-            size: group.styles.histogram.thickness,
-            style: group.styles.histogram.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid,
-            dashedValue: group.styles.histogram.lineStyle === 'dashed' ? [4, 4] : [2, 2]
-          }
-        ]
-      };
-
-      // For the first MACD group, use the current edit pane
-      // For additional groups, create new panes
-      if (index === 0) {
-        $chart?.overrideIndicator({
-          name: 'MACD',
-          calcParams: calcParams,
-          styles: indicatorStyles,
-          paneId: $ctx.editPaneId
-        });
-      } else {
-        // Create new pane for additional MACD instances
-        $chart?.createIndicator({
-          name: 'MACD',
-          calcParams: calcParams,
-          styles: indicatorStyles
-        }, false, { axis: { gap: { bottom: 2 } } }); // Create in new pane
-      }
+      // Use updateMacdIndicator to apply changes to existing indicators
+      updateMacdIndicator(index);
     });
 
     // Save MACD groups configuration
     save.update(s => {
-      // Save each MACD group separately
+      // Clear all existing MACD saved data first
+      Object.keys(s.saveInds).forEach(key => {
+        if (s.saveInds[key].name === 'MACD') {
+          delete s.saveInds[key];
+        }
+      });
+      
+      // Save each MACD group with correct keys and pane IDs
       macdGroups.forEach((group, index) => {
-        const saveKey = index === 0 ? `${$ctx.editPaneId}_MACD` : `MACD_${index + 1}`;
-        const saveData: any = {
+        const saveKey = index === 0 ? `${$ctx.editPaneId}_MACD` : `pane_MACD_${index + 1}_MACD`;
+        const paneId = index === 0 ? $ctx.editPaneId : (group.actualPaneId || `pane_MACD_${index + 1}`);
+        
+        s.saveInds[saveKey] = {
           name: 'MACD',
           macdGroup: group,
-          pane_id: index === 0 ? $ctx.editPaneId : `new_pane_${index}`,
-          groupIndex: index
+          pane_id: paneId,
+          groupIndex: index,
+          params: [group.fastPeriod, group.slowPeriod, group.signalPeriod]
         };
-        
-        s.saveInds[saveKey] = saveData;
       });
+      
       return s;
     });
     
@@ -8945,77 +9943,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
     
     // Handle ZigZag specially
-    console.log('🔍 Checking ZigZag conditions:', {
-      from,
-      isZigzag,
-      editIndName: $ctx.editIndName,
-      editPaneId: $ctx.editPaneId
-    });
-    
     if (from === 'confirm' && isZigzag && $ctx.editIndName && $ctx.editPaneId) {
-      console.log('🎯 ZigZag confirm clicked');
-      
-      // Create indicator styles for ZigZag
-      const indicatorStyles: any = {
-        lines: [
-          {
-            color: zigzagColor,
-            size: zigzagThickness,
-            style: zigzagLineStyle === 'solid' ? 0 : zigzagLineStyle === 'dashed' ? 1 : 2,
-            smooth: false,
-            dashedValue: [2, 2]
-          }
-        ]
-      };
-
-      console.log('🎯 ZigZag styles:', indicatorStyles);
-
-      // Update the ZigZag indicator
-      try {
-        $chart?.overrideIndicator({
-          name: 'ZIGZAG',
-          calcParams: [params[0], params[1]], // [deviation, depth]
-          styles: indicatorStyles,
-          paneId: $ctx.editPaneId
-        });
-        console.log('✅ ZigZag indicator updated');
-      } catch (error) {
-        console.error('❌ Error updating ZigZag:', error);
-      }
-
-      // Save ZigZag configuration
-      save.update(s => {
-        const saveKey = `${$ctx.editPaneId}_ZIGZAG`;
-        const saveData: any = {
-          name: 'ZIGZAG',
-          pane_id: $ctx.editPaneId,
-          params: [params[0], params[1]],
-          styles: indicatorStyles
-        };
-        
-        s.saveInds[saveKey] = saveData;
-        console.log('💾 ZigZag saved:', saveData);
-        return s;
-      });
-      
-      // Clear edit state
-      ctx.update(c => {
-        c.editIndName = '';
-        c.editPaneId = '';
-        c.modalIndCfg = false;
-        return c;
-      });
-      
-      console.log('🚪 Closing ZigZag popup, show before:', show);
-      show = false;
-      console.log('🚪 Show after setting false:', show);
-      
-      // Force close the modal
-      setTimeout(() => {
-        console.log('🚪 Force closing ZigZag popup after timeout');
-        show = false;
-      }, 100);
-      
+      handleZigzagConfirm();
       return;
     }
     
@@ -9173,24 +10102,32 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             </div>
           </div>
           
-          <!-- MACD Line Style -->
+          <!-- Style Controls -->
           <div class="space-y-2">
+            <!-- MACD Line Style -->
             <div class="flex items-center gap-2 text-xs text-base-content/70">
-              <span class="w-12 font-medium">MACD:</span>
+              <span class="w-20 sm:w-24 font-medium">MACD Line:</span>
               <button 
-                class="btn btn-sm btn-outline"
-                onclick={showMacdLineColorPaletteHandler}
+                class="btn btn-xs btn-circle"
+                style="background-color: {group.styles.macdLine.color}; border: 1px solid #ddd;"
+                onclick={showMacdColorPaletteHandler(groupIndex, 'macdLine')}
+              ></button>
+              <select 
+                class="select select-bordered select-xs w-14 sm:w-16 text-xs" 
+                bind:value={group.styles.macdLine.thickness}
+                onchange={() => updateMacdIndicator(groupIndex)}
               >
-                <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.macd.color}"></div>
-              </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.macd.thickness}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.macd.lineStyle}>
+              <select 
+                class="select select-bordered select-xs w-16 sm:w-20 text-xs" 
+                bind:value={group.styles.macdLine.lineStyle}
+                onchange={() => updateMacdIndicator(groupIndex)}
+              >
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -9199,48 +10136,52 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             
             <!-- Signal Line Style -->
             <div class="flex items-center gap-2 text-xs text-base-content/70">
-              <span class="w-12 font-medium">Signal:</span>
+              <span class="w-20 sm:w-24 font-medium">Signal Line:</span>
               <button 
-                class="btn btn-sm btn-outline"
-                onclick={showMacdSignalColorPaletteHandler}
+                class="btn btn-xs btn-circle"
+                style="background-color: {group.styles.signalLine.color}; border: 1px solid #ddd;"
+                onclick={showMacdColorPaletteHandler(groupIndex, 'signalLine')}
+              ></button>
+              <select 
+                class="select select-bordered select-xs w-14 sm:w-16 text-xs" 
+                bind:value={group.styles.signalLine.thickness}
+                onchange={() => updateMacdIndicator(groupIndex)}
               >
-                <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.signal.color}"></div>
-              </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.signal.thickness}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.signal.lineStyle}>
+              <select 
+                class="select select-bordered select-xs w-16 sm:w-20 text-xs" 
+                bind:value={group.styles.signalLine.lineStyle}
+                onchange={() => updateMacdIndicator(groupIndex)}
+              >
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
               </select>
             </div>
             
-            <!-- Histogram Style -->
+            <!-- Positive Histogram Color -->
             <div class="flex items-center gap-2 text-xs text-base-content/70">
-              <span class="w-12 font-medium">Hist:</span>
+              <span class="w-20 sm:w-24 font-medium">Positive Bar:</span>
               <button 
-                class="btn btn-sm btn-outline"
-                onclick={showMacdHistColorPaletteHandler}
-              >
-                <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.histogram.color}"></div>
-              </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.histogram.thickness}>
-                <option value={1}>1px</option>
-                <option value={2}>2px</option>
-                <option value={3}>3px</option>
-                <option value={4}>4px</option>
-                <option value={5}>5px</option>
-              </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.histogram.lineStyle}>
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
+                class="btn btn-xs btn-circle"
+                style="background-color: {group.styles.positiveHistogram.color}; border: 1px solid #ddd;"
+                onclick={showMacdColorPaletteHandler(groupIndex, 'positiveHistogram')}
+              ></button>
+            </div>
+            
+            <!-- Negative Histogram Color -->
+            <div class="flex items-center gap-2 text-xs text-base-content/70">
+              <span class="w-20 sm:w-24 font-medium">Negative Bar:</span>
+              <button 
+                class="btn btn-xs btn-circle"
+                style="background-color: {group.styles.negativeHistogram.color}; border: 1px solid #ddd;"
+                onclick={showMacdColorPaletteHandler(groupIndex, 'negativeHistogram')}
+              ></button>
             </div>
           </div>
 
@@ -9494,6 +10435,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.diPeriod} 
                 min="1"
+                oninput={applyDmi}
               />
             </div>
             <div class="flex flex-col gap-1">
@@ -9503,6 +10445,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.adxPeriod} 
                 min="1"
+                oninput={applyDmi}
               />
             </div>
           </div>
@@ -9518,14 +10461,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.diPlus.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.diPlus.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.diPlus.thickness} onchange={applyDmi}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.diPlus.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.diPlus.lineStyle} onchange={applyDmi}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -9541,14 +10484,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.diMinus.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.diMinus.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.diMinus.thickness} onchange={applyDmi}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.diMinus.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.diMinus.lineStyle} onchange={applyDmi}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -9564,14 +10507,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.adx.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.adx.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.adx.thickness} onchange={applyDmi}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.adx.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.adx.lineStyle} onchange={applyDmi}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -10261,6 +11204,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 min="1"
                 bind:value={group.shortPeriod}
+                oninput={applyAo}
               />
             </div>
             <div class="flex flex-col gap-1">
@@ -10270,6 +11214,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 min="1"
                 bind:value={group.longPeriod}
+                oninput={applyAo}
               />
             </div>
           </div>
@@ -10352,6 +11297,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.crPeriod}
                 min="1"
+                oninput={applyCr}
               />
             </div>
             <div class="flex flex-col gap-1">
@@ -10361,6 +11307,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.crMa1Period}
                 min="1"
+                oninput={applyCr}
               />
             </div>
             <div class="flex flex-col gap-1">
@@ -10370,6 +11317,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.crMa2Period}
                 min="1"
+                oninput={applyCr}
               />
             </div>
             <div class="flex flex-col gap-1">
@@ -10379,6 +11327,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.crMa3Period}
                 min="1"
+                oninput={applyCr}
               />
             </div>
             <div class="flex flex-col gap-1">
@@ -10388,6 +11337,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.crMa4Period}
                 min="1"
+                oninput={applyCr}
               />
             </div>
           </div>
@@ -10403,14 +11353,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.cr.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.cr.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.cr.thickness} onchange={applyCr}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.cr.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.cr.lineStyle} onchange={applyCr}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -10426,14 +11376,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.ma1.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma1.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma1.thickness} onchange={applyCr}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma1.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma1.lineStyle} onchange={applyCr}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -10449,14 +11399,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.ma2.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma2.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma2.thickness} onchange={applyCr}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma2.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma2.lineStyle} onchange={applyCr}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -10472,14 +11422,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.ma3.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma3.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma3.thickness} onchange={applyCr}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma3.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma3.lineStyle} onchange={applyCr}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -10495,14 +11445,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.ma4.color}"></div>
               </button>
-              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma4.thickness}>
+              <select class="select select-bordered select-xs w-14 sm:w-16 text-xs" bind:value={group.styles.ma4.thickness} onchange={applyCr}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma4.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.ma4.lineStyle} onchange={applyCr}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -10613,6 +11563,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         </div>
       </div>
     </div>
+
   {:else if isPvt}
     <!-- PVT Multi-Instance UI -->
     <div class="space-y-2 mt-3">
@@ -11248,6 +12199,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm" 
               bind:value={group.period}
               min="1"
+              oninput={applyBias}
             />
           </div>
           
@@ -11267,7 +12219,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Thickness -->
             <div class="flex items-center gap-1">
               <span class="text-base-content/60 text-xs">Width:</span>
-              <select class="select select-bordered select-xs w-12 sm:w-16 text-xs" bind:value={group.thickness}>
+              <select class="select select-bordered select-xs w-12 sm:w-16 text-xs" bind:value={group.thickness} onchange={applyBias}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
@@ -11278,7 +12230,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Line Style -->
             <div class="flex items-center gap-1">
               <span class="text-base-content/60 text-xs">Style:</span>
-              <select class="select select-bordered select-xs w-14 sm:w-20 text-xs" bind:value={group.lineStyle}>
+              <select class="select select-bordered select-xs w-14 sm:w-20 text-xs" bind:value={group.lineStyle} onchange={applyBias}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dash</option>
                 <option value="dotted">Dot</option>
@@ -11329,6 +12281,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm" 
               bind:value={group.period}
               min="1"
+              oninput={applyCci}
             />
           </div>
           
@@ -11348,7 +12301,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Thickness -->
             <div class="flex items-center gap-1">
               <span class="text-base-content/60 text-xs">Width:</span>
-              <select class="select select-bordered select-xs w-12 sm:w-16 text-xs" bind:value={group.thickness}>
+              <select class="select select-bordered select-xs w-12 sm:w-16 text-xs" bind:value={group.thickness} onchange={applyCci}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
@@ -11359,7 +12312,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <!-- Line Style -->
             <div class="flex items-center gap-1">
               <span class="text-base-content/60 text-xs">Style:</span>
-              <select class="select select-bordered select-xs w-14 sm:w-20 text-xs" bind:value={group.lineStyle}>
+              <select class="select select-bordered select-xs w-14 sm:w-20 text-xs" bind:value={group.lineStyle} onchange={applyCci}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dash</option>
                 <option value="dotted">Dot</option>
@@ -12433,11 +13386,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 <!-- Color Palettes for all indicators -->
 <ColorPalette 
   bind:show={showMacdColorPalette}
-  selectedColor={macdGroups[0]?.styles?.macd?.color || '#2563eb'}
+  selectedColor={macdGroups[macdColorPaletteGroupIndex]?.styles?.[macdColorPaletteLineType]?.color || '#2563eb'}
   position={macdColorPalettePosition}
   on:colorChange={(e) => {
-    if (macdGroups.length > 0) {
-      macdGroups[0].styles.macd.color = e.detail.color;
+    if (macdGroups.length > macdColorPaletteGroupIndex) {
+      // Update the color in the group
+      macdGroups[macdColorPaletteGroupIndex].styles[macdColorPaletteLineType].color = e.detail.color;
+      // Apply changes to chart in real-time
+      updateMacdColor(macdColorPaletteGroupIndex, macdColorPaletteLineType);
     }
   }}
 />
@@ -12449,6 +13405,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (cciGroups.length > cciColorPaletteIndex) {
       cciGroups[cciColorPaletteIndex].color = e.detail.color;
+      // Apply changes to chart in real-time
+      applyCci();
     }
   }}
 />
@@ -12699,6 +13657,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (biasGroups.length > biasColorPaletteIndex) {
       biasGroups[biasColorPaletteIndex].color = e.detail.color;
+      // Apply changes to chart in real-time
+      applyBias();
     }
   }}
 />
@@ -12743,44 +13703,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         // Decreasing color
         aoGroups[groupIndex].styles.decreasing.color = e.detail.color;
       }
+      // Apply changes to chart in real-time
+      applyAo();
     }
   }}
 />
 
 <!-- ColorPalette components for multi-line indicators -->
-<ColorPalette 
-  bind:show={showMacdLineColorPalette}
-  selectedColor={macdGroups[0]?.styles?.macd?.color || '#2563eb'}
-  position={macdLineColorPalettePosition}
-  on:colorChange={(e) => {
-    if (macdGroups.length > 0) {
-      macdGroups[0].styles.macd.color = e.detail.color;
-    }
-  }}
-/>
-
-<ColorPalette 
-  bind:show={showMacdSignalColorPalette}
-  selectedColor={macdGroups[0]?.styles?.signal?.color || '#dc2626'}
-  position={macdSignalColorPalettePosition}
-  on:colorChange={(e) => {
-    if (macdGroups.length > 0) {
-      macdGroups[0].styles.signal.color = e.detail.color;
-    }
-  }}
-/>
-
-<ColorPalette 
-  bind:show={showMacdHistColorPalette}
-  selectedColor={macdGroups[0]?.styles?.histogram?.color || '#16a34a'}
-  position={macdHistColorPalettePosition}
-  on:colorChange={(e) => {
-    if (macdGroups.length > 0) {
-      macdGroups[0].styles.histogram.color = e.detail.color;
-    }
-  }}
-/>
-
 <ColorPalette 
   bind:show={showDmiColorPalette}
   selectedColor={(dmiGroups[dmiColorPaletteIndex]?.styles as any)?.[dmiColorPaletteType]?.color || '#2563eb'}
@@ -12788,6 +13717,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (dmiGroups.length > dmiColorPaletteIndex && (dmiGroups[dmiColorPaletteIndex].styles as any)[dmiColorPaletteType]) {
       (dmiGroups[dmiColorPaletteIndex].styles as any)[dmiColorPaletteType].color = e.detail.color;
+      // Apply changes to chart in real-time
+      applyDmi();
     }
   }}
 />
@@ -13024,6 +13955,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         group.styles.ma4.color = e.detail.color;
         break;
     }
+    
+    // Apply changes to chart in real-time
+    applyCr();
   }}
 />
 

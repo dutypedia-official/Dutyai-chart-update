@@ -426,13 +426,35 @@
         return s;
       });
     } else if (name === 'AO') {
-      // For AO, delete all instances and groups
+      // For AO, delete all instances and groups from all sub-panes
+      console.log('🗑️ Starting bulk AO deletion...');
+      
+      // First, remove all AO indicators directly from chart
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const aoIndicators = indicators.filter(ind => ind.name === 'AO');
+          console.log('📊 Found AO indicators on chart:', aoIndicators.length);
+          
+          aoIndicators.forEach(indicator => {
+            console.log('🗑️ Removing AO indicator from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'AO' });
+          });
+          
+          console.log('✅ All AO indicators removed from chart');
+        } catch (error) {
+          console.error('❌ Error removing AO indicators from chart:', error);
+        }
+      }
+      
+      // Then, clean up saved data entries
       const aoEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'AO');
-      console.log('🗑️ Deleting AO entries:', aoEntries);
+      console.log('🗑️ Deleting AO saved entries:', aoEntries.length);
       
       aoEntries.forEach(([key, ind]) => {
-        console.log('🗑️ Deleting AO from pane:', ind.pane_id);
+        console.log('🗑️ Cleaning saved entry:', key, 'pane:', ind.pane_id);
         if (ind.pane_id) {
+          // Use delInd for additional cleanup
           delInd(ind.pane_id, name);
         }
       });
@@ -447,14 +469,38 @@
         });
         return s;
       });
+      
+      console.log('✅ Bulk AO deletion completed');
     } else if (name === 'DMI') {
       // For DMI, delete all instances and groups from all sub-panes
+      console.log('🗑️ Starting bulk DMI deletion...');
+      
+      // First, remove all DMI indicators directly from chart
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const dmiIndicators = indicators.filter(ind => ind.name === 'DMI');
+          console.log('📊 Found DMI indicators on chart:', dmiIndicators.length);
+          
+          dmiIndicators.forEach(indicator => {
+            console.log('🗑️ Removing DMI indicator from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'DMI' });
+          });
+          
+          console.log('✅ All DMI indicators removed from chart');
+        } catch (error) {
+          console.error('❌ Error removing DMI indicators from chart:', error);
+        }
+      }
+      
+      // Then, clean up saved data entries
       const dmiEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'DMI');
-      console.log('🗑️ Deleting DMI entries:', dmiEntries);
+      console.log('🗑️ Deleting DMI saved entries:', dmiEntries.length);
       
       dmiEntries.forEach(([key, ind]) => {
-        console.log('🗑️ Deleting DMI from pane:', ind.pane_id);
+        console.log('🗑️ Cleaning saved entry:', key, 'pane:', ind.pane_id);
         if (ind.pane_id) {
+          // Use delInd for additional cleanup
           delInd(ind.pane_id, name);
         }
       });
@@ -469,14 +515,38 @@
         });
         return s;
       });
+      
+      console.log('✅ Bulk DMI deletion completed');
     } else if (name === 'CR') {
       // For CR, delete all instances and groups from all sub-panes
+      console.log('🗑️ Starting bulk CR deletion...');
+      
+      // First, remove all CR indicators directly from chart
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const crIndicators = indicators.filter(ind => ind.name === 'CR');
+          console.log('📊 Found CR indicators on chart:', crIndicators.length);
+          
+          crIndicators.forEach(indicator => {
+            console.log('🗑️ Removing CR indicator from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'CR' });
+          });
+          
+          console.log('✅ All CR indicators removed from chart');
+        } catch (error) {
+          console.error('❌ Error removing CR indicators from chart:', error);
+        }
+      }
+      
+      // Then, clean up saved data entries
       const crEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'CR');
-      console.log('🗑️ Deleting CR entries:', crEntries);
+      console.log('🗑️ Deleting CR saved entries:', crEntries.length);
       
       crEntries.forEach(([key, ind]) => {
-        console.log('🗑️ Deleting CR from pane:', ind.pane_id);
+        console.log('🗑️ Cleaning saved entry:', key, 'pane:', ind.pane_id);
         if (ind.pane_id) {
+          // Use delInd for additional cleanup
           delInd(ind.pane_id, name);
         }
       });
@@ -491,6 +561,8 @@
         });
         return s;
       });
+      
+      console.log('✅ Bulk CR deletion completed');
     } else if (name === 'WR') {
       // For WR, delete all instances and groups from all sub-panes
       console.log('🗑️ Starting bulk WR deletion...');
@@ -615,12 +687,34 @@
       });
     } else if (name === 'CCI') {
       // For CCI, delete all instances and groups from all sub-panes
+      console.log('🗑️ Starting bulk CCI deletion...');
+      
+      // First, remove all CCI indicators directly from chart
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const cciIndicators = indicators.filter(ind => ind.name === 'CCI');
+          console.log('📊 Found CCI indicators on chart:', cciIndicators.length);
+          
+          cciIndicators.forEach(indicator => {
+            console.log('🗑️ Removing CCI indicator from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'CCI' });
+          });
+          
+          console.log('✅ All CCI indicators removed from chart');
+        } catch (error) {
+          console.error('❌ Error removing CCI indicators from chart:', error);
+        }
+      }
+      
+      // Then, clean up saved data entries
       const cciEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'CCI');
-      console.log('🗑️ Deleting CCI entries:', cciEntries);
+      console.log('🗑️ Deleting CCI saved entries:', cciEntries.length);
       
       cciEntries.forEach(([key, ind]) => {
-        console.log('🗑️ Deleting CCI from pane:', ind.pane_id);
+        console.log('🗑️ Cleaning saved entry:', key, 'pane:', ind.pane_id);
         if (ind.pane_id) {
+          // Use delInd for additional cleanup
           delInd(ind.pane_id, name);
         }
       });
@@ -641,6 +735,8 @@
         c.clearCciGroups++;
         return c;
       });
+      
+      console.log('✅ Bulk CCI deletion completed');
     } else if (name === 'EMV') {
       // For EMV, delete all instances and groups from all sub-panes
       const emvEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'EMV');
@@ -927,6 +1023,52 @@
       });
       
       console.log('✅ Bulk VOL deletion completed');
+    } else if (name === 'BIAS') {
+      // For BIAS, delete all instances and groups from all sub-panes
+      console.log('🗑️ Starting bulk BIAS deletion...');
+      
+      // First, remove all BIAS indicators directly from chart
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const biasIndicators = indicators.filter(ind => ind.name === 'BIAS');
+          console.log('📊 Found BIAS indicators on chart:', biasIndicators.length);
+          
+          biasIndicators.forEach(indicator => {
+            console.log('🗑️ Removing BIAS indicator from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'BIAS' });
+          });
+          
+          console.log('✅ All BIAS indicators removed from chart');
+        } catch (error) {
+          console.error('❌ Error removing BIAS indicators from chart:', error);
+        }
+      }
+      
+      // Then, clean up saved data entries
+      const biasEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'BIAS');
+      console.log('🗑️ Deleting BIAS saved entries:', biasEntries.length);
+      
+      biasEntries.forEach(([key, ind]) => {
+        console.log('🗑️ Cleaning saved entry:', key, 'pane:', ind.pane_id);
+        if (ind.pane_id) {
+          // Use delInd for additional cleanup
+          delInd(ind.pane_id, name);
+        }
+      });
+      
+      // Clear all BIAS-related saved data
+      save.update(s => {
+        Object.keys(s.saveInds).forEach(key => {
+          if (s.saveInds[key].name === 'BIAS') {
+            console.log('🗑️ Clearing BIAS saved data:', key);
+            delete s.saveInds[key];
+          }
+        });
+        return s;
+      });
+      
+      console.log('✅ Bulk BIAS deletion completed');
     } else {
       // Find the pane ID for this indicator
       const indicatorEntry = Object.entries($save.saveInds).find(([key, ind]) => ind.name === name);
