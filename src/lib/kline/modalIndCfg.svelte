@@ -12,6 +12,7 @@
   import { generateUUID } from './saveSystem/storage';
   import { RSIManager } from './indicators/rsi';
   import { WRManager } from './indicators/wr';
+  import { StochasticManager } from './indicators/stochastic';
   
   // Volume Group Interface (VR-style implementation)
   interface VolGroup {
@@ -114,6 +115,10 @@
   let showSarColorPalette = $state(false);
   let sarColorPalettePosition = $state({ x: 0, y: 0 });
   let sarColorPaletteIndex = $state(0); // Track which SAR group is being edited
+  let showSuperTrendColorPalette = $state(false);
+  let superTrendColorPalettePosition = $state({ x: 0, y: 0 });
+  let superTrendColorPaletteIndex = $state(0); // Track which SuperTrend group is being edited
+  let superTrendColorPaletteType = $state<'uptrend' | 'downtrend'>('uptrend'); // Track which line type
   let showBiasColorPalette = $state(false);
   let biasColorPalettePosition = $state({ x: 0, y: 0 });
   let biasColorPaletteIndex = $state(0); // Track which BIAS line is being edited
@@ -188,6 +193,15 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   let rsiColorPalettePosition = $state({ x: 0, y: 0 });
   let rsiColorPaletteIndex = $state(0); // Track which RSI group is being edited
 
+  // Stochastic color palette states
+  let showStochasticKLineColorPalette = $state(false);
+  let showStochasticDLineColorPalette = $state(false);
+  let showStochasticOverboughtColorPalette = $state(false);
+  let showStochasticOversoldColorPalette = $state(false);
+  let showStochasticMidLineColorPalette = $state(false);
+  let stochasticColorPalettePosition = $state({ x: 0, y: 0 });
+  let stochasticColorPaletteIndex = $state(0); // Track which Stochastic group is being edited
+
   // Simplified delInd function for BBI deletion
   function delInd(paneId: string, name: string) {
     if(!$chart) return;
@@ -235,6 +249,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   const isEmv = $derived($ctx.editIndName === 'EMV');
   const isMtm = $derived($ctx.editIndName === 'MTM');
   const isRsi = $derived($ctx.editIndName === 'RSI');
+  const isStochastic = $derived($ctx.editIndName === 'STOCH');
+  const isSuperTrend = $derived($ctx.editIndName === 'SUPERTREND');
 
   // ZigZag specific style variables
   let zigzagColor = $state('#2962FF');
@@ -281,6 +297,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
   // RSI initialization effect
   let rsiInitialized = $state(false);
+  let stochasticInitialized = $state(false);
   $effect(() => {
     if (isRsi && !rsiInitialized) {
       console.log('🎯 RSI modal opened, initializing...');
@@ -289,6 +306,18 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     } else if (!isRsi && rsiInitialized) {
       // Reset flag when RSI modal is closed
       rsiInitialized = false;
+    }
+  });
+
+  // Stochastic initialization effect
+  $effect(() => {
+    if (isStochastic && !stochasticInitialized) {
+      console.log('🎯 Stochastic modal opened, initializing...');
+      stochasticInitialized = true;
+      initializeStochasticGroups();
+    } else if (!isStochastic && stochasticInitialized) {
+      // Reset flag when Stochastic modal is closed
+      stochasticInitialized = false;
     }
   });
 
@@ -870,6 +899,18 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     maxValue: number;
     color: string;
     dotSize: number;
+  }>>([]);
+
+  // SuperTrend groups management
+  let superTrendGroups = $state<Array<{
+    id: string;
+    period: number;
+    multiplier: number;
+    showLabels: boolean;
+    styles: {
+      uptrend: {color: string, thickness: number, lineStyle: string};
+      downtrend: {color: string, thickness: number, lineStyle: string};
+    }
   }>>([]);
 
   // DMI groups management
@@ -1600,6 +1641,394 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       
     } catch (error) {
       console.error('❌ Error updating RSI indicator:', error);
+    }
+  }
+
+  // Stochastic groups management
+  let stochasticGroups = $state<Array<{
+    id: string;
+    kPeriod: number;
+    dPeriod: number;
+    overboughtLevel: number;
+    oversoldLevel: number;
+    midLevel: number;
+    paneId?: string; // Track which pane this Stochastic indicator belongs to
+    styles: {
+      kLine: {color: string, thickness: number, lineStyle: string};
+      dLine: {color: string, thickness: number, lineStyle: string};
+      overboughtColor: string;
+      oversoldColor: string;
+      midLineColor: string;
+    }
+  }>>([]);
+
+  // Clear Stochastic groups when Stochastic is removed from indicator list
+  export function clearStochasticGroups() {
+    stochasticGroups = [];
+    console.log('✅ Stochastic groups cleared from modal state');
+  }
+
+  // Initialize default Stochastic group
+  function initializeStochasticGroups() {
+    if (!isStochastic) return;
+    
+    // Check for saved Stochastic groups
+    const savedKey = `${$ctx.editPaneId}_STOCH`;
+    const savedInd = $save.saveInds[savedKey];
+    
+    if (savedInd && (savedInd as any).stochasticGroups && (savedInd as any).stochasticGroups.length > 0) {
+      // Load saved Stochastic groups
+      stochasticGroups = [...(savedInd as any).stochasticGroups];
+    } else if (stochasticGroups.length === 0) {
+      // Create default Stochastic group with current pane ID
+      const defaultGroup = {
+        id: generateUUID(),
+        kPeriod: 14,
+        dPeriod: 3,
+        overboughtLevel: 80,
+        oversoldLevel: 20,
+        midLevel: 50,
+        paneId: $ctx.editPaneId, // Assign current pane ID to first Stochastic
+        styles: {
+          kLine: {color: '#1E90FF', thickness: 2, lineStyle: 'solid'},
+          dLine: {color: '#FF1493', thickness: 2, lineStyle: 'dashed'},
+          overboughtColor: '#EF4444', // Red for overbought
+          oversoldColor: '#10B981',   // Green for oversold
+          midLineColor: '#6B7280'     // Gray for middle line
+        }
+      };
+      
+      stochasticGroups = [defaultGroup];
+      
+      // Create Stochastic instance in StochasticManager for the default group
+      StochasticManager.createInstance($ctx.editPaneId, {
+        kPeriod: defaultGroup.kPeriod,
+        dPeriod: defaultGroup.dPeriod,
+        kLineColor: defaultGroup.styles.kLine.color,
+        kLineThickness: defaultGroup.styles.kLine.thickness,
+        kLineStyle: defaultGroup.styles.kLine.lineStyle as 'solid' | 'dashed' | 'dotted',
+        dLineColor: defaultGroup.styles.dLine.color,
+        dLineThickness: defaultGroup.styles.dLine.thickness,
+        dLineStyle: defaultGroup.styles.dLine.lineStyle as 'solid' | 'dashed' | 'dotted',
+        levels: [
+          {
+            id: 'overbought',
+            value: defaultGroup.overboughtLevel,
+            color: defaultGroup.styles.overboughtColor,
+            lineStyle: 'dashed',
+            thickness: 1,
+            label: 'Overbought',
+            visible: true
+          },
+          {
+            id: 'oversold',
+            value: defaultGroup.oversoldLevel,
+            color: defaultGroup.styles.oversoldColor,
+            lineStyle: 'dashed',
+            thickness: 1,
+            label: 'Oversold',
+            visible: true
+          },
+          {
+            id: 'mid',
+            value: defaultGroup.midLevel,
+            color: defaultGroup.styles.midLineColor,
+            lineStyle: 'dashed',
+            thickness: 1,
+            label: 'Mid',
+            visible: true
+          }
+        ]
+      });
+    }
+  }
+
+  function addStochasticGroup() {
+    if (!isStochastic) return;
+    
+    const newGroup = {
+      id: generateUUID(),
+      kPeriod: 14,
+      dPeriod: 3,
+      overboughtLevel: 80,
+      oversoldLevel: 20,
+      midLevel: 50,
+      paneId: undefined as string | undefined, // Will be assigned when indicator is created
+      styles: {
+        kLine: {color: '#1E90FF', thickness: 2, lineStyle: 'solid'},
+        dLine: {color: '#FF1493', thickness: 2, lineStyle: 'dashed'},
+        overboughtColor: '#EF4444',
+        oversoldColor: '#10B981',
+        midLineColor: '#6B7280'
+      }
+    };
+    
+    stochasticGroups = [...stochasticGroups, newGroup];
+    
+    // If this is not the first group, immediately create the new Stochastic indicator in a new sub-pane
+    if (stochasticGroups.length > 1) {
+      // Find the next available index for pane naming
+      // Check all existing Stochastic pane IDs to avoid conflicts
+      const existingPaneIds = Object.values($save.saveInds)
+        .filter((ind: any) => ind.name === 'STOCH' && ind.pane_id)
+        .map((ind: any) => ind.pane_id);
+      
+      let nextIndex = 2;
+      while (existingPaneIds.includes(`pane_STOCH_${nextIndex}`)) {
+        nextIndex++;
+      }
+      
+      const groupIndex = stochasticGroups.length - 1;
+      const calcParams = [newGroup.kPeriod, newGroup.dPeriod, 1]; // K period, D period, smooth K
+      
+      // Create indicator styles for K and D lines
+      const indicatorStyles: any = {
+        lines: [
+          {
+            color: newGroup.styles.kLine.color,
+            size: newGroup.styles.kLine.thickness,
+            style: (newGroup.styles.kLine.lineStyle === 'dashed' || newGroup.styles.kLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+            dashedValue: newGroup.styles.kLine.lineStyle === 'dashed' ? [4, 4] : newGroup.styles.kLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+          },
+          {
+            color: newGroup.styles.dLine.color,
+            size: newGroup.styles.dLine.thickness,
+            style: (newGroup.styles.dLine.lineStyle === 'dashed' || newGroup.styles.dLine.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+            dashedValue: newGroup.styles.dLine.lineStyle === 'dashed' ? [4, 4] : newGroup.styles.dLine.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+          }
+        ]
+      };
+      
+      // Create new Stochastic indicator in a new sub-pane with the next available index
+      const newPaneId = `pane_STOCH_${nextIndex}`;
+      console.log(`🆕 Immediately creating Stochastic ${nextIndex} with pane ID:`, newPaneId);
+      
+      const result = $chart?.createIndicator({
+        name: 'STOCH',
+        calcParams: calcParams,
+        styles: indicatorStyles
+      }, false, { id: newPaneId, axis: { gap: { bottom: 2 } } });
+      
+      // Store the pane ID for later reference
+      if (result) {
+        console.log(`✅ Stochastic ${nextIndex} created with pane ID:`, newPaneId);
+        newGroup.paneId = newPaneId;
+        
+        // Update the StochasticManager with the new instance
+        StochasticManager.updateInstance(newPaneId, {
+          kPeriod: newGroup.kPeriod,
+          dPeriod: newGroup.dPeriod,
+          levels: [
+            { id: 'overbought', value: newGroup.overboughtLevel, color: newGroup.styles.overboughtColor, lineStyle: 'solid', thickness: 1, label: 'Overbought', visible: true },
+            { id: 'oversold', value: newGroup.oversoldLevel, color: newGroup.styles.oversoldColor, lineStyle: 'solid', thickness: 1, label: 'Oversold', visible: true },
+            { id: 'midline', value: newGroup.midLevel, color: newGroup.styles.midLineColor, lineStyle: 'solid', thickness: 1, label: 'Midline', visible: true }
+          ],
+          zones: [
+            { id: 'overbought_zone', type: 'overbought', topLevel: 100, bottomLevel: newGroup.overboughtLevel, fillColor: newGroup.styles.overboughtColor, fillOpacity: 0.1, visible: true },
+            { id: 'oversold_zone', type: 'oversold', topLevel: newGroup.oversoldLevel, bottomLevel: 0, fillColor: newGroup.styles.oversoldColor, fillOpacity: 0.1, visible: true }
+          ],
+          kLineColor: newGroup.styles.kLine.color,
+          dLineColor: newGroup.styles.dLine.color,
+          showLevels: true,
+          showZones: true,
+          overboughtLevel: newGroup.overboughtLevel,
+          oversoldLevel: newGroup.oversoldLevel,
+          midlineLevel: newGroup.midLevel
+        });
+        
+        // Immediately save this group configuration
+        save.update(s => {
+          const saveKey = `pane_STOCH_${nextIndex}_STOCH`;
+          s.saveInds[saveKey] = {
+            name: 'STOCH',
+            stochasticGroup: newGroup,
+            pane_id: newPaneId,
+            groupIndex: groupIndex,
+            params: [newGroup.kPeriod, newGroup.dPeriod, 1]
+          };
+          return s;
+        });
+      }
+    }
+    
+    console.log('✅ New Stochastic group added:', newGroup);
+  }
+
+  function removeStochasticGroup(groupIndex: number) {
+    if (!isStochastic || groupIndex < 0 || groupIndex >= stochasticGroups.length) return;
+    
+    const group = stochasticGroups[groupIndex];
+    const paneId = group.paneId || $ctx.editPaneId;
+    
+    try {
+      // Remove from StochasticManager
+      StochasticManager.deleteInstance(paneId);
+      
+      // Remove from chart
+      if ($chart) {
+        $chart.removeIndicator({ paneId: paneId, name: 'STOCH' });
+      }
+      
+      // Remove from save system - use correct save key format
+      save.update(s => {
+        // Find and remove the correct save key
+        const saveKeys = Object.keys(s.saveInds).filter(key => 
+          s.saveInds[key].name === 'STOCH' && s.saveInds[key].pane_id === paneId
+        );
+        saveKeys.forEach(key => {
+          delete s.saveInds[key];
+        });
+        return s;
+      });
+      
+      // Remove from groups array
+      stochasticGroups = stochasticGroups.filter((_, index) => index !== groupIndex);
+      
+      console.log('✅ Stochastic group removed successfully');
+    } catch (error) {
+      console.error('❌ Error removing Stochastic group:', error);
+    }
+  }
+
+  function updateStochasticIndicator(groupIndex: number) {
+    if (!isStochastic || groupIndex < 0 || groupIndex >= stochasticGroups.length) return;
+    
+    const group = stochasticGroups[groupIndex];
+    const paneId = group.paneId || $ctx.editPaneId;
+    
+    try {
+      // Update StochasticManager instance with all properties including zones
+      StochasticManager.updateInstance(paneId, {
+        kPeriod: group.kPeriod,
+        dPeriod: group.dPeriod,
+        kLineColor: group.styles.kLine.color,
+        kLineThickness: group.styles.kLine.thickness,
+        kLineStyle: group.styles.kLine.lineStyle as 'solid' | 'dashed' | 'dotted',
+        dLineColor: group.styles.dLine.color,
+        dLineThickness: group.styles.dLine.thickness,
+        dLineStyle: group.styles.dLine.lineStyle as 'solid' | 'dashed' | 'dotted',
+        overboughtLevel: group.overboughtLevel,
+        oversoldLevel: group.oversoldLevel,
+        midlineLevel: group.midLevel,
+        showZones: true,
+        zones: [
+          {
+            id: 'overbought-zone',
+            topLevel: 100,
+            bottomLevel: group.overboughtLevel,
+            fillColor: group.styles.overboughtColor || '#EF4444',
+            fillOpacity: 0.1,
+            visible: true,
+            type: 'overbought'
+          },
+          {
+            id: 'oversold-zone', 
+            topLevel: group.oversoldLevel,
+            bottomLevel: 0,
+            fillColor: group.styles.oversoldColor || '#10B981',
+            fillOpacity: 0.1,
+            visible: true,
+            type: 'oversold'
+          }
+        ],
+        levels: [
+          {
+            id: 'overbought',
+            value: group.overboughtLevel,
+            color: group.styles.overboughtColor || '#EF4444',
+            lineStyle: 'dashed',
+            thickness: 1,
+            label: 'Overbought',
+            visible: true
+          },
+          {
+            id: 'oversold',
+            value: group.oversoldLevel,
+            color: group.styles.oversoldColor || '#10B981',
+            lineStyle: 'dashed',
+            thickness: 1,
+            label: 'Oversold',
+            visible: true
+          },
+          {
+            id: 'mid',
+            value: group.midLevel,
+            color: group.styles.midLineColor || '#6B7280',
+            lineStyle: 'dashed',
+            thickness: 1,
+            label: 'Mid',
+            visible: true
+          }
+        ]
+      });
+      
+      // Remove the existing Stochastic indicator from this specific pane
+      if ($chart) {
+        $chart.removeIndicator({ paneId: paneId, name: 'STOCH' });
+      }
+      
+      // Convert line styles to klinecharts format
+      let kLineStyle = kc.LineType.Solid;
+      let kDashedValue = [2, 2];
+      let dLineStyle = kc.LineType.Solid;
+      let dDashedValue = [2, 2];
+      
+      if (group.styles.kLine.lineStyle === 'dashed') {
+        kLineStyle = kc.LineType.Dashed;
+        kDashedValue = [4, 4];
+      } else if (group.styles.kLine.lineStyle === 'dotted') {
+        kLineStyle = kc.LineType.Dashed;
+        kDashedValue = [2, 2];
+      }
+      
+      if (group.styles.dLine.lineStyle === 'dashed') {
+        dLineStyle = kc.LineType.Dashed;
+        dDashedValue = [4, 4];
+      } else if (group.styles.dLine.lineStyle === 'dotted') {
+        dLineStyle = kc.LineType.Dashed;
+        dDashedValue = [2, 2];
+      }
+      
+      // Re-create the Stochastic indicator with updated parameters
+      const indicatorId = $chart ? $chart.createIndicator({
+        name: 'STOCH',
+        calcParams: [group.kPeriod, group.dPeriod],
+        styles: {
+          lines: [
+            {
+              color: group.styles.kLine.color,
+              size: group.styles.kLine.thickness,
+              style: kLineStyle,
+              dashedValue: kDashedValue
+            },
+            {
+              color: group.styles.dLine.color,
+              size: group.styles.dLine.thickness,
+              style: dLineStyle,
+              dashedValue: dDashedValue
+            }
+          ]
+        }
+      }, paneId === $ctx.editPaneId, { id: paneId }) : null;
+      
+      // Update the save system
+      if (indicatorId) {
+        const saveKey = `${paneId}_STOCH`;
+        save.update(s => {
+          s.saveInds[saveKey] = {
+            name: 'STOCH',
+            pane_id: paneId,
+            params: [group.kPeriod, group.dPeriod],
+            stochasticGroups: stochasticGroups
+          };
+          return s;
+        });
+      }
+      
+      console.log('✅ Stochastic indicator and levels updated successfully');
+      
+    } catch (error) {
+      console.error('❌ Error updating Stochastic indicator:', error);
     }
   }
 
@@ -4422,6 +4851,130 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       // This is a limitation of the SAR multi-group system
       // The confirmation will handle proper recreation
       console.log(`⚠️ SAR group ${index + 1} will be updated on confirm`);
+    }
+  }
+
+  // SuperTrend groups management functions
+  function initializeSuperTrendGroups() {
+    if (!isSuperTrend) return;
+    
+    // Check for saved SuperTrend groups
+    const savedKey = `${$ctx.editPaneId}_SUPERTREND`;
+    const savedInd = $save.saveInds[savedKey];
+    
+    if (savedInd && (savedInd as any).superTrendGroups && (savedInd as any).superTrendGroups.length > 0) {
+      // Load saved SuperTrend groups
+      superTrendGroups = [...(savedInd as any).superTrendGroups];
+    } else if (superTrendGroups.length === 0) {
+      // Create default SuperTrend group
+      superTrendGroups = [{
+        id: generateUUID(),
+        period: 10,
+        multiplier: 3,
+        showLabels: true,
+        styles: {
+          uptrend: {color: '#00FF00', thickness: 2, lineStyle: 'solid'},
+          downtrend: {color: '#FF0000', thickness: 2, lineStyle: 'solid'}
+        }
+      }];
+    }
+
+    // Apply the loaded configuration to the chart immediately
+    if ($chart && superTrendGroups.length > 0) {
+      superTrendGroups.forEach((group, index) => {
+        const calcParams = [group.period, group.multiplier];
+        const indicatorStyles = {
+          lines: [{
+            color: group.styles.uptrend.color,
+            size: group.styles.uptrend.thickness,
+            style: group.styles.uptrend.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid
+          }]
+        };
+
+        // For the first SuperTrend group, update the current edit pane (main panel)
+        if (index === 0) {
+          $chart.overrideIndicator({
+            name: 'SUPERTREND',
+            calcParams: calcParams,
+            styles: indicatorStyles,
+            extendData: {
+              showLabels: group.showLabels,
+              uptrendColor: group.styles.uptrend.color,
+              downtrendColor: group.styles.downtrend.color
+            },
+            paneId: 'candle_pane'
+          });
+        }
+      });
+    }
+  }
+
+  function removeSuperTrendGroup(groupId: string) {
+    if (!isSuperTrend || superTrendGroups.length <= 1) return;
+    superTrendGroups = superTrendGroups.filter(group => group.id !== groupId);
+  }
+
+  function addSuperTrendGroup() {
+    if (!isSuperTrend) return;
+    
+    // Add new SuperTrend group with default values and unique colors
+    const colors = ['#00FF00', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+    const usedColors = superTrendGroups.map(g => g.styles.uptrend.color);
+    const availableColors = colors.filter(c => !usedColors.includes(c));
+    const newColor = availableColors.length > 0 ? availableColors[0] : colors[superTrendGroups.length % colors.length];
+    
+    const newGroup = {
+      id: generateUUID(),
+      period: 10,
+      multiplier: 3.0,
+      showLabels: false,
+      styles: {
+        uptrend: {
+          color: newColor,
+          thickness: 1,
+          lineStyle: 'solid'
+        },
+        downtrend: {
+          color: '#FF0000',
+          thickness: 1,
+          lineStyle: 'solid'
+        }
+      }
+    };
+    
+    superTrendGroups = [...superTrendGroups, newGroup];
+    console.log('✅ Added new SuperTrend group:', newGroup);
+  }
+
+  // Update SuperTrend indicator in real-time
+  function updateSuperTrendIndicator(index: number) {
+    if (!isSuperTrend || !$chart || index >= superTrendGroups.length) return;
+    
+    const group = superTrendGroups[index];
+    const calcParams = [group.period, group.multiplier];
+    const indicatorStyles = {
+      lines: [{
+        color: group.styles.uptrend.color,
+        size: group.styles.uptrend.thickness,
+        style: group.styles.uptrend.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid
+      }]
+    };
+
+    // For the first SuperTrend group, update the current edit pane (main panel)
+    if (index === 0) {
+      $chart.overrideIndicator({
+        name: 'SUPERTREND',
+        calcParams: calcParams,
+        styles: indicatorStyles,
+        extendData: {
+          showLabels: group.showLabels,
+          uptrendColor: group.styles.uptrend.color,
+          downtrendColor: group.styles.downtrend.color
+        },
+        paneId: 'candle_pane'
+      });
+    } else {
+      console.log(`⚠️ SuperTrend group ${index + 1} will be updated on confirm`);
     }
   }
 
@@ -7409,6 +7962,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       return; // Skip normal parameter handling for SAR
     }
     
+    // Initialize SuperTrend groups if this is SuperTrend indicator
+    if (isSuperTrend) {
+      initializeSuperTrendGroups();
+      return; // Skip normal parameter handling for SuperTrend
+    }
+    
     // Initialize DMI groups if this is DMI indicator
     if (isDmi) {
       initializeDmiGroups();
@@ -9053,6 +9612,86 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     show = false;
   }
 
+  function handleSuperTrendConfirm() {
+    if (!isSuperTrend) return;
+    
+    // Apply each SuperTrend group as a separate indicator - all in main panel
+    superTrendGroups.forEach((group, index) => {
+      const calcParams = [group.period, group.multiplier];
+      const indicatorStyles = {
+        lines: [{
+          color: group.styles.uptrend.color,
+          size: group.styles.uptrend.thickness,
+          style: group.styles.uptrend.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid
+        }]
+      };
+
+      // For the first SuperTrend group, update the current edit pane (main panel)
+      if (index === 0) {
+        $chart?.overrideIndicator({
+          name: 'SUPERTREND',
+          calcParams: calcParams,
+          styles: indicatorStyles,
+          extendData: {
+            showLabels: group.showLabels,
+            uptrendColor: group.styles.uptrend.color,
+            downtrendColor: group.styles.downtrend.color
+          },
+          paneId: 'candle_pane'
+        }); // Force main panel
+      } else {
+        // For additional groups, create in main panel only
+        $chart?.createIndicator({
+          name: 'SUPERTREND',
+          calcParams: calcParams,
+          styles: indicatorStyles,
+          extendData: {
+            showLabels: group.showLabels,
+            uptrendColor: group.styles.uptrend.color,
+            downtrendColor: group.styles.downtrend.color
+          }
+        }, false, { id: 'candle_pane' }); // false = don't create new pane, use main panel
+      }
+    });
+
+    // Save SuperTrend groups configuration
+    save.update(s => {
+      // Clear existing SuperTrend data first
+      Object.keys(s.saveInds).forEach(key => {
+        if (s.saveInds[key].name === 'SUPERTREND') {
+          delete s.saveInds[key];
+        }
+      });
+      
+      // Save each SuperTrend group separately
+      superTrendGroups.forEach((group, index) => {
+        const saveKey = index === 0 ? `candle_pane_SUPERTREND` : `SUPERTREND_${index + 1}`;
+        const saveData: any = {
+          name: 'SUPERTREND',
+          superTrendGroup: group,
+          pane_id: 'candle_pane', // Always main panel
+          groupIndex: index,
+          superTrendGroups: index === 0 ? [...superTrendGroups] : undefined,
+          params: [group.period, group.multiplier]
+        };
+        
+        s.saveInds[saveKey] = saveData;
+      });
+      
+      return s;
+    });
+    
+    // Clear edit state
+    ctx.update(c => {
+      c.editIndName = '';
+      c.editPaneId = '';
+      c.modalIndCfg = false;
+      return c;
+    });
+    
+    show = false;
+  }
+
   function handleDmiConfirm() {
     if (!isDmi) return;
 
@@ -10346,6 +10985,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       return;
     }
     
+    // Handle SuperTrend groups specially
+    if (from === 'confirm' && isSuperTrend && $ctx.editIndName && $ctx.editPaneId) {
+      handleSuperTrendConfirm();
+      return;
+    }
+    
     // Handle DMI groups specially
     if (from === 'confirm' && isDmi && $ctx.editIndName && $ctx.editPaneId) {
       handleDmiConfirm();
@@ -10849,6 +11494,256 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           <span class="text-xs sm:text-sm">Add RSI</span>
+        </button>
+      </div>
+    </div>
+  {:else if isStochastic}
+    <!-- Stochastic Minimalist UI -->
+    <div class="space-y-2 mt-3">
+      {#each stochasticGroups as group, groupIndex}
+        <div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3">
+          <!-- Stochastic Header -->
+          <div class="flex items-center justify-between">
+            <span class="text-xs sm:text-sm font-medium text-base-content/80">Stochastic {groupIndex + 1}</span>
+            {#if stochasticGroups.length > 1}
+              <button 
+                class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" 
+                onclick={() => removeStochasticGroup(groupIndex)}
+                title="Remove Stochastic"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            {/if}
+          </div>
+
+          <!-- Stochastic Parameters -->
+          <div class="grid grid-cols-2 gap-2 sm:gap-3">
+            <!-- %K Period -->
+            <div class="space-y-1">
+              <label class="text-xs text-base-content/70">%K Period</label>
+              <input 
+                type="number" 
+                class="input input-xs w-full bg-base-100 border-base-300 text-xs" 
+                bind:value={group.kPeriod}
+                onchange={() => updateStochasticIndicator(groupIndex)}
+                min="1" 
+                max="100"
+              />
+            </div>
+
+            <!-- %D Period -->
+            <div class="space-y-1">
+              <label class="text-xs text-base-content/70">%D Period</label>
+              <input 
+                type="number" 
+                class="input input-xs w-full bg-base-100 border-base-300 text-xs" 
+                bind:value={group.dPeriod}
+                onchange={() => updateStochasticIndicator(groupIndex)}
+                min="1" 
+                max="50"
+              />
+            </div>
+
+            <!-- Overbought Level -->
+            <div class="space-y-1">
+              <label class="text-xs text-base-content/70">Overbought</label>
+              <input 
+                type="number" 
+                class="input input-xs w-full bg-base-100 border-base-300 text-xs" 
+                bind:value={group.overboughtLevel}
+                onchange={() => updateStochasticIndicator(groupIndex)}
+                min="50" 
+                max="100"
+              />
+            </div>
+
+            <!-- Oversold Level -->
+            <div class="space-y-1">
+              <label class="text-xs text-base-content/70">Oversold</label>
+              <input 
+                type="number" 
+                class="input input-xs w-full bg-base-100 border-base-300 text-xs" 
+                bind:value={group.oversoldLevel}
+                onchange={() => updateStochasticIndicator(groupIndex)}
+                min="0" 
+                max="50"
+              />
+            </div>
+          </div>
+
+          <!-- Mid Level -->
+          <div class="grid grid-cols-1 gap-2 sm:gap-3">
+            <div class="space-y-1">
+              <label class="text-xs text-base-content/70">Mid Level</label>
+              <input 
+                type="number" 
+                class="input input-xs w-full bg-base-100 border-base-300 text-xs" 
+                bind:value={group.midLevel}
+                onchange={() => updateStochasticIndicator(groupIndex)}
+                min="0" 
+                max="100"
+              />
+            </div>
+          </div>
+
+          <!-- %K Line Style -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-base-content/70">%K Line</span>
+              <div class="flex items-center gap-2">
+                <!-- Color -->
+                <button 
+                  class="w-6 h-6 rounded border border-base-300 flex-shrink-0"
+                  style="background-color: {group.styles.kLine.color}"
+                  onclick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    stochasticColorPalettePosition = { x: rect.left, y: rect.bottom + 5 };
+                    stochasticColorPaletteIndex = groupIndex;
+                    showStochasticKLineColorPalette = true;
+                  }}
+                  title="Change %K Line Color"
+                ></button>
+                
+                <!-- Thickness -->
+                <select 
+                  class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-12"
+                  bind:value={group.styles.kLine.thickness}
+                  onchange={() => updateStochasticIndicator(groupIndex)}
+                >
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                  <option value={3}>3</option>
+                  <option value={4}>4</option>
+                  <option value={5}>5</option>
+                </select>
+                
+                <!-- Line Style -->
+                <select 
+                  class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-16"
+                  bind:value={group.styles.kLine.lineStyle}
+                  onchange={() => updateStochasticIndicator(groupIndex)}
+                >
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- %D Line Style -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-base-content/70">%D Line</span>
+              <div class="flex items-center gap-2">
+                <!-- Color -->
+                <button 
+                  class="w-6 h-6 rounded border border-base-300 flex-shrink-0"
+                  style="background-color: {group.styles.dLine.color}"
+                  onclick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    stochasticColorPalettePosition = { x: rect.left, y: rect.bottom + 5 };
+                    stochasticColorPaletteIndex = groupIndex;
+                    showStochasticDLineColorPalette = true;
+                  }}
+                  title="Change %D Line Color"
+                ></button>
+                
+                <!-- Thickness -->
+                <select 
+                  class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-12"
+                  bind:value={group.styles.dLine.thickness}
+                  onchange={() => updateStochasticIndicator(groupIndex)}
+                >
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                  <option value={3}>3</option>
+                  <option value={4}>4</option>
+                  <option value={5}>5</option>
+                </select>
+                
+                <!-- Line Style -->
+                <select 
+                  class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-16"
+                  bind:value={group.styles.dLine.lineStyle}
+                  onchange={() => updateStochasticIndicator(groupIndex)}
+                >
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Level Colors Section -->
+          <div class="space-y-2 border-t border-base-200 pt-2">
+            <span class="text-xs text-base-content/70 font-medium">Level Colors</span>
+            
+            <!-- Overbought Color -->
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-base-content/60">Overbought</span>
+              <button 
+                class="w-6 h-6 rounded border border-base-300 flex-shrink-0"
+                style="background-color: {group.styles.overboughtColor || '#EF4444'}"
+                onclick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  stochasticColorPalettePosition = { x: rect.left, y: rect.bottom + 5 };
+                  stochasticColorPaletteIndex = groupIndex;
+                  showStochasticOverboughtColorPalette = true;
+                }}
+                title="Change Overbought Color"
+              ></button>
+            </div>
+
+            <!-- Oversold Color -->
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-base-content/60">Oversold</span>
+              <button 
+                class="w-6 h-6 rounded border border-base-300 flex-shrink-0"
+                style="background-color: {group.styles.oversoldColor || '#10B981'}"
+                onclick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  stochasticColorPalettePosition = { x: rect.left, y: rect.bottom + 5 };
+                  stochasticColorPaletteIndex = groupIndex;
+                  showStochasticOversoldColorPalette = true;
+                }}
+                title="Change Oversold Color"
+              ></button>
+            </div>
+
+            <!-- Mid Line Color -->
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-base-content/60">Mid Line</span>
+              <button 
+                class="w-6 h-6 rounded border border-base-300 flex-shrink-0"
+                style="background-color: {group.styles.midLineColor || '#6B7280'}"
+                onclick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  stochasticColorPalettePosition = { x: rect.left, y: rect.bottom + 5 };
+                  stochasticColorPaletteIndex = groupIndex;
+                  showStochasticMidLineColorPalette = true;
+                }}
+                title="Change Mid Line Color"
+              ></button>
+            </div>
+          </div>
+        </div>
+      {/each}
+
+      <!-- Add Stochastic Button -->
+      <div class="flex justify-center mt-3">
+        <button 
+          class="btn btn-xs btn-outline btn-primary gap-1 sm:gap-2"
+          onclick={addStochasticGroup}
+          title="Add More Stochastic"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          <span class="text-xs sm:text-sm">Add Stochastic</span>
         </button>
       </div>
     </div>
@@ -12170,6 +13065,152 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
               </select>
+            </div>
+          </div>
+        </div>
+      {/each}
+      
+      <!-- Add SuperTrend Group Button -->
+      <div class="flex justify-center mt-3">
+        <button 
+          class="btn btn-sm btn-primary"
+          onclick={addSuperTrendGroup}
+        >
+          ➕ Add More SuperTrend
+        </button>
+      </div>
+    </div>
+  {:else if isSuperTrend}
+    <!-- SuperTrend Minimalist UI -->
+    <div class="space-y-2 mt-3">
+      {#each superTrendGroups as group, groupIndex}
+        <div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3">
+          <!-- SuperTrend Header -->
+          <div class="flex items-center justify-between">
+            <span class="text-xs sm:text-sm font-medium text-base-content/80">SuperTrend {groupIndex + 1}</span>
+            {#if superTrendGroups.length > 1}
+              <button 
+                class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" 
+                onclick={() => removeSuperTrendGroup(group.id)}
+                title="Remove SuperTrend Group"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            {/if}
+          </div>
+          
+          <!-- SuperTrend Parameters Row -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-base-content/60">Period</label>
+              <input 
+                type="number" 
+                class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
+                bind:value={group.period} 
+                min="1" 
+                max="100" 
+                step="1"
+                onchange={() => updateSuperTrendIndicator(groupIndex)}
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-base-content/60">Multiplier</label>
+              <input 
+                type="number" 
+                class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
+                bind:value={group.multiplier} 
+                min="0.1" 
+                max="10" 
+                step="0.1"
+                onchange={() => updateSuperTrendIndicator(groupIndex)}
+              />
+            </div>
+          </div>
+          
+          <!-- Show Labels Toggle -->
+          <div class="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              class="checkbox checkbox-sm" 
+              bind:checked={group.showLabels}
+              onchange={() => updateSuperTrendIndicator(groupIndex)}
+            />
+            <label class="text-xs text-base-content/60">Show Labels</label>
+          </div>
+          
+          <!-- Style Controls for Uptrend -->
+          <div class="space-y-2">
+            <div class="text-xs font-medium text-base-content/80">Uptrend Line</div>
+            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
+                <button 
+                  class="btn btn-sm btn-outline"
+                  onclick={() => {
+                    showSuperTrendColorPalette = true;
+                    superTrendColorPaletteIndex = groupIndex;
+                    superTrendColorPaletteType = 'uptrend';
+                  }}
+                >
+                  <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.uptrend.color}"></div>
+                </button>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
+                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.uptrend.thickness} onchange={() => updateSuperTrendIndicator(groupIndex)}>
+                  <option value={1}>1px</option>
+                  <option value={2}>2px</option>
+                  <option value={3}>3px</option>
+                  <option value={4}>4px</option>
+                  <option value={5}>5px</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
+                <select class="select select-bordered select-xs w-20 sm:w-24 text-xs" bind:value={group.styles.uptrend.lineStyle} onchange={() => updateSuperTrendIndicator(groupIndex)}>
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Style Controls for Downtrend -->
+          <div class="space-y-2">
+            <div class="text-xs font-medium text-base-content/80">Downtrend Line</div>
+            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4">
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
+                <button 
+                  class="btn btn-sm btn-outline"
+                  onclick={() => {
+                    showSuperTrendColorPalette = true;
+                    superTrendColorPaletteIndex = groupIndex;
+                    superTrendColorPaletteType = 'downtrend';
+                  }}
+                >
+                  <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.downtrend.color}"></div>
+                </button>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
+                <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.styles.downtrend.thickness} onchange={() => updateSuperTrendIndicator(groupIndex)}>
+                  <option value={1}>1px</option>
+                  <option value={2}>2px</option>
+                  <option value={3}>3px</option>
+                  <option value={4}>4px</option>
+                  <option value={5}>5px</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
+                <select class="select select-bordered select-xs w-20 sm:w-24 text-xs" bind:value={group.styles.downtrend.lineStyle} onchange={() => updateSuperTrendIndicator(groupIndex)}>
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -13794,6 +14835,18 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 />
 
 <ColorPalette 
+  bind:show={showSuperTrendColorPalette}
+  selectedColor={superTrendGroups[superTrendColorPaletteIndex]?.styles?.[superTrendColorPaletteType]?.color || '#2563eb'}
+  position={superTrendColorPalettePosition}
+  on:colorChange={(e) => {
+    if (superTrendGroups.length > superTrendColorPaletteIndex && superTrendGroups[superTrendColorPaletteIndex].styles[superTrendColorPaletteType]) {
+      superTrendGroups[superTrendColorPaletteIndex].styles[superTrendColorPaletteType].color = e.detail.color;
+      updateSuperTrendIndicator(superTrendColorPaletteIndex);
+    }
+  }}
+/>
+
+<ColorPalette 
   bind:show={showCciColorPalette}
   selectedColor={cciGroups[cciColorPaletteIndex]?.color || '#2563eb'}
   position={cciColorPalettePosition}
@@ -14405,6 +15458,71 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (rsiGroups.length > rsiColorPaletteGroupIndex) {
       rsiGroups[rsiColorPaletteGroupIndex].styles.middleLineColor = e.detail.color;
       updateRsiIndicator(rsiColorPaletteGroupIndex);
+    }
+  }}
+/>
+
+<!-- Stochastic %K Line Color Palette -->
+<ColorPalette 
+  bind:show={showStochasticKLineColorPalette}
+  selectedColor={stochasticGroups[stochasticColorPaletteIndex]?.styles?.kLine?.color || '#2962FF'}
+  position={stochasticColorPalettePosition}
+  on:colorChange={(e) => {
+    if (stochasticGroups.length > stochasticColorPaletteIndex) {
+      stochasticGroups[stochasticColorPaletteIndex].styles.kLine.color = e.detail.color;
+      updateStochasticIndicator(stochasticColorPaletteIndex);
+    }
+  }}
+/>
+
+<!-- Stochastic %D Line Color Palette -->
+<ColorPalette 
+  bind:show={showStochasticDLineColorPalette}
+  selectedColor={stochasticGroups[stochasticColorPaletteIndex]?.styles?.dLine?.color || '#FF6D00'}
+  position={stochasticColorPalettePosition}
+  on:colorChange={(e) => {
+    if (stochasticGroups.length > stochasticColorPaletteIndex) {
+      stochasticGroups[stochasticColorPaletteIndex].styles.dLine.color = e.detail.color;
+      updateStochasticIndicator(stochasticColorPaletteIndex);
+    }
+  }}
+/>
+
+<!-- Stochastic Overbought Color Palette -->
+<ColorPalette 
+  bind:show={showStochasticOverboughtColorPalette}
+  selectedColor={stochasticGroups[stochasticColorPaletteIndex]?.styles?.overboughtColor || '#EF4444'}
+  position={stochasticColorPalettePosition}
+  on:colorChange={(e) => {
+    if (stochasticGroups.length > stochasticColorPaletteIndex) {
+      stochasticGroups[stochasticColorPaletteIndex].styles.overboughtColor = e.detail.color;
+      updateStochasticIndicator(stochasticColorPaletteIndex);
+    }
+  }}
+/>
+
+<!-- Stochastic Oversold Color Palette -->
+<ColorPalette 
+  bind:show={showStochasticOversoldColorPalette}
+  selectedColor={stochasticGroups[stochasticColorPaletteIndex]?.styles?.oversoldColor || '#10B981'}
+  position={stochasticColorPalettePosition}
+  on:colorChange={(e) => {
+    if (stochasticGroups.length > stochasticColorPaletteIndex) {
+      stochasticGroups[stochasticColorPaletteIndex].styles.oversoldColor = e.detail.color;
+      updateStochasticIndicator(stochasticColorPaletteIndex);
+    }
+  }}
+/>
+
+<!-- Stochastic Mid Line Color Palette -->
+<ColorPalette 
+  bind:show={showStochasticMidLineColorPalette}
+  selectedColor={stochasticGroups[stochasticColorPaletteIndex]?.styles?.midLineColor || '#6B7280'}
+  position={stochasticColorPalettePosition}
+  on:colorChange={(e) => {
+    if (stochasticGroups.length > stochasticColorPaletteIndex) {
+      stochasticGroups[stochasticColorPaletteIndex].styles.midLineColor = e.detail.color;
+      updateStochasticIndicator(stochasticColorPaletteIndex);
     }
   }}
 />

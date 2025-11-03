@@ -20,5 +20,7 @@ import { mtm } from './mtm';
 import { trix } from './trix';
 import { volume } from './volume';
 import { sma } from './sma';
+import { stochastic } from './stochastic';
+import { superTrend } from './superTrend';
 
-export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma]
+export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma, stochastic, superTrend]

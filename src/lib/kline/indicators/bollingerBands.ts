@@ -1,6 +1,25 @@
 import type { IndicatorTemplate, KLineData } from 'klinecharts';
 import * as kc from 'klinecharts';
 
+// Define types for Bollinger Bands data
+interface BollingerBandsData {
+  upper?: number;
+  middle?: number;
+  lower?: number;
+}
+
+// Define types for style objects
+interface LineStyle {
+  color: string;
+  size: number;
+  style: kc.LineType;
+}
+
+interface FillStyle {
+  color: string;
+  opacity: number;
+}
+
 /**
  * Custom Bollinger Bands Indicator with Fill Color Support
  * Shows upper band, middle line (SMA), and lower band with fill color between bands
@@ -58,7 +77,11 @@ export const bollingerBands: IndicatorTemplate = {
         smooth: false,
         dashedValue: [0, 0] // Ensure solid line
       }
-    ]
+    ],
+    fill: {
+      color: '#2196F3', // Default blue fill color
+      opacity: 0.05 // Default 5% opacity (0.05 = 5%)
+    }
   },
   calc: (dataList: KLineData[], indicator) => {
     const period = (indicator.calcParams[0] as number) || 20;
@@ -112,17 +135,32 @@ export const bollingerBands: IndicatorTemplate = {
     const visibleRange = chart.getVisibleRange();
     const { from, to } = visibleRange;
     
-    // Get the visible data points
-    const visibleData = indicator.result.slice(from, to + 1);
+    // Get the visible data points with proper typing
+    const visibleData = indicator.result.slice(from, to + 1) as BollingerBandsData[];
     if (visibleData.length < 2) return false;
 
     ctx.save();
     
-    // Get custom styles from indicator
-    const upperBandStyle = indicator.styles?.lines?.[0] || { color: '#2196F3', size: 1, style: kc.LineType.Solid };
-    const middleLineStyle = indicator.styles?.lines?.[1] || { color: '#FF9800', size: 1, style: kc.LineType.Solid };
-    const lowerBandStyle = indicator.styles?.lines?.[2] || { color: '#2196F3', size: 1, style: kc.LineType.Solid };
-    const fillStyle = indicator.styles?.fill || { color: 'rgba(33, 150, 243, 0.1)', opacity: 0.1 };
+    // Get custom styles from indicator with proper defaults
+    const upperBandStyle: LineStyle = {
+      color: indicator.styles?.lines?.[0]?.color || '#2196F3',
+      size: indicator.styles?.lines?.[0]?.size || 1,
+      style: indicator.styles?.lines?.[0]?.style || kc.LineType.Solid
+    };
+    const middleLineStyle: LineStyle = {
+      color: indicator.styles?.lines?.[1]?.color || '#FF9800',
+      size: indicator.styles?.lines?.[1]?.size || 1,
+      style: indicator.styles?.lines?.[1]?.style || kc.LineType.Solid
+    };
+    const lowerBandStyle: LineStyle = {
+      color: indicator.styles?.lines?.[2]?.color || '#2196F3',
+      size: indicator.styles?.lines?.[2]?.size || 1,
+      style: indicator.styles?.lines?.[2]?.style || kc.LineType.Solid
+    };
+    const fillStyle: FillStyle = {
+      color: (indicator.styles as any)?.fill?.color || 'rgba(33, 150, 243, 0.1)',
+      opacity: (indicator.styles as any)?.fill?.opacity || 0.1
+    };
     
     // Create path for fill area between upper and lower bands
     ctx.beginPath();
@@ -130,7 +168,7 @@ export const bollingerBands: IndicatorTemplate = {
     // Draw upper band line
     let firstPoint = true;
     for (let i = 0; i < visibleData.length; i++) {
-      const data = visibleData[i];
+      const data = visibleData[i] as BollingerBandsData;
       if (data.upper !== undefined) {
         const x = xAxis.convertToPixel(from + i);
         const y = yAxis.convertToPixel(data.upper);
@@ -146,7 +184,7 @@ export const bollingerBands: IndicatorTemplate = {
     
     // Draw lower band line (in reverse to create closed path)
     for (let i = visibleData.length - 1; i >= 0; i--) {
-      const data = visibleData[i];
+      const data = visibleData[i] as BollingerBandsData;
       if (data.lower !== undefined) {
         const x = xAxis.convertToPixel(from + i);
         const y = yAxis.convertToPixel(data.lower);
@@ -158,7 +196,7 @@ export const bollingerBands: IndicatorTemplate = {
     ctx.closePath();
     
     // Fill the area between bands with custom color and opacity
-    ctx.globalAlpha = fillStyle.opacity || 0.1; // Apply opacity
+    ctx.globalAlpha = fillStyle.opacity;
     ctx.fillStyle = fillStyle.color;
     ctx.fill();
     ctx.globalAlpha = 1.0; // Reset opacity for lines
@@ -167,7 +205,7 @@ export const bollingerBands: IndicatorTemplate = {
     ctx.beginPath();
     firstPoint = true;
     for (let i = 0; i < visibleData.length; i++) {
-      const data = visibleData[i];
+      const data = visibleData[i] as BollingerBandsData;
       if (data.upper !== undefined) {
         const x = xAxis.convertToPixel(from + i);
         const y = yAxis.convertToPixel(data.upper);
@@ -182,15 +220,14 @@ export const bollingerBands: IndicatorTemplate = {
     }
     ctx.strokeStyle = upperBandStyle.color;
     ctx.lineWidth = upperBandStyle.size;
-    ctx.setLineDash(upperBandStyle.style === kc.LineType.Dashed ? [4, 4] : 
-                   upperBandStyle.style === kc.LineType.Dotted ? [2, 2] : []);
+    ctx.setLineDash(upperBandStyle.style === kc.LineType.Dashed ? [4, 4] : []);
     ctx.stroke();
     
     // Draw lower band line with custom style
     ctx.beginPath();
     firstPoint = true;
     for (let i = 0; i < visibleData.length; i++) {
-      const data = visibleData[i];
+      const data = visibleData[i] as BollingerBandsData;
       if (data.lower !== undefined) {
         const x = xAxis.convertToPixel(from + i);
         const y = yAxis.convertToPixel(data.lower);
@@ -205,15 +242,14 @@ export const bollingerBands: IndicatorTemplate = {
     }
     ctx.strokeStyle = lowerBandStyle.color;
     ctx.lineWidth = lowerBandStyle.size;
-    ctx.setLineDash(lowerBandStyle.style === kc.LineType.Dashed ? [4, 4] : 
-                   lowerBandStyle.style === kc.LineType.Dotted ? [2, 2] : []);
+    ctx.setLineDash(lowerBandStyle.style === kc.LineType.Dashed ? [4, 4] : []);
     ctx.stroke();
     
     // Draw middle line (SMA) with custom style
     ctx.beginPath();
     firstPoint = true;
     for (let i = 0; i < visibleData.length; i++) {
-      const data = visibleData[i];
+      const data = visibleData[i] as BollingerBandsData;
       if (data.middle !== undefined) {
         const x = xAxis.convertToPixel(from + i);
         const y = yAxis.convertToPixel(data.middle);
@@ -228,8 +264,7 @@ export const bollingerBands: IndicatorTemplate = {
     }
     ctx.strokeStyle = middleLineStyle.color;
     ctx.lineWidth = middleLineStyle.size;
-    ctx.setLineDash(middleLineStyle.style === kc.LineType.Dashed ? [4, 4] : 
-                   middleLineStyle.style === kc.LineType.Dotted ? [2, 2] : []);
+    ctx.setLineDash(middleLineStyle.style === kc.LineType.Dashed ? [4, 4] : []);
     ctx.stroke();
     
     ctx.restore();

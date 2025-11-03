@@ -375,6 +375,13 @@ export const IndFieldsMap: Record<string, Record<string, unknown>[]> = {
     { title: param + '1', precision: 0, min: 1, default: 12 },
     { title: param + '2', precision: 0, min: 1, default: 2 }
   ],
+  SUPERTREND: [
+    { title: 'Period', precision: 0, min: 1, default: 10 },
+    { title: 'Multiplier', precision: 1, min: 0.1, max: 10, default: 3.0 },
+    { title: 'Uptrend Color', type: 'color', styleKey: 'lines[0].color', default: '#10B981' },
+    { title: 'Downtrend Color', type: 'color', styleKey: 'lines[1].color', default: '#EF4444' },
+    { title: 'Line Thickness', precision: 0, min: 1, max: 5, styleKey: 'lines[0].size', default: 2 }
+  ],
   KDJ: [
     { title: param + '1', precision: 0, min: 1, default: 9 },
     { title: param + '2', precision: 0, min: 1, default: 3 },

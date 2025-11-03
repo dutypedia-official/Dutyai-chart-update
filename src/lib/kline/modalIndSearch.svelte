@@ -33,6 +33,7 @@
     { name: 'MA', title: 'MA (Moving Average)', is_main: true },
     { name: 'SAR', title: 'SAR (Parabolic SAR)', is_main: true },
     { name: 'SMA', title: 'SMA (Simple Moving Average)', is_main: true },
+    { name: 'SUPERTREND', title: 'SuperTrend (Trend Following Indicator)', is_main: true },
     { name: 'ZIGZAG', title: 'ZigZag (Trend Reversal Indicator)', is_main: true },
     
     // Sub indicators (separate panes) - sorted alphabetically
@@ -50,6 +51,7 @@
     { name: 'PVT', title: 'PVT (Price Volume Trend)', is_main: false },
     { name: 'ROC', title: 'ROC (Rate of Change)', is_main: false },
     { name: 'RSI', title: 'RSI (Relative Strength Index)', is_main: false },
+    { name: 'STOCH', title: 'STOCH (Stochastic Oscillator)', is_main: false },
 
     { name: 'TRIX', title: 'TRIX (Triple Exponential Moving Average)', is_main: false },
     { name: 'VOL', title: 'VOL (Volume)', is_main: false },
@@ -149,6 +151,7 @@
       // Bollinger & SAR - Price Channels
       'BOLL': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>',
       'SAR': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>',
+      'SUPERTREND': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 17l6-6 4 4 8-8M7 7l4 4M17 7l4 4"></path><circle cx="3" cy="17" r="1.5" fill="currentColor"/><circle cx="9" cy="11" r="1.5" fill="currentColor"/><circle cx="13" cy="15" r="1.5" fill="currentColor"/><circle cx="21" cy="7" r="1.5" fill="currentColor"/>',
       'ZIGZAG': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 17l6-8 6 8 6-16"></path><circle cx="3" cy="17" r="2" fill="currentColor"/><circle cx="9" cy="9" r="2" fill="currentColor"/><circle cx="15" cy="17" r="2" fill="currentColor"/><circle cx="21" cy="1" r="2" fill="currentColor"/>',
       
       // Oscillators - Wave Patterns
@@ -230,6 +233,57 @@
             styles: [{color: '#2563eb', thickness: 1, lineStyle: 'solid'}]
           };
           const saveKey = `${paneId}_MA`;
+          
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          
+          success = true;
+        }
+      }
+    } else if (name === 'SUPERTREND') {
+      // For SuperTrend, add with default parameters (period: 10, multiplier: 3.0)
+      const paneId = 'candle_pane'; // SuperTrend is a main indicator (overlay)
+      const chartObj = $chart;
+      if (chartObj) {
+        const ind_id = chartObj.createIndicator({
+          name: 'SUPERTREND',
+          calcParams: [10, 3.0],
+          styles: {
+            lines: [
+              {
+                color: '#10B981', // Green for uptrend
+                size: 2,
+                style: kc.LineType.Solid
+              },
+              {
+                color: '#EF4444', // Red for downtrend
+                size: 2,
+                style: kc.LineType.Solid
+              }
+            ]
+          },
+          // @ts-expect-error
+          createTooltipDataSource: ({ indicator }) => {
+            const icon_ids = [indicator.visible ? 1: 0, 2, 3];
+            const styles = chartObj.getStyles().indicator.tooltip;
+            const icons = icon_ids.map(i => styles.features[i])
+            return { icons }
+          }
+        }, true, {id: paneId});
+        
+        if (ind_id) {
+          const ind = {
+            name: 'SUPERTREND', 
+            pane_id: paneId, 
+            params: [10, 3.0],
+            styles: [
+              {color: '#10B981', thickness: 2, lineStyle: 'solid'}, // Uptrend
+              {color: '#EF4444', thickness: 2, lineStyle: 'solid'}  // Downtrend
+            ]
+          };
+          const saveKey = `${paneId}_SUPERTREND`;
           
           save.update(s => {
             s.saveInds[saveKey] = ind;
@@ -347,6 +401,87 @@
           success = true;
         }
       }
+    } else if (name === 'STOCH') {
+      // For Stochastic, add with configuration from saved Stochastic groups or default
+      const paneId = 'pane_STOCH';
+      
+      // Get saved Stochastic groups from localStorage or use default
+      let stochasticGroups = [];
+      try {
+        const savedStochasticGroups = localStorage.getItem('stochasticGroups');
+        if (savedStochasticGroups) {
+          stochasticGroups = JSON.parse(savedStochasticGroups);
+        }
+      } catch (error) {
+        console.warn('Failed to load saved Stochastic groups:', error);
+      }
+      
+      // If no saved groups, create default Stochastic group
+      if (stochasticGroups.length === 0) {
+        stochasticGroups = [{
+          id: 'stochastic_default',
+          kPeriod: 14,
+          dPeriod: 3,
+          overbought: 80,
+          mid: 50,
+          oversold: 20,
+          styles: {
+            k: {
+              color: '#3B82F6',
+              thickness: 2,
+              lineStyle: 'solid'
+            },
+            d: {
+              color: '#EF4444',
+              thickness: 2,
+              lineStyle: 'solid'
+            },
+            overboughtColor: '#EF4444',
+            oversoldColor: '#10B981',
+            midColor: '#6B7280'
+          }
+        }];
+      }
+      
+      // Use the first Stochastic group's configuration
+      const stochConfig = stochasticGroups[0];
+      
+      // Create indicator with custom styling
+      const chartObj = $chart;
+      if (chartObj) {
+        const ind_id = chartObj.createIndicator({
+          name: 'STOCH',
+          calcParams: [stochConfig.kPeriod, stochConfig.dPeriod],
+          styles: {
+            lines: [
+              {
+                color: stochConfig.styles.k.color,
+                size: stochConfig.styles.k.thickness,
+                style: stochConfig.styles.k.lineStyle === 'dashed' ? kc.LineType.Dashed : 
+                       stochConfig.styles.k.lineStyle === 'dotted' ? kc.LineType.Dashed : kc.LineType.Solid
+              },
+              {
+                color: stochConfig.styles.d.color,
+                size: stochConfig.styles.d.thickness,
+                style: stochConfig.styles.d.lineStyle === 'dashed' ? kc.LineType.Dashed : 
+                       stochConfig.styles.d.lineStyle === 'dotted' ? kc.LineType.Dashed : kc.LineType.Solid
+              }
+            ]
+          }
+        }, true, {id: paneId});
+        
+        if (ind_id) {
+          const ind = {name: 'STOCH', pane_id: paneId, params: [stochConfig.kPeriod, stochConfig.dPeriod]};
+          const saveKey = `${paneId}_STOCH`;
+          
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          
+          success = true;
+        }
+      }
     } else {
       const paneId = isMain ? 'candle_pane' : 'pane_'+name;
       const result = createIndicator(name, undefined, true, {id: paneId});
@@ -404,6 +539,22 @@
       save.update(s => {
         Object.keys(s.saveInds).forEach(key => {
           if (s.saveInds[key].name === 'RSI') {
+            delete s.saveInds[key];
+          }
+        });
+        return s;
+      });
+    } else if (name === 'STOCH') {
+      // For Stochastic, delete all instances
+      const stochEntries = Object.entries($save.saveInds).filter(([key, ind]) => ind.name === 'STOCH');
+      stochEntries.forEach(([key, ind]) => {
+        delInd(ind.pane_id, name);
+      });
+      
+      // Clear all Stochastic-related saved data
+      save.update(s => {
+        Object.keys(s.saveInds).forEach(key => {
+          if (s.saveInds[key].name === 'STOCH') {
             delete s.saveInds[key];
           }
         });
