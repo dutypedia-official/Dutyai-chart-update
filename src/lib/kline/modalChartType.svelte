@@ -106,11 +106,12 @@
       area: $save.styles.candle.area
     });
     
-    // Apply the new styles to the chart
+    // Apply the new styles to the chart with proper processing
     const styles = getThemeStyles($save.theme);
     _.merge(styles, $save.styles);
-    $chart?.setStyles(styles);
-    console.log('✅ Styles applied to chart');
+    const processedStyles = processLineChartStyles(styles);
+    $chart?.setStyles(processedStyles);
+    console.log('✅ Styles applied to chart with processing');
     
     show = false;
   }

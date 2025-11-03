@@ -551,6 +551,82 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   });
 
+  // MTM initialization effect
+  let mtmInitialized = $state(false);
+  $effect(() => {
+    if (isMtm && !mtmInitialized) {
+      console.log('🎯 MTM modal opened, initializing...');
+      mtmInitialized = true;
+      initializeMtmGroups();
+    } else if (!isMtm && mtmInitialized) {
+      // Reset flag when MTM modal is closed
+      mtmInitialized = false;
+    }
+  });
+
+  // MTM real-time parameter update effects
+  $effect(() => {
+    if (isMtm && mtmInitialized && $chart) {
+      // Watch for changes in MTM groups and update indicators in real-time
+      mtmGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { period, color, thickness, lineStyle } = group;
+        
+        // Trigger update when parameters or styles change
+        if (period && color && thickness && lineStyle) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            applyMtm();
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
+  // OBV initialization effect
+  let obvInitialized = $state(false);
+  let obvRemovalInProgress = $state(false); // Flag to prevent effects during removal
+  
+  $effect(() => {
+    if (isObv && !obvInitialized) {
+      console.log('🎯 OBV modal opened, initializing...');
+      obvInitialized = true;
+      initializeObvGroups();
+    } else if (!isObv && obvInitialized) {
+      // Reset flag when OBV modal is closed
+      obvInitialized = false;
+    }
+  });
+
+  // OBV real-time parameter update effects
+  $effect(() => {
+    // Skip if removal is in progress
+    if (obvRemovalInProgress) {
+      console.log('⏸️ Skipping OBV effect - removal in progress');
+      return;
+    }
+    
+    if (isObv && obvInitialized && $chart) {
+      // Watch for changes in OBV groups and update indicators in real-time
+      obvGroups.forEach((group, index) => {
+        // This effect will trigger when any property of the group changes
+        const { obvPeriod, maobvPeriod, showMaobv, styles } = group;
+        
+        // Trigger update when parameters or styles change
+        if (obvPeriod && maobvPeriod && styles) {
+          // Small delay to prevent excessive updates during rapid changes
+          const timeoutId = setTimeout(() => {
+            applyObv();
+          }, 100);
+          
+          return () => clearTimeout(timeoutId);
+        }
+      });
+    }
+  });
+
   // CCI initialization effect
   let cciInitialized = $state(false);
   $effect(() => {
@@ -939,6 +1015,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     color: string;
     thickness: number;
     lineStyle: string;
+    actualPaneId?: string; // Track actual pane ID for multi-pane support
   }>>([]);
 
   // Clear MTM groups when MTM is removed from indicator list
@@ -1990,27 +2067,53 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (!isMtm) return;
     
     try {
-      // Check for saved MTM groups
-      const savedKey = `${$ctx.editPaneId}_MTM`;
-      const savedInd = $save.saveInds[savedKey];
+      // Find all existing MTM-related save keys
+      const existingMtmKeys = Object.keys($save.saveInds).filter(key => 
+        $save.saveInds[key] && $save.saveInds[key].name === 'MTM'
+      ).sort((a, b) => {
+        // Sort to ensure proper order: editPaneId_MTM first, then pane_MTM_2_MTM, etc.
+        if (a === `${$ctx.editPaneId}_MTM`) return -1;
+        if (b === `${$ctx.editPaneId}_MTM`) return 1;
+        return a.localeCompare(b);
+      });
       
-      if (savedInd && (savedInd as any).mtmGroups && Array.isArray((savedInd as any).mtmGroups) && (savedInd as any).mtmGroups.length > 0) {
-        // Validate and load saved MTM groups
-        const validGroups = (savedInd as any).mtmGroups.filter((group: any) => 
-          group && 
-          typeof group.id === 'string' && 
-          typeof group.name === 'string' &&
-          typeof group.period === 'number' && group.period > 0 &&
-          typeof group.color === 'string' &&
-          typeof group.thickness === 'number' && group.thickness > 0 &&
-          typeof group.lineStyle === 'string'
-        );
+      if (existingMtmKeys.length > 0) {
+        // Load saved MTM groups from all keys
+        mtmGroups = [];
+        existingMtmKeys.forEach((key, index) => {
+          const savedInd = $save.saveInds[key];
+          
+          if (savedInd) {
+            if ((savedInd as any).mtmGroup) {
+              // Load individual group
+              const group = {...(savedInd as any).mtmGroup};
+              // Preserve actual pane ID for additional MTM indicators
+              if (index > 0 && savedInd.pane_id) {
+                group.actualPaneId = savedInd.pane_id;
+              }
+              mtmGroups.push(group);
+            } else if ((savedInd as any).mtmGroups && Array.isArray((savedInd as any).mtmGroups)) {
+              // Legacy: Load groups array (only from first key)
+              if (index === 0) {
+                const validGroups = (savedInd as any).mtmGroups.filter((group: any) => 
+                  group && 
+                  typeof group.id === 'string' && 
+                  typeof group.name === 'string' &&
+                  typeof group.period === 'number' && group.period > 0 &&
+                  typeof group.color === 'string' &&
+                  typeof group.thickness === 'number' && group.thickness > 0 &&
+                  typeof group.lineStyle === 'string'
+                );
+                mtmGroups = [...validGroups];
+              }
+            }
+          }
+        });
         
-        if (validGroups.length > 0) {
-          mtmGroups = [...validGroups];
-          console.log('✅ Loaded', validGroups.length, 'valid MTM groups');
+        if (mtmGroups.length > 0) {
+          console.log('✅ Loaded', mtmGroups.length, 'MTM groups from saved data');
         } else {
-          console.warn('⚠️ No valid MTM groups found in saved data, creating default');
+          console.warn('⚠️ No valid MTM groups found, creating default');
           createDefaultMtmGroup();
         }
       } else if (mtmGroups.length === 0) {
@@ -2047,17 +2150,24 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       }
       
       const groupNumber = mtmGroups.length + 1;
+      // Use varied colors for different MTM groups
+      const colors = ['#2563eb', '#8B5CF6', '#F59E0B', '#10B981', '#EF4444', '#EC4899', '#06B6D4', '#F97316'];
+      const colorIndex = (mtmGroups.length) % colors.length;
+      
       const newGroup = {
         id: generateUUID(),
         name: `MTM #${groupNumber}`,
         period: 14,
-        color: '#2563eb',
+        color: colors[colorIndex],
         thickness: 2,
         lineStyle: 'solid'
       };
       
       mtmGroups.push(newGroup);
       console.log('✅ Added new MTM group:', newGroup.name);
+      
+      // Apply changes to chart in real-time
+      applyMtm();
     } catch (error) {
       console.error('❌ Error adding MTM group:', error);
     }
@@ -2080,11 +2190,161 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       
       if (mtmGroups.length < initialLength) {
         console.log('✅ Removed MTM group with ID:', groupId);
+        // Apply changes to chart in real-time (handles removal automatically)
+        applyMtm();
       } else {
         console.warn('⚠️ MTM group not found for removal:', groupId);
       }
     } catch (error) {
       console.error('❌ Error removing MTM group:', error);
+    }
+  }
+
+  // Apply MTM changes to chart in real-time (without closing modal)
+  function applyMtm() {
+    if (!isMtm || !$chart) return;
+    
+    try {
+      console.log('🔄 Applying MTM changes to chart...');
+      
+      // Get existing MTM indicators to determine which ones already exist
+      const existingMtmKeys = Object.keys($save.saveInds).filter(key => 
+        $save.saveInds[key] && $save.saveInds[key].name === 'MTM'
+      ).sort((a, b) => {
+        // Sort to ensure proper order: editPaneId_MTM first, then pane_MTM_2_MTM, etc.
+        if (a === `${$ctx.editPaneId}_MTM`) return -1;
+        if (b === `${$ctx.editPaneId}_MTM`) return 1;
+        return a.localeCompare(b);
+      });
+      
+      console.log('🔧 Applying MTM changes. Existing keys:', existingMtmKeys);
+      console.log('🔧 Current MTM groups:', mtmGroups.length);
+      
+      // Remove indicators that are no longer needed (if we have fewer groups now)
+      const currentGroupCount = mtmGroups.length;
+      if (existingMtmKeys.length > currentGroupCount) {
+        for (let i = currentGroupCount; i < existingMtmKeys.length; i++) {
+          const key = existingMtmKeys[i];
+          const savedData = $save.saveInds[key];
+          if (savedData && savedData.pane_id) {
+            try {
+              console.log('🗑️ Removing excess MTM indicator from pane:', savedData.pane_id);
+              $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'MTM' });
+            } catch (error) {
+              console.log('❌ Error removing excess MTM indicator:', error);
+            }
+          }
+        }
+      }
+      
+      // Apply each MTM group as a separate indicator
+      mtmGroups.forEach((group, index) => {
+        const calcParams = [group.period];
+        const indicatorStyles = {
+          lines: [{
+            color: group.color,
+            size: group.thickness,
+            style: group.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: group.lineStyle === 'dashed' ? [4, 4] : 
+                        group.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+            smooth: false
+          }]
+        };
+
+        // For the first MTM group, always update the current edit pane
+        if (index === 0) {
+          console.log('🔄 Updating first MTM in pane:', $ctx.editPaneId);
+          $chart?.overrideIndicator({
+            name: 'MTM',
+            calcParams: calcParams,
+            styles: indicatorStyles,
+            paneId: $ctx.editPaneId
+          });
+        } else {
+          // For additional groups, check if they already exist using the correct key pattern
+          const expectedSaveKey = `pane_MTM_${index + 1}_MTM`;
+          const existingGroup = existingMtmKeys.find(key => key === expectedSaveKey);
+          
+          if (existingGroup) {
+            // Update existing indicator
+            const existingData = $save.saveInds[existingGroup];
+            if (existingData && existingData.pane_id) {
+              console.log('🔄 Updating existing MTM in pane:', existingData.pane_id);
+              $chart?.overrideIndicator({
+                name: 'MTM',
+                calcParams: calcParams,
+                styles: indicatorStyles,
+                paneId: existingData.pane_id
+              });
+              // Update actualPaneId to track this pane
+              group.actualPaneId = existingData.pane_id;
+            }
+          } else {
+            // Create new pane with controlled pane ID for truly new groups
+            const newPaneId = `pane_MTM_${index + 1}`;
+            console.log('🆕 Creating new MTM in pane:', newPaneId);
+            const newIndicatorId = $chart?.createIndicator({
+              name: 'MTM',
+              calcParams: calcParams,
+              styles: indicatorStyles
+            }, true, { id: newPaneId, axis: { gap: { bottom: 2 } } }); // Use controlled pane ID
+            
+            // Store the actual pane ID that was created
+            if (newIndicatorId) {
+              group.actualPaneId = newPaneId;
+              console.log('✅ Created new MTM indicator with ID:', newIndicatorId, 'in pane:', newPaneId);
+            }
+          }
+        }
+      });
+
+      // Save MTM groups configuration
+      save.update(s => {
+        try {
+          // Clear existing MTM data first
+          Object.keys(s.saveInds).forEach(key => {
+            if (s.saveInds[key] && s.saveInds[key].name === 'MTM') {
+              delete s.saveInds[key];
+            }
+          });
+          
+          // Save each MTM group separately
+          mtmGroups.forEach((group, index) => {
+            try {
+              const saveKey = index === 0 ? `${$ctx.editPaneId}_MTM` : `pane_MTM_${index + 1}_MTM`;
+              const paneId = index === 0 ? $ctx.editPaneId : (group.actualPaneId || `pane_MTM_${index + 1}`);
+              
+              if (!saveKey || !paneId) {
+                console.error(`❌ Invalid save key or pane ID for MTM group ${index}`);
+                return;
+              }
+              
+              const saveData: any = {
+                name: 'MTM',
+                mtmGroup: group,
+                pane_id: paneId,
+                groupIndex: index,
+                mtmGroups: index === 0 ? [...mtmGroups] : undefined,
+                params: [group.period]
+              };
+              
+              s.saveInds[saveKey] = saveData;
+              console.log('💾 Saved MTM group', index, 'with key:', saveKey, 'and pane ID:', paneId);
+            } catch (error) {
+              console.error(`❌ Error saving MTM group ${index}:`, error);
+            }
+          });
+        } catch (error) {
+          console.error('❌ Error in MTM save operation:', error);
+        }
+        
+        return s;
+      });
+      
+      console.log('✅ MTM changes applied successfully');
+      
+    } catch (error) {
+      console.error('❌ Critical error in applyMtm:', error);
     }
   }
 
@@ -5549,8 +5809,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           obvGroups = [...obvData.obvGroups];
           // Load actualPaneId for each group
           obvGroups.forEach((group, index) => {
-            if (index > 0 && obvData.pane_id) {
-              group.actualPaneId = obvData.pane_id;
+            if (!group.actualPaneId) {
+              // Set actualPaneId based on index
+              if (index === 0) {
+                group.actualPaneId = $ctx.editPaneId;
+              } else if (obvData.pane_id) {
+                group.actualPaneId = obvData.pane_id;
+              }
             }
           });
         } else {
@@ -5575,11 +5840,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       });
     } else {
       // Create default OBV group with periods 30 and 10
+      // IMPORTANT: Set actualPaneId to editPaneId for the first OBV
       obvGroups.push({
         id: generateUUID(),
         obvPeriod: 30,
         maobvPeriod: 10,
         showMaobv: true, // Default to show MAOBV
+        actualPaneId: $ctx.editPaneId, // Set edit pane as actual pane for first OBV
         styles: {
           obv: {color: '#FF6B35', thickness: 2, lineStyle: 'solid'},
           maobv: {color: '#2196F3', thickness: 1, lineStyle: 'solid'}
@@ -5607,146 +5874,326 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       }
     };
     
+    // Find the next available pane index by checking existing pane IDs
+    // Don't just rely on array length, check what pane IDs actually exist
+    const existingPaneIds = new Set<string>();
+    
+    // Check all existing OBV pane IDs from the chart
+    obvGroups.forEach(group => {
+      if (group.actualPaneId) {
+        existingPaneIds.add(group.actualPaneId);
+      }
+    });
+    
+    // Also check saved data for any orphaned panes
+    Object.keys($save.saveInds).forEach(key => {
+      if ($save.saveInds[key] && $save.saveInds[key].name === 'OBV' && $save.saveInds[key].pane_id) {
+        existingPaneIds.add($save.saveInds[key].pane_id);
+      }
+    });
+    
+    console.log('🔍 Existing OBV pane IDs:', Array.from(existingPaneIds));
+    
+    // Find next available index (skip edit pane, start from 2)
+    let nextAvailableIndex = 2;
+    while (existingPaneIds.has(`pane_OBV_${nextAvailableIndex}`)) {
+      nextAvailableIndex++;
+    }
+    
+    const newPaneId = `pane_OBV_${nextAvailableIndex}`;
+    newGroup.actualPaneId = newPaneId;
+    
+    console.log('✅ Adding new OBV group with pane ID:', newPaneId);
+    
     obvGroups.push(newGroup);
     
-    // Check if there are already OBV groups (indicating edit pane has OBV)
-    // Use current obvGroups state instead of saved state for better popup synchronization
-    const hasExistingObv = obvGroups.length > 1;
-    
-    // If there are already OBV groups, create in new sub-pane
-    if (hasExistingObv) {
-      // Find the next available index for pane naming
-      let nextIndex = 2;
-      while (Object.keys($save.saveInds).some(key => key === `pane_OBV_${nextIndex}_OBV`)) {
-        nextIndex++;
-      }
-      
-      const groupIndex = obvGroups.length - 1;
-      const calcParams = [newGroup.obvPeriod, newGroup.maobvPeriod];
-      
-      // Create indicator styles for OBV and MAOBV lines
-      const indicatorStyles: any = {
-        lines: [
-          {
-            color: newGroup.styles.obv.color,
-            size: newGroup.styles.obv.thickness,
-            style: newGroup.styles.obv.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid,
-            dashedValue: newGroup.styles.obv.lineStyle === 'dashed' ? [4, 4] : [2, 2]
-          },
-          {
-            color: newGroup.styles.maobv.color,
-            size: newGroup.styles.maobv.thickness,
-            style: newGroup.styles.maobv.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid,
-            dashedValue: newGroup.styles.maobv.lineStyle === 'dashed' ? [4, 4] : [2, 2]
-          }
-        ]
-      };
-      
-      // Create new OBV indicator in a new sub-pane
-      const newPaneId = `pane_OBV_${nextIndex}`;
-      console.log(`🆕 Immediately creating OBV ${nextIndex} with pane ID:`, newPaneId);
-      
-      const result = $chart?.createIndicator({
-        name: 'OBV',
-        calcParams: calcParams,
-        styles: indicatorStyles
-      }, false, { id: newPaneId, axis: { gap: { bottom: 2 } } });
-      
-      // Store the pane ID for later reference
-      if (result) {
-        console.log(`✅ OBV ${nextIndex} created with pane ID:`, newPaneId);
-        newGroup.actualPaneId = newPaneId;
-        
-        // Immediately save this group configuration
-        save.update(s => {
-          const saveKey = `pane_OBV_${nextIndex}_OBV`;
-          s.saveInds[saveKey] = {
-            name: 'OBV',
-            obvGroup: newGroup,
-            pane_id: newPaneId,
-            groupIndex: groupIndex,
-            params: [newGroup.obvPeriod, newGroup.maobvPeriod]
-          };
-          return s;
-        });
-      }
-    } else {
-      // If edit pane doesn't have OBV, this will be handled by handleObvConfirm
-      console.log(`📝 New OBV group will be added to edit pane on confirm`);
-    }
+    // Apply changes to chart in real-time
+    applyObv();
   }
 
   function removeObvGroup(groupId: string) {
     if (!isObv || obvGroups.length <= 1) return;
     
-    // Find the group index
+    // Set removal flag to prevent $effect from running
+    obvRemovalInProgress = true;
+    console.log('🚫 Set obvRemovalInProgress = true');
+    
+    // Find the group index and store pane ID BEFORE removing from array
     const groupIndex = obvGroups.findIndex(group => group.id === groupId);
-    if (groupIndex === -1) return;
+    if (groupIndex === -1) {
+      obvRemovalInProgress = false;
+      return;
+    }
+    
+    const groupToRemove = obvGroups[groupIndex];
     
     console.log('🗑️ Removing OBV group at index:', groupIndex, 'ID:', groupId);
+    console.log('🗑️ Group to remove:', groupToRemove);
     
     try {
-      // Remove from chart first
-      if (groupIndex === 0) {
-        // For the first group, remove from the edit pane
-        console.log('🗑️ Removing OBV from edit pane:', $ctx.editPaneId);
-        $chart?.removeIndicator({ paneId: $ctx.editPaneId, name: 'OBV' });
-        console.log('✅ Successfully removed OBV from edit pane');
-      } else {
-        // For non-first groups, remove from their specific panes
-        const saveKey = `pane_OBV_${groupIndex + 1}_OBV`;
-        if ($save.saveInds[saveKey]) {
-          const savedData = $save.saveInds[saveKey];
-          console.log('🗑️ Removing OBV from pane:', savedData.pane_id);
-          $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'OBV' });
-          console.log('✅ Successfully removed OBV from pane:', savedData.pane_id);
-        } else {
-          // Try to remove using the group's actual pane ID if available
-          const group = obvGroups[groupIndex];
-          if (group.actualPaneId) {
-            console.log('🗑️ Removing OBV from actual pane:', group.actualPaneId);
-            $chart?.removeIndicator({ paneId: group.actualPaneId, name: 'OBV' });
-            console.log('✅ Successfully removed OBV from actual pane:', group.actualPaneId);
+      // Determine the pane ID to remove from
+      // CRITICAL: ALWAYS use actualPaneId (even for index 0)
+      // The first group might have moved from another pane after removal
+      let paneIdToRemove: string | undefined;
+      
+      // First, try to get actualPaneId from the group
+      paneIdToRemove = groupToRemove.actualPaneId;
+      
+      // If actualPaneId is not set, check saved data
+      if (!paneIdToRemove) {
+        // Try to find from save data using actualPaneId-based key
+        Object.keys($save.saveInds).forEach(key => {
+          const savedData = $save.saveInds[key];
+          if (savedData && savedData.name === 'OBV' && savedData.groupIndex === groupIndex) {
+            paneIdToRemove = savedData.pane_id;
           }
-        }
+        });
       }
       
-      // Remove the group from the array FIRST
+      // Final fallback: use editPaneId for truly first group
+      if (!paneIdToRemove && groupIndex === 0) {
+        paneIdToRemove = $ctx.editPaneId;
+      }
+      
+      console.log('🗑️ Removing OBV at index', groupIndex, 'from pane:', paneIdToRemove);
+      
+      // Remove from chart using the determined pane ID
+      if (paneIdToRemove) {
+        console.log('🗑️ Removing OBV indicator from pane:', paneIdToRemove);
+        $chart?.removeIndicator({ paneId: paneIdToRemove, name: 'OBV' });
+        console.log('✅ Successfully removed OBV from pane:', paneIdToRemove);
+      }
+      
+      // Now remove the group from the array
       obvGroups = obvGroups.filter(group => group.id !== groupId);
       console.log('✅ OBV group removed from array. Remaining groups:', obvGroups.length);
       
-      // Remove from saved data and reindex
-      save.update((s: ChartSave) => {
-        // Clear all OBV-related saved data
+      // Clean up and reindex saved data
+      save.update(s => {
+        // Clear ALL OBV save data first
+        const keysToDelete: string[] = [];
         Object.keys(s.saveInds).forEach(key => {
-          if (s.saveInds[key].name === 'OBV') {
-            console.log('🧹 Cleaning saved state for key:', key);
-            delete s.saveInds[key];
+          if (s.saveInds[key] && s.saveInds[key].name === 'OBV') {
+            keysToDelete.push(key);
           }
         });
         
-        // Re-save remaining groups with correct indexing
-        obvGroups.forEach((group, index) => {
-          const saveKey = index === 0 ? `${$ctx.editPaneId}_OBV` : `pane_OBV_${index + 1}_OBV`;
-          // Use actual pane ID if available, otherwise fallback to generated one
-          const paneId = index === 0 ? $ctx.editPaneId : (group.actualPaneId || `pane_OBV_${index + 1}`);
+        console.log('🧹 Clearing all OBV save data:', keysToDelete);
+        keysToDelete.forEach(key => delete s.saveInds[key]);
+        
+        // Now save remaining OBV groups
+        // CRITICAL: ALWAYS use actualPaneId (even for index 0)
+        obvGroups.forEach((group, newIndex) => {
+          const paneId = group.actualPaneId || $ctx.editPaneId;
+          
+          if (!paneId) {
+            console.error(`❌ No pane ID for OBV group ${newIndex} during removal cleanup`);
+            return;
+          }
+          
+          const saveKey = `${paneId}_OBV`;
           
           s.saveInds[saveKey] = {
             name: 'OBV',
             obvGroup: group,
             pane_id: paneId,
-            groupIndex: index,
-            obvGroups: index === 0 ? [...obvGroups] : undefined, // Store all groups in first entry
+            groupIndex: newIndex,
+            obvGroups: newIndex === 0 ? [...obvGroups] : undefined,
             params: [group.obvPeriod, group.maobvPeriod]
           };
+          
+          console.log('💾 Re-saved OBV group', newIndex, 'with key:', saveKey, 'pane:', paneId);
         });
         
         return s;
       });
       
-      console.log('✅ OBV group removal completed');
+      console.log('✅ OBV removal and reindexing completed');
+      
+      // Reset removal flag after a short delay to allow UI to update
+      setTimeout(() => {
+        obvRemovalInProgress = false;
+        console.log('✅ Reset obvRemovalInProgress = false');
+      }, 200);
+      
     } catch (error) {
       console.error('❌ Error removing OBV group:', error);
+    }
+  }
+
+  // Apply OBV changes to chart in real-time (without closing modal)
+  function applyObv() {
+    if (!isObv || !$chart) return;
+    
+    try {
+      console.log('🔄 Applying OBV changes to chart...');
+      console.log('🔧 Current OBV groups:', obvGroups.length);
+      
+      // First, get all existing OBV pane IDs from chart to clean up any stale indicators
+      const existingObvKeys = Object.keys($save.saveInds).filter(key => 
+        $save.saveInds[key] && $save.saveInds[key].name === 'OBV'
+      );
+      
+      console.log('🔧 Existing OBV keys in save data:', existingObvKeys);
+      
+      // Remove all stale indicators that are no longer in obvGroups
+      // Build a map of pane IDs that should exist
+      const shouldExistPaneIds = new Set<string>();
+      obvGroups.forEach((group, index) => {
+        // CRITICAL: Use actualPaneId for ALL groups (including index 0)
+        const paneId = group.actualPaneId || $ctx.editPaneId;
+        shouldExistPaneIds.add(paneId);
+      });
+      
+      console.log('🔧 Pane IDs that should exist:', Array.from(shouldExistPaneIds));
+      
+      // Remove any OBV indicators from panes that shouldn't exist anymore
+      existingObvKeys.forEach(key => {
+        const savedData = $save.saveInds[key];
+        if (savedData && savedData.pane_id && !shouldExistPaneIds.has(savedData.pane_id)) {
+          try {
+            console.log('🗑️ Removing stale OBV indicator from pane:', savedData.pane_id);
+            $chart?.removeIndicator({ paneId: savedData.pane_id, name: 'OBV' });
+          } catch (error) {
+            console.log('❌ Error removing stale OBV indicator:', error);
+          }
+        }
+      });
+      
+      // Apply each OBV group as a separate indicator
+      obvGroups.forEach((group, index) => {
+        const calcParams = [group.obvPeriod, group.maobvPeriod];
+        const indicatorStyles: any = {
+          lines: [
+            {
+              color: group.styles.obv.color,
+              size: group.styles.obv.thickness,
+              style: group.styles.obv.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+              dashedValue: group.styles.obv.lineStyle === 'dashed' ? [4, 4] : 
+                          group.styles.obv.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+              smooth: false
+            },
+            {
+              color: group.styles.maobv.color,
+              size: group.styles.maobv.thickness,
+              style: group.styles.maobv.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
+              dashedValue: group.styles.maobv.lineStyle === 'dashed' ? [4, 4] : 
+                          group.styles.maobv.lineStyle === 'dotted' ? [2, 6] : [2, 2],
+              smooth: false
+            }
+          ]
+        };
+
+        // For the first OBV group (index 0)
+        if (index === 0) {
+          // CRITICAL: First group might be in edit pane OR might have moved from another pane
+          // Always use actualPaneId if available, fallback to editPaneId
+          const firstPaneId = group.actualPaneId || $ctx.editPaneId;
+          
+          // If actualPaneId is not set, set it now
+          if (!group.actualPaneId) {
+            group.actualPaneId = $ctx.editPaneId;
+          }
+          
+          console.log('🔄 Updating first OBV in pane:', firstPaneId);
+          $chart?.overrideIndicator({
+            name: 'OBV',
+            calcParams: calcParams,
+            styles: indicatorStyles,
+            paneId: firstPaneId
+          });
+        } else {
+          // For additional groups, use actualPaneId if available
+          // This is critical for proper pane management after removals
+          const targetPaneId = group.actualPaneId || `pane_OBV_${index + 1}`;
+          
+          // Check if this pane already exists in saved data
+          const existingGroup = existingObvKeys.find(key => {
+            const savedData = $save.saveInds[key];
+            return savedData && savedData.pane_id === targetPaneId;
+          });
+          
+          if (existingGroup) {
+            // Update existing indicator in the target pane
+            console.log('🔄 Updating existing OBV in pane:', targetPaneId);
+            $chart?.overrideIndicator({
+              name: 'OBV',
+              calcParams: calcParams,
+              styles: indicatorStyles,
+              paneId: targetPaneId
+            });
+            // Ensure actualPaneId is set
+            group.actualPaneId = targetPaneId;
+          } else {
+            // Create new indicator in a new pane
+            // IMPORTANT: Use actualPaneId if it was pre-assigned by addObvGroup()
+            const newPaneId = group.actualPaneId || `pane_OBV_${index + 1}`;
+            console.log('🆕 Creating new OBV in pane:', newPaneId);
+            const newIndicatorId = $chart?.createIndicator({
+              name: 'OBV',
+              calcParams: calcParams,
+              styles: indicatorStyles
+            }, true, { id: newPaneId, axis: { gap: { bottom: 2 } } }); // Use pre-assigned pane ID
+            
+            // Store the actual pane ID that was created
+            if (newIndicatorId) {
+              group.actualPaneId = newPaneId;
+              console.log('✅ Created new OBV indicator with ID:', newIndicatorId, 'in pane:', newPaneId);
+            }
+          }
+        }
+      });
+
+      // Save OBV groups configuration
+      save.update(s => {
+        try {
+          // Clear existing OBV data first
+          Object.keys(s.saveInds).forEach(key => {
+            if (s.saveInds[key] && s.saveInds[key].name === 'OBV') {
+              delete s.saveInds[key];
+            }
+          });
+          
+          // Save each OBV group separately
+          obvGroups.forEach((group, index) => {
+            try {
+              // CRITICAL: ALWAYS use actualPaneId (even for index 0)
+              // This ensures OBVs that move to first position retain their original pane
+              const paneId = group.actualPaneId || $ctx.editPaneId;
+              
+              if (!paneId) {
+                console.error(`❌ No pane ID for OBV group ${index}`);
+                return;
+              }
+              
+              const saveKey = `${paneId}_OBV`;
+              
+              const saveData: any = {
+                name: 'OBV',
+                obvGroup: group,
+                pane_id: paneId,
+                groupIndex: index,
+                obvGroups: index === 0 ? [...obvGroups] : undefined,
+                params: [group.obvPeriod, group.maobvPeriod]
+              };
+              
+              s.saveInds[saveKey] = saveData;
+              console.log('💾 Saved OBV group', index, 'with key:', saveKey, 'and pane ID:', paneId);
+            } catch (error) {
+              console.error(`❌ Error saving OBV group ${index}:`, error);
+            }
+          });
+        } catch (error) {
+          console.error('❌ Error in OBV save operation:', error);
+        }
+        
+        return s;
+      });
+      
+      console.log('✅ OBV changes applied successfully');
+      
+    } catch (error) {
+      console.error('❌ Critical error in applyObv:', error);
     }
   }
 
@@ -11123,6 +11570,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
                 bind:value={group.period} 
                 min="1"
+                oninput={applyMtm}
               />
             </div>
           </div>
@@ -11140,7 +11588,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             </div>
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.thickness}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.thickness} onchange={applyMtm}>
                 <option value={1}>1px</option>
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
@@ -11150,7 +11598,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             </div>
             <div class="flex items-center gap-2">
               <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.lineStyle}>
+              <select class="select select-bordered select-xs w-16 sm:w-20 text-xs" bind:value={group.lineStyle} onchange={applyMtm}>
                 <option value="solid">Solid</option>
                 <option value="dashed">Dashed</option>
                 <option value="dotted">Dotted</option>
@@ -12834,22 +13282,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
           <!-- OBV Parameters -->
           <div class="space-y-3">
-            <!-- Param1 (OBV Period) -->
-            <div class="flex flex-col gap-2">
+            <!-- Param1 (OBV Period) - Hidden because traditional OBV doesn't use a period -->
+            <!-- OBV is a cumulative indicator that starts from 0 and adds/subtracts volume based on price direction -->
+            <div class="flex flex-col gap-2" style="display: none;">
               <span class="text-base-content/70 text-xs font-medium">Param 1 (OBV Period)</span>
-              <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24" bind:value={group.obvPeriod}
-                oninput={() => {
-                  console.log('🔢 OBV period input:', group.obvPeriod);
-                  setTimeout(() => updateObvIndicator(groupIndex), 10);
-                }}
-                onchange={() => {
-                  console.log('🔢 OBV period changed:', group.obvPeriod);
-                  updateObvIndicator(groupIndex);
-                }}
-                onblur={() => {
-                  console.log('🔢 OBV period blur:', group.obvPeriod);
-                  updateObvIndicator(groupIndex);
-                }}/>
+              <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24" bind:value={group.obvPeriod} oninput={applyObv}/>
             </div>
             
             <!-- OBV Line Styling -->
@@ -12870,11 +13307,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 <!-- Thickness -->
                 <div class="flex items-center gap-3">
                   <span class="text-base-content/60 text-xs min-w-[60px]">Thickness:</span>
-                  <select class="select select-bordered select-xs w-16 text-xs" bind:value={group.styles.obv.thickness}
-                    onchange={() => {
-                      console.log('📏 Updated OBV thickness to:', group.styles.obv.thickness);
-                      updateObvIndicator(groupIndex);
-                    }}>
+                  <select class="select select-bordered select-xs w-16 text-xs" bind:value={group.styles.obv.thickness} onchange={applyObv}>
                     <option value={1}>1px</option>
                     <option value={2}>2px</option>
                     <option value={3}>3px</option>
@@ -12886,11 +13319,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 <!-- Line Style -->
                 <div class="flex items-center gap-3">
                   <span class="text-base-content/60 text-xs min-w-[35px]">Style:</span>
-                  <select class="select select-bordered select-xs w-20 text-xs" bind:value={group.styles.obv.lineStyle}
-                    onchange={() => {
-                      console.log('🎨 Updated OBV line style to:', group.styles.obv.lineStyle);
-                      updateObvIndicator(groupIndex);
-                    }}>
+                  <select class="select select-bordered select-xs w-20 text-xs" bind:value={group.styles.obv.lineStyle} onchange={applyObv}>
                     <option value="solid">Solid</option>
                     <option value="dashed">Dashed</option>
                     <option value="dotted">Dotted</option>
@@ -12899,22 +13328,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               </div>
             </div>
             
-            <!-- Param2 (MAOBV Period) -->
+            <!-- MAOBV Period (This is the only period parameter that matters for OBV) -->
             <div class="flex flex-col gap-2">
-              <span class="text-base-content/70 text-xs font-medium">Param 2 (MAOBV Period)</span>
-              <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24" bind:value={group.maobvPeriod}
-                oninput={() => {
-                  console.log('🔢 MAOBV period input:', group.maobvPeriod);
-                  setTimeout(() => updateObvIndicator(groupIndex), 10);
-                }}
-                onchange={() => {
-                  console.log('🔢 MAOBV period changed:', group.maobvPeriod);
-                  updateObvIndicator(groupIndex);
-                }}
-                onblur={() => {
-                  console.log('🔢 MAOBV period blur:', group.maobvPeriod);
-                  updateObvIndicator(groupIndex);
-                }}/>
+              <span class="text-base-content/70 text-xs font-medium">MAOBV Period</span>
+              <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24" bind:value={group.maobvPeriod} oninput={applyObv}/>
+              <span class="text-xs text-base-content/50">Moving average period for OBV smoothing</span>
             </div>
             
             <!-- MAOBV Line Styling -->
@@ -12935,11 +13353,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 <!-- Thickness -->
                 <div class="flex items-center gap-3">
                   <span class="text-base-content/60 text-xs min-w-[60px]">Thickness:</span>
-                  <select class="select select-bordered select-xs w-16 text-xs" bind:value={group.styles.maobv.thickness}
-                    onchange={() => {
-                      console.log('📏 Updated MAOBV thickness to:', group.styles.maobv.thickness);
-                      updateObvIndicator(groupIndex);
-                    }}>
+                  <select class="select select-bordered select-xs w-16 text-xs" bind:value={group.styles.maobv.thickness} onchange={applyObv}>
                     <option value={1}>1px</option>
                     <option value={2}>2px</option>
                     <option value={3}>3px</option>
@@ -12951,32 +13365,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
                 <!-- Line Style -->
                 <div class="flex items-center gap-3">
                   <span class="text-base-content/60 text-xs min-w-[35px]">Style:</span>
-                  <select class="select select-bordered select-xs w-20 text-xs" bind:value={group.styles.maobv.lineStyle}
-                    onchange={() => {
-                      console.log('🎨 Updated MAOBV line style to:', group.styles.maobv.lineStyle);
-                      updateObvIndicator(groupIndex);
-                    }}>
+                  <select class="select select-bordered select-xs w-20 text-xs" bind:value={group.styles.maobv.lineStyle} onchange={applyObv}>
                     <option value="solid">Solid</option>
                     <option value="dashed">Dashed</option>
                     <option value="dotted">Dotted</option>
                   </select>
                 </div>
               </div>
-            </div>
-            
-            <!-- Show MAOBV Checkbox -->
-            <div class="flex items-center gap-2 pt-2">
-              <input 
-                type="checkbox" 
-                class="checkbox checkbox-primary checkbox-sm" 
-                bind:checked={group.showMaobv}
-                id="showMaobv_{group.id}"
-                onchange={() => {
-                  console.log('✅ Updated showMaobv to:', group.showMaobv);
-                  updateObvIndicator(groupIndex);
-                }}
-              />
-              <label for="showMaobv_{group.id}" class="text-sm text-base-content/80 cursor-pointer">Show MAOBV</label>
             </div>
           </div>
         </div>
@@ -13442,6 +13837,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (mtmGroups[mtmColorPaletteIndex]) {
       mtmGroups[mtmColorPaletteIndex].color = e.detail.color;
+      // Apply changes to chart in real-time
+      applyMtm();
     }
   }}
 />
@@ -13610,8 +14007,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         obvGroups[groupIndex].styles.maobv.color = e.detail.color;
         console.log('🎨 Updated MAOBV color to:', e.detail.color);
       }
-      // Immediately update the chart with new color
-      updateObvIndicator(groupIndex);
+      // Apply changes to chart in real-time
+      applyObv();
     }
   }}
 />
@@ -14623,3 +15020,4 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   }
 </style>
+

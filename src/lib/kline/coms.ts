@@ -604,8 +604,9 @@ export function processLineChartStyles(styles: Record<string, unknown>): Record<
       ...styles.indicator
     };
   }
-  // Check if this is a heikin_ashi chart type
-  else if (processedStyles.candle && processedStyles.candle.type === 'heikin_ashi') {
+  
+  // Check if this is a heikin_ashi chart type (independent check, not else if)
+  if (processedStyles.candle && processedStyles.candle.type === 'heikin_ashi') {
     // Convert heikin_ashi to candle_solid for rendering
     processedStyles.candle.type = 'candle_solid';
   }

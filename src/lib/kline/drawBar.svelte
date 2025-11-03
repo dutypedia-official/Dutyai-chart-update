@@ -435,7 +435,9 @@ export function addOverlay(data: any){
       // Update delete button position if this overlay is selected
       if (selectDraw === event.overlay.id && event.overlay.points && event.overlay.points.length > 0) {
         const firstPoint = event.overlay.points[0]
-        const coords = $chart?.convertToPixel(firstPoint, { paneId: 'candle_pane' })
+        // Use the overlay's actual paneId instead of hardcoded 'candle_pane'
+        const paneId = (event.overlay as any).paneId || 'candle_pane'
+        const coords = $chart?.convertToPixel(firstPoint, { paneId })
         if (coords && typeof coords === 'object' && 'x' in coords && 'y' in coords && coords.x !== undefined && coords.y !== undefined) {
           selectedOverlayCoords = { x: coords.x - 80, y: coords.y - 30 }
         }
@@ -460,7 +462,9 @@ export function addOverlay(data: any){
       // Show context menu near the selected overlay
       if (event.overlay.points && event.overlay.points.length > 0) {
         const firstPoint = event.overlay.points[0]
-        const coords = $chart?.convertToPixel(firstPoint, { paneId: 'candle_pane' })
+        // Use the overlay's actual paneId instead of hardcoded 'candle_pane'
+        const paneId = (event.overlay as any).paneId || 'candle_pane'
+        const coords = $chart?.convertToPixel(firstPoint, { paneId })
         if (coords && typeof coords === 'object' && 'x' in coords && 'y' in coords && coords.x !== undefined && coords.y !== undefined) {
           selectedOverlayCoords = { x: coords.x - 80, y: coords.y - 30 }
           

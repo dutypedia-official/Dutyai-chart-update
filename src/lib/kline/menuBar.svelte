@@ -422,10 +422,11 @@ let showTimezoneModal = $state(false);
       delete $save.styles.candle.area;
     }
     
-    // Apply the new styles to the chart
+    // Apply the new styles to the chart with proper processing
     const styles = getThemeStyles($save.theme);
     _.merge(styles, $save.styles);
-    $chart?.setStyles(styles);
+    const processedStyles = processLineChartStyles(styles);
+    $chart?.setStyles(processedStyles);
     
     showChartTypeModal = false;
   }
