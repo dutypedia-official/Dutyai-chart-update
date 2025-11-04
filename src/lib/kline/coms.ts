@@ -375,6 +375,13 @@ export const IndFieldsMap: Record<string, Record<string, unknown>[]> = {
     { title: param + '1', precision: 0, min: 1, default: 12 },
     { title: param + '2', precision: 0, min: 1, default: 2 }
   ],
+  SUPERTREND: [
+    { title: 'Period', precision: 0, min: 1, default: 10 },
+    { title: 'Multiplier', precision: 1, min: 0.1, max: 10, default: 3.0 },
+    { title: 'Uptrend Color', type: 'color', styleKey: 'lines[0].color', default: '#10B981' },
+    { title: 'Downtrend Color', type: 'color', styleKey: 'lines[1].color', default: '#EF4444' },
+    { title: 'Line Thickness', precision: 0, min: 1, max: 5, styleKey: 'lines[0].size', default: 2 }
+  ],
   KDJ: [
     { title: param + '1', precision: 0, min: 1, default: 9 },
     { title: param + '2', precision: 0, min: 1, default: 3 },
@@ -403,10 +410,6 @@ export const IndFieldsMap: Record<string, Record<string, unknown>[]> = {
     { title: 'Period', precision: 0, min: 1, default: 14 },
     { title: 'Line Color', type: 'color', styleKey: 'lines[0].color', default: '#2563eb' },
     { title: 'Line Thickness', precision: 0, min: 1, max: 5, styleKey: 'lines[0].size', default: 1 }
-  ],
-  ZIGZAG: [
-    { title: 'Deviation (%)', precision: 1, min: 1, max: 50, default: 5 },
-    { title: 'Depth', precision: 0, min: 1, max: 50, default: 5 }
   ]
 }
 
@@ -608,8 +611,9 @@ export function processLineChartStyles(styles: Record<string, unknown>): Record<
       ...styles.indicator
     };
   }
-  // Check if this is a heikin_ashi chart type
-  else if (processedStyles.candle && processedStyles.candle.type === 'heikin_ashi') {
+  
+  // Check if this is a heikin_ashi chart type (independent check, not else if)
+  if (processedStyles.candle && processedStyles.candle.type === 'heikin_ashi') {
     // Convert heikin_ashi to candle_solid for rendering
     processedStyles.candle.type = 'candle_solid';
   }

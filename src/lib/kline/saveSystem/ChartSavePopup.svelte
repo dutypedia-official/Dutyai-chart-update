@@ -167,7 +167,7 @@
 
 {#if show}
   <!-- Backdrop -->
-  <div class="fixed inset-0 bg-black/20 z-40" on:click={handleClose}></div>
+  <div class="fixed inset-0 bg-transparent z-40" on:click={handleClose}></div>
   
   <!-- Main Popup -->
   <div

@@ -158,7 +158,7 @@
 
   /* === MODAL OVERLAY === */
   .modal-overlay {
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: transparent;
   }
 
   /* === PREMIUM SCROLLBAR === */
