@@ -1970,15 +1970,22 @@ const fibonacciSegment = {
     const figures2 = [];
     if (coordinates.length > 1) {
       const points = overlay.points;
-      const valueDif = points[1].value - points[0].value;
-      const yDif = coordinates[1].y - coordinates[0].y;
+      const startValue = points[0]?.value;
+      const endValue = points[1]?.value;
+      if (startValue === void 0 || endValue === void 0) {
+        return figures2;
+      }
+      const valueDif = endValue - startValue;
+      const startY = coordinates[0].y;
+      const endY = coordinates[1].y;
+      const yDif = endY - startY;
       const fibonacciLevels = overlay.extendData?.fibonacciLevels || overlay.fibonacciLevels || DEFAULT_FIBONACCI_LEVELS;
       const visibleLevels = fibonacciLevels.filter((level) => level.visible);
       for (let i = 0; i < visibleLevels.length - 1; i++) {
         const currentLevel = visibleLevels[i];
         const nextLevel = visibleLevels[i + 1];
-        const y1 = coordinates[0].y + yDif * currentLevel.value;
-        const y2 = coordinates[0].y + yDif * nextLevel.value;
+        const y1 = endY - yDif * currentLevel.value;
+        const y2 = endY - yDif * nextLevel.value;
         figures2.push({
           type: "polygon",
           attrs: {
@@ -1999,8 +2006,8 @@ const fibonacciSegment = {
       const levelLines = [];
       const levelTexts = [];
       visibleLevels.forEach((level) => {
-        const y = coordinates[0].y + yDif * level.value;
-        const price = (points[0].value + valueDif * level.value).toFixed(precision);
+        const y = endY - yDif * level.value;
+        const price = (endValue - valueDif * level.value).toFixed(precision);
         levelLines.push({
           coordinates: [
             { x: coordinates[0].x, y },
@@ -3319,14 +3326,14 @@ function calculateCCI(dataList, currentIndex, period2) {
     const typicalPrice = (candle.high + candle.low + candle.close) / 3;
     typicalPrices.push(typicalPrice);
   }
-  const sma = typicalPrices.reduce((sum, price) => sum + price, 0) / period2;
-  const meanDeviation = typicalPrices.reduce((sum, price) => sum + Math.abs(price - sma), 0) / period2;
+  const sma2 = typicalPrices.reduce((sum, price) => sum + price, 0) / period2;
+  const meanDeviation = typicalPrices.reduce((sum, price) => sum + Math.abs(price - sma2), 0) / period2;
   if (meanDeviation === 0) {
     return 0;
   }
   const currentCandle = dataList[currentIndex];
   const currentTypicalPrice = (currentCandle.high + currentCandle.low + currentCandle.close) / 3;
-  const cci2 = (currentTypicalPrice - sma) / (0.015 * meanDeviation);
+  const cci2 = (currentTypicalPrice - sma2) / (0.015 * meanDeviation);
   return cci2;
 }
 const ichimoku = {
@@ -5080,8 +5087,8 @@ const bollingerBands = {
   styles: {
     lines: [
       {
-        color: "#2196F3",
-        // Blue for upper band
+        color: "#f23645",
+        // Red for upper band
         size: 1,
         style: kc.LineType.Solid,
         smooth: false,
@@ -5089,8 +5096,8 @@ const bollingerBands = {
         // Ensure solid line
       },
       {
-        color: "#FF9800",
-        // Orange for middle line
+        color: "#2962ff",
+        // Blue for middle line
         size: 1,
         style: kc.LineType.Solid,
         smooth: false,
@@ -5098,8 +5105,8 @@ const bollingerBands = {
         // Ensure solid line
       },
       {
-        color: "#2196F3",
-        // Blue for lower band
+        color: "#089981",
+        // Green for lower band
         size: 1,
         style: kc.LineType.Solid,
         smooth: false,
@@ -5124,17 +5131,17 @@ const bollingerBands = {
       for (let j = i - period2 + 1; j <= i; j++) {
         sum += dataList[j].close;
       }
-      const sma = sum / period2;
+      const sma2 = sum / period2;
       let variance = 0;
       for (let j = i - period2 + 1; j <= i; j++) {
-        variance += Math.pow(dataList[j].close - sma, 2);
+        variance += Math.pow(dataList[j].close - sma2, 2);
       }
       const standardDeviation = Math.sqrt(variance / period2);
-      const upper = sma + stdDev * standardDeviation;
-      const lower = sma - stdDev * standardDeviation;
+      const upper = sma2 + stdDev * standardDeviation;
+      const lower = sma2 - stdDev * standardDeviation;
       result.push({
         upper,
-        middle: sma,
+        middle: sma2,
         lower
       });
     }
@@ -5741,7 +5748,101 @@ const volume = {
     return true;
   }
 };
-const indicators = [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume];
+const sma = {
+  name: "SMA",
+  shortName: "SMA",
+  precision: 2,
+  calcParams: [20],
+  // Default period: 20
+  shouldOhlc: true,
+  // SMA is overlaid on the main price chart
+  shouldFormatBigNumber: false,
+  visible: true,
+  zLevel: 0,
+  extendData: void 0,
+  figures: [
+    {
+      key: "sma",
+      title: "SMA: ",
+      type: "line"
+    }
+  ],
+  styles: {
+    lines: [
+      {
+        color: "#FF6C37",
+        // Vibrant orange color
+        size: 2,
+        // 2px line thickness
+        style: kc.LineType.Solid,
+        smooth: false,
+        dashedValue: [2, 2]
+      }
+    ]
+  },
+  calc: (dataList, indicator2) => {
+    const period2 = indicator2.calcParams[0] || 20;
+    const result = [];
+    if (dataList.length < period2) {
+      return dataList.map(() => ({}));
+    }
+    for (let i = 0; i < dataList.length; i++) {
+      if (i < period2 - 1) {
+        result.push({});
+        continue;
+      }
+      let sum = 0;
+      for (let j = i - period2 + 1; j <= i; j++) {
+        sum += dataList[j].close;
+      }
+      const smaValue = sum / period2;
+      result.push({ sma: smaValue });
+    }
+    return result;
+  },
+  // Custom draw function to ensure the line renders above candles with proper styling
+  draw: ({ ctx, chart, indicator: indicator2, bounding, xAxis, yAxis }) => {
+    if (!indicator2.result || indicator2.result.length === 0) return false;
+    const visibleRange = chart.getVisibleRange();
+    const { from, to } = visibleRange;
+    const visibleData = indicator2.result.slice(from, to + 1);
+    if (visibleData.length < 2) return false;
+    ctx.save();
+    const lineStyle = indicator2.styles?.lines?.[0] || {
+      color: "#FF6C37",
+      size: 2,
+      style: kc.LineType.Solid
+    };
+    ctx.beginPath();
+    let firstPoint = true;
+    for (let i = 0; i < visibleData.length; i++) {
+      const data = visibleData[i];
+      if (data.sma !== void 0) {
+        const x = xAxis.convertToPixel(from + i);
+        const y = yAxis.convertToPixel(data.sma);
+        if (firstPoint) {
+          ctx.moveTo(x, y);
+          firstPoint = false;
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+    }
+    ctx.strokeStyle = lineStyle.color;
+    ctx.lineWidth = lineStyle.size;
+    if (lineStyle.style === kc.LineType.Dashed) {
+      ctx.setLineDash([8, 4]);
+    } else if (lineStyle.style === kc.LineType.Dotted) {
+      ctx.setLineDash([2, 2]);
+    } else {
+      ctx.setLineDash([]);
+    }
+    ctx.stroke();
+    ctx.restore();
+    return true;
+  }
+};
+const indicators = [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma];
 const transformApiDataToKLineData = (apiData) => {
   console.log("transformApiDataToKLineData called with:", apiData);
   console.log("First few items:", apiData.slice(0, 3));
@@ -23760,9 +23861,14 @@ function DrawBar($$payload, $$props) {
   pop();
 }
 function RightSidebar($$payload, $$props) {
+  push();
+  var $$store_subs;
   let className = fallback($$props["className"], "");
-  $$payload.out += `<div${attr("class", `right-sidebar hidden md:flex ${stringify(className)} svelte-1vsy05w`)}><div class="top-section svelte-1vsy05w"><button class="sidebar-icon svelte-1vsy05w" title="Watch List"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 6H21M8 12H21M8 18H21M3 6H3.01M3 12H3.01M3 18H3.01" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button> <button class="sidebar-icon svelte-1vsy05w" title="Alerts"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 8A6 6 0 0 0 6 8C6 15 3 17 3 17H21S18 15 18 8Z" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13.73 21A2 2 0 0 1 10.27 21" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button> <button class="sidebar-icon ask-ai-btn svelte-1vsy05w" title="Ask AI"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12C13.1046 12 14 11.1046 14 10C14 8.89543 13.1046 8 12 8C10.8954 8 10 8.89543 10 10C10 11.1046 10.8954 12 12 12Z" fill="currentColor"></path></svg></button></div> <div class="bottom-section svelte-1vsy05w"><button class="sidebar-icon svelte-1vsy05w" title="Calendar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="0.5"></rect><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="0.5" stroke-linecap="round"></line><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="0.5" stroke-linecap="round"></line><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="0.5"></line></svg></button> <button class="sidebar-icon svelte-1vsy05w" title="Portfolio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" stroke="currentColor" stroke-width="0.5"></rect><path d="M16 21V5A2 2 0 0 0 14 3H10A2 2 0 0 0 8 5V21" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div></div>`;
+  const save = getContext("save");
+  $$payload.out += `<div${attr("class", `right-sidebar hidden md:flex ${stringify(className)} svelte-dhtvz4`)}${attr("data-theme", store_get($$store_subs ??= {}, "$save", save).theme)}><div class="top-section svelte-dhtvz4"><button class="sidebar-icon svelte-dhtvz4" title="Watch List"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 6H21M8 12H21M8 18H21M3 6H3.01M3 12H3.01M3 18H3.01" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button> <button class="sidebar-icon svelte-dhtvz4" title="Alerts"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 8A6 6 0 0 0 6 8C6 15 3 17 3 17H21S18 15 18 8Z" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M13.73 21A2 2 0 0 1 10.27 21" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button> <button class="sidebar-icon ask-ai-btn svelte-dhtvz4" title="Ask AI"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L13.09 8.26L20 9L13.09 9.74L12 16L10.91 9.74L4 9L10.91 8.26L12 2Z" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12 12C13.1046 12 14 11.1046 14 10C14 8.89543 13.1046 8 12 8C10.8954 8 10 8.89543 10 10C10 11.1046 10.8954 12 12 12Z" fill="currentColor"></path></svg></button></div> <div class="bottom-section svelte-dhtvz4"><button class="sidebar-icon svelte-dhtvz4" title="Calendar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" stroke-width="0.5"></rect><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="0.5" stroke-linecap="round"></line><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="0.5" stroke-linecap="round"></line><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="0.5"></line></svg></button> <button class="sidebar-icon svelte-dhtvz4" title="Portfolio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" stroke="currentColor" stroke-width="0.5"></rect><path d="M16 21V5A2 2 0 0 0 14 3H10A2 2 0 0 0 8 5V21" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div></div>`;
+  if ($$store_subs) unsubscribe_stores($$store_subs);
   bind_props($$props, { className });
+  pop();
 }
 function SidebarResizeHandle($$payload, $$props) {
   push();
@@ -24769,9 +24875,7 @@ const IndFieldsMap = {
     { title: param + "2", precision: 0, min: 1, default: 9 }
   ],
   EMA: [
-    { title: "EMA1", precision: 0, min: 1, styleKey: "lines[0].color", default: 5 },
-    { title: "EMA2", precision: 0, min: 1, styleKey: "lines[1].color", default: 10 },
-    { title: "EMA3", precision: 0, min: 1, styleKey: "lines[2].color", default: 30 }
+    { title: "EMA", precision: 0, min: 1, styleKey: "lines[0].color", default: 20 }
   ],
   ICHIMOKU: [
     { title: "Tenkan Period", precision: 0, min: 1, default: 9 },
@@ -25015,14 +25119,15 @@ function convertToHeikinAshi(data) {
 function Modal($$payload, $$props) {
   push();
   let {
-    width = 400,
-    maxWidth = "90vw",
-    maxHeight = "80vh",
+    width = 600,
+    maxWidth = "min(600px, 95vw)",
+    maxHeight = "90vh",
     title = "",
     buttons = ["confirm"],
     show = false,
     center = false,
     class: className = "",
+    theme = "dark",
     children,
     click
   } = $$props;
@@ -25038,7 +25143,7 @@ function Modal($$payload, $$props) {
   }
   if (show) {
     $$payload.out += "<!--[-->";
-    $$payload.out += `<div class="fixed inset-0 z-[70] flex items-center justify-center px-4 animate-in fade-in duration-200 svelte-wgizil"><div${attr("class", `relative bg-base-100 dark:bg-base-100/95 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden flex flex-col backdrop-blur-xl modal-container ${stringify(className)} svelte-wgizil`)}${attr("style", `width: ${stringify(typeof width === "string" ? width : width + "px")}; max-width: ${stringify(maxWidth)}; max-height: ${stringify(maxHeight)};`)}><div class="relative px-6 py-5 border-b border-base-300/40 dark:border-base-300/60 bg-gradient-to-r from-base-200/25 dark:from-base-200/15 to-base-300/15 dark:to-base-300/25 modal-header svelte-wgizil"><div class="flex justify-between items-center"><h3 class="font-semibold text-xl tracking-tight text-base-content">${escape_html(title)}</h3> <button class="btn btn-sm btn-ghost btn-circle hover:bg-base-300/40 dark:hover:bg-base-300/60 hover:rotate-90 transition-all duration-300 svelte-wgizil"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div> <div${attr("class", `flex-1 overflow-y-auto custom-scrollbar ${stringify(center ? "flex justify-center items-center" : "")} px-6 py-4 svelte-wgizil`)}>`;
+    $$payload.out += `<div class="fixed inset-0 z-[70] flex items-center justify-center px-3 sm:px-4 md:px-6 animate-in fade-in duration-200 modal-overlay svelte-4a0i42"><div${attr("class", `relative rounded-3xl shadow-luxury animate-in zoom-in-95 duration-300 overflow-hidden flex flex-col modal-container ${stringify(className)} svelte-4a0i42`)}${attr("data-theme", theme)}${attr("style", `width: ${stringify(typeof width === "string" ? width : width + "px")}; max-width: ${stringify(maxWidth)}; max-height: ${stringify(maxHeight)};`)}><div class="relative px-4 sm:px-6 py-4 sm:py-5 border-b modal-header svelte-4a0i42"><div class="flex justify-between items-center gap-4"><div class="flex items-center gap-3 min-w-0 flex-1"><div class="icon-badge svelte-4a0i42"><svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg></div> <h3 class="font-bold text-lg sm:text-xl md:text-2xl tracking-tight text-base-content truncate">${escape_html(title)}</h3></div> <button class="close-btn flex-shrink-0 svelte-4a0i42" aria-label="Close"><svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg></button></div></div> <div${attr("class", `flex-1 overflow-y-auto premium-scrollbar ${stringify(center ? "flex justify-center items-center" : "")} px-4 sm:px-6 py-4 sm:py-5 svelte-4a0i42`)}>`;
     if (children) {
       $$payload.out += "<!--[-->";
       children($$payload);
@@ -25050,10 +25155,10 @@ function Modal($$payload, $$props) {
     if (buttons.length > 0) {
       $$payload.out += "<!--[-->";
       const each_array = ensure_array_like(buttons);
-      $$payload.out += `<div class="modal-action px-6 py-4 border-t border-base-300/40 dark:border-base-300/60 bg-base-200/15 dark:bg-base-200/25 modal-footer svelte-wgizil"><div class="flex gap-3 justify-end w-full"><!--[-->`;
+      $$payload.out += `<div class="modal-action px-4 sm:px-6 py-4 sm:py-5 border-t modal-footer svelte-4a0i42"><div class="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end w-full"><!--[-->`;
       for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
         let btn = each_array[$$index];
-        $$payload.out += `<button${attr("class", `btn ${stringify(getButtonClass(btn))} min-w-[100px] rounded-lg font-medium transition-all duration-200 hover:scale-105 svelte-wgizil`)}>${escape_html(m[btn]())}</button>`;
+        $$payload.out += `<button${attr("class", `btn-premium ${stringify(getButtonClass(btn))} w-full sm:w-auto sm:min-w-[120px] svelte-4a0i42`)}>${escape_html(m[btn]())}</button>`;
       }
       $$payload.out += `<!--]--></div></div>`;
     } else {
@@ -25088,18 +25193,69 @@ function ModalSymbol($$payload, $$props) {
       }
     };
   }
+  function intelligentSearch(symbols, searchTerm) {
+    if (!searchTerm || !searchTerm.trim()) {
+      return symbols;
+    }
+    const term = searchTerm.trim().toLowerCase();
+    const terms = term.split(/\s+/);
+    const scoredSymbols = symbols.map((symbol) => {
+      const ticker = symbol.ticker.toLowerCase();
+      const name = (symbol.shortName || "").toLowerCase();
+      const exchange = (symbol.exchange || "").toLowerCase();
+      let score = 0;
+      terms.forEach((searchWord) => {
+        if (ticker === searchWord) {
+          score += 1e3;
+        } else if (ticker.startsWith(searchWord)) {
+          score += 500;
+        } else if (ticker.includes(searchWord)) {
+          score += 300;
+        } else if (name.startsWith(searchWord)) {
+          score += 200;
+        } else if (name.includes(searchWord)) {
+          score += 100;
+        } else if (exchange.includes(searchWord)) {
+          score += 50;
+        } else if (fuzzyMatch(ticker, searchWord)) {
+          score += 30;
+        } else if (fuzzyMatch(name, searchWord)) {
+          score += 20;
+        }
+      });
+      if (score > 0 && ticker.length <= 5) {
+        score += 10;
+      }
+      return { symbol, score };
+    });
+    return scoredSymbols.filter((item) => item.score > 0).sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return a.symbol.ticker.localeCompare(b.symbol.ticker);
+    }).map((item) => item.symbol);
+  }
+  function fuzzyMatch(text, pattern) {
+    let patternIdx = 0;
+    for (let i = 0; i < text.length && patternIdx < pattern.length; i++) {
+      if (text[i] === pattern[patternIdx]) {
+        patternIdx++;
+      }
+    }
+    return patternIdx === pattern.length;
+  }
   keyword.subscribe((value) => {
     console.log("🔍 Modal keyword changed:", value);
     console.log("🔍 Available allSymbols:", store_get($$store_subs ??= {}, "$save", save).allSymbols);
     console.log("🔍 allSymbols length:", store_get($$store_subs ??= {}, "$save", save).allSymbols.length);
-    if (!value) {
+    if (!value || !value.trim()) {
       showList = store_get($$store_subs ??= {}, "$save", save).allSymbols;
       console.log("🔍 Showing all symbols:", showList);
+      selectedIndex = -1;
       return;
     }
-    const searchTerm = store_get($$store_subs ??= {}, "$keyword", keyword).toLowerCase();
-    showList = store_get($$store_subs ??= {}, "$save", save).allSymbols.filter((symbol) => symbol.ticker.toLowerCase().includes(searchTerm) || symbol.shortName?.toLowerCase().includes(searchTerm) || symbol.exchange?.toLowerCase().includes(searchTerm));
-    console.log("🔍 Filtered symbols:", showList);
+    showList = intelligentSearch(store_get($$store_subs ??= {}, "$save", save).allSymbols, value);
+    console.log("🔍 Filtered symbols with intelligent search:", showList);
     selectedIndex = -1;
   });
   function selectSymbol(symbol) {
@@ -25124,9 +25280,10 @@ function ModalSymbol($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       buttons: [],
       children: ($$payload3) => {
-        $$payload3.out += `<div class="flex flex-col gap-6"><div class="relative"><div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/50 pointer-events-none"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div> <input type="text" class="w-full pl-12 pr-4 py-3 text-sm bg-base-100 border border-base-300/50 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 placeholder:text-base-content/50" placeholder="Search symbols..."${attr("value", store_get($$store_subs ??= {}, "$keyword", keyword))} autofocus></div> <div class="relative rounded-lg overflow-hidden bg-base-100 border border-base-300/30"><div class="max-h-96 overflow-y-auto luxury-scrollbar svelte-1cn1jdu">`;
+        $$payload3.out += `<div class="flex flex-col gap-6"><div class="relative"><div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-base-content/50 pointer-events-none"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div> <input type="text" class="w-full pl-12 pr-4 py-3 text-sm bg-base-100 border border-base-300/50 rounded-lg focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 placeholder:text-base-content/50" placeholder="Search symbols..."${attr("value", store_get($$store_subs ??= {}, "$keyword", keyword))} autofocus></div> <div class="relative rounded-lg overflow-hidden bg-base-100 border border-base-300/30"><div class="h-96 overflow-y-auto luxury-scrollbar svelte-1r1pdks">`;
         if (store_get($$store_subs ??= {}, "$ctx", ctx).loadingPairs) {
           $$payload3.out += "<!--[-->";
           $$payload3.out += `<div class="flex justify-center py-16"><div class="relative"><div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div> <div class="absolute inset-0 w-12 h-12 border-4 border-transparent border-t-primary/60 rounded-full animate-spin" style="animation-delay: -0.15s;"></div></div></div>`;
@@ -25268,6 +25425,7 @@ function ModalPeriod($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       buttons: [],
       children: ($$payload3) => {
         const each_array = ensure_array_like(periods);
@@ -25689,6 +25847,7 @@ function ModalIndSearch($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       buttons: [],
       children: ($$payload3) => {
         const each_array = ensure_array_like(showInds);
@@ -26146,9 +26305,9 @@ function ModalIndCfg($$payload, $$props) {
   let styles = [];
   let bollingerFillColor = "#2196F3";
   let bollingerFillOpacity = 5;
-  let bollingerUpperColor = "#2196F3";
-  let bollingerMiddleColor = "#FF9800";
-  let bollingerLowerColor = "#2196F3";
+  let bollingerUpperColor = "#f23645";
+  let bollingerMiddleColor = "#2962ff";
+  let bollingerLowerColor = "#089981";
   let bollingerThickness = 1;
   let bollingerLineStyle = "solid";
   let bollingerPeriod = 20;
@@ -26269,19 +26428,6 @@ function ModalIndCfg($$payload, $$props) {
   let showRsiColorPalette = false;
   let rsiColorPalettePosition = { x: 0, y: 0 };
   let rsiColorPaletteIndex = 0;
-  function delInd(paneId, name) {
-    if (!store_get($$store_subs ??= {}, "$chart", chart)) return;
-    try {
-      store_get($$store_subs ??= {}, "$chart", chart).removeIndicator({ paneId, name });
-    } catch (error) {
-      console.log("Error removing indicator:", error);
-    }
-    save.update((s) => {
-      const key = `${paneId}_${name}`;
-      delete s.saveInds[key];
-      return s;
-    });
-  }
   const isBollingerBands = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "BOLL";
   const isMacd = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "MACD";
   const isBias = store_get($$store_subs ??= {}, "$ctx", ctx).editIndName === "BIAS";
@@ -26318,8 +26464,12 @@ function ModalIndCfg($$payload, $$props) {
   );
   let vrGroups = [];
   let aoGroups = [];
-  let bbiGroups = [];
+  let bbiGroups = (
+    // Track which pane this BBI indicator belongs to
+    []
+  );
   let biasGroups = [];
+  let smaGroups = [];
   let sarGroups = [];
   let dmiGroups = [];
   let trixGroups = [];
@@ -26728,6 +26878,68 @@ function ModalIndCfg($$payload, $$props) {
       console.log("✅ Created default VR group with pane ID:", store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId);
     }
   }
+  function handleSmaConfirm() {
+    if (!isSma) return;
+    console.log("🔧 SMA Confirm: Saving", smaGroups.length, "SMA groups");
+    try {
+      const indicators2 = store_get($$store_subs ??= {}, "$chart", chart)?.getIndicators();
+      const smaIndicators = indicators2?.filter((ind) => ind.name === "SMA") || [];
+      for (const indicator2 of smaIndicators) {
+        store_get($$store_subs ??= {}, "$chart", chart)?.removeIndicator({ paneId: indicator2.paneId, name: "SMA" });
+      }
+      smaGroups.forEach((group) => {
+        let lineStyle = kc.LineType.Solid;
+        let dashedValue = [2, 2];
+        if (group.lineStyle === "dashed") {
+          lineStyle = kc.LineType.Dashed;
+          dashedValue = [8, 4];
+        } else if (group.lineStyle === "dotted") {
+          lineStyle = kc.LineType.Dashed;
+          dashedValue = [2, 2];
+        }
+        store_get($$store_subs ??= {}, "$chart", chart)?.createIndicator(
+          {
+            name: "SMA",
+            calcParams: [group.period],
+            styles: {
+              lines: [
+                {
+                  color: group.color,
+                  size: group.thickness,
+                  style: lineStyle,
+                  dashedValue
+                }
+              ]
+            }
+          },
+          true,
+          {
+            id: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId
+          }
+        );
+        console.log("✅ Created SMA with period:", group.period);
+      });
+      const saveKey = `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_SMA`;
+      save.update((s) => {
+        s.saveInds[saveKey] = {
+          name: "SMA",
+          pane_id: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
+          smaGroups: smaGroups.map((g) => ({ ...g }))
+        };
+        console.log("💾 Saved", smaGroups.length, "SMA groups to:", saveKey);
+        return s;
+      });
+      console.log("✅ SMA confirm completed successfully");
+      ctx.update((c) => {
+        c.editIndName = "";
+        c.editPaneId = "";
+        c.modalIndCfg = false;
+        return c;
+      });
+    } catch (error) {
+      console.error("❌ Error in SMA confirm:", error);
+    }
+  }
   function initializeBbiGroups() {
     if (!isBbi) return;
     const allBbiKeys = Object.keys(store_get($$store_subs ??= {}, "$save", save).saveInds).filter((key) => store_get($$store_subs ??= {}, "$save", save).saveInds[key].name === "BBI").sort((a, b) => {
@@ -26741,12 +26953,19 @@ function ModalIndCfg($$payload, $$props) {
       allBbiKeys.forEach((key, index) => {
         const savedInd = store_get($$store_subs ??= {}, "$save", save).saveInds[key];
         if (savedInd) {
+          const paneId = savedInd.pane_id || key.replace("_BBI", "");
           if (savedInd.bbiGroup) {
-            bbiGroups.push({ ...savedInd.bbiGroup });
+            const group = { ...savedInd.bbiGroup };
+            if (!group.paneId) {
+              group.paneId = paneId;
+            }
+            bbiGroups.push(group);
           } else if (savedInd.params && savedInd.params.length === 4) {
             bbiGroups.push({
               id: generateUUID(),
               name: `BBI${index + 1}`,
+              paneId,
+              // Set paneId properly
               period1: savedInd.params[0] || 3,
               period2: savedInd.params[1] || 6,
               period3: savedInd.params[2] || 12,
@@ -26764,6 +26983,8 @@ function ModalIndCfg($$payload, $$props) {
         {
           id: generateUUID(),
           name: "BBI",
+          paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId,
+          // Set paneId for default BBI
           period1: 3,
           period2: 6,
           period3: 12,
@@ -26952,6 +27173,28 @@ function ModalIndCfg($$payload, $$props) {
           dotSize: 3
         }
       ];
+    }
+    if (store_get($$store_subs ??= {}, "$chart", chart) && sarGroups.length > 0) {
+      sarGroups.forEach((group, index) => {
+        const calcParams = [group.start, group.increment, group.maxValue];
+        const indicatorStyles = {
+          lines: [
+            {
+              color: group.color,
+              size: group.dotSize,
+              style: kc.LineType.Solid
+            }
+          ]
+        };
+        if (index === 0) {
+          store_get($$store_subs ??= {}, "$chart", chart).overrideIndicator({
+            name: "SAR",
+            calcParams,
+            styles: indicatorStyles,
+            paneId: "candle_pane"
+          });
+        }
+      });
     }
   }
   function initializeDmiGroups() {
@@ -27506,17 +27749,17 @@ function ModalIndCfg($$payload, $$props) {
     if (savedInd && savedInd.bollingerStyles) {
       bollingerFillColor = savedInd.bollingerStyles.fillColor || "#2196F3";
       bollingerFillOpacity = savedInd.bollingerStyles.fillOpacity ?? 5;
-      bollingerUpperColor = savedInd.bollingerStyles.upperColor || "#2196F3";
-      bollingerMiddleColor = savedInd.bollingerStyles.middleColor || "#FF9800";
-      bollingerLowerColor = savedInd.bollingerStyles.lowerColor || "#2196F3";
+      bollingerUpperColor = savedInd.bollingerStyles.upperColor || "#f23645";
+      bollingerMiddleColor = savedInd.bollingerStyles.middleColor || "#2962ff";
+      bollingerLowerColor = savedInd.bollingerStyles.lowerColor || "#089981";
       bollingerThickness = savedInd.bollingerStyles.thickness || 1;
       bollingerLineStyle = savedInd.bollingerStyles.lineStyle || "solid";
     } else {
       bollingerFillColor = "#2196F3";
       bollingerFillOpacity = 5;
-      bollingerUpperColor = "#2196F3";
-      bollingerMiddleColor = "#FF9800";
-      bollingerLowerColor = "#2196F3";
+      bollingerUpperColor = "#f23645";
+      bollingerMiddleColor = "#2962ff";
+      bollingerLowerColor = "#089981";
       bollingerThickness = 1;
       bollingerLineStyle = "solid";
     }
@@ -27526,6 +27769,41 @@ function ModalIndCfg($$payload, $$props) {
     } else {
       bollingerPeriod = 20;
       bollingerStdDev = 2;
+    }
+    if (store_get($$store_subs ??= {}, "$chart", chart)) {
+      const indicatorStyles = {
+        lines: [
+          {
+            color: bollingerUpperColor,
+            size: bollingerThickness,
+            style: bollingerLineStyle === "solid" ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: bollingerLineStyle === "dashed" ? [4, 4] : [0, 0]
+          },
+          {
+            color: bollingerMiddleColor,
+            size: bollingerThickness,
+            style: bollingerLineStyle === "solid" ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: bollingerLineStyle === "dashed" ? [4, 4] : [0, 0]
+          },
+          {
+            color: bollingerLowerColor,
+            size: bollingerThickness,
+            style: bollingerLineStyle === "solid" ? kc.LineType.Solid : kc.LineType.Dashed,
+            dashedValue: bollingerLineStyle === "dashed" ? [4, 4] : [0, 0]
+          }
+        ],
+        fill: {
+          color: bollingerFillColor,
+          opacity: bollingerFillOpacity / 100
+          // Convert percentage to decimal (0-1)
+        }
+      };
+      store_get($$store_subs ??= {}, "$chart", chart).overrideIndicator({
+        name: "BOLL",
+        calcParams: [bollingerPeriod, bollingerStdDev],
+        styles: indicatorStyles,
+        paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId
+      });
     }
   }
   function initializeCr() {
@@ -27658,6 +27936,9 @@ function ModalIndCfg($$payload, $$props) {
         if (savedInd && savedInd.params) {
           params.splice(0, params.length, ...savedInd.params);
           styles.splice(0, styles.length, ...savedInd.styles || []);
+          if ((isMa || isEma) && fields.length > params.length) {
+            fields.splice(params.length, fields.length - params.length);
+          }
         } else {
           const defaultParams = defaultFields.filter((f) => f.type !== "color").map((f) => f.default);
           params.splice(0, params.length, ...defaultParams);
@@ -28141,28 +28422,7 @@ function ModalIndCfg($$payload, $$props) {
   }
   function handleBbiConfirm() {
     if (!isBbi) return;
-    const existingBbiKeys = Object.keys(store_get($$store_subs ??= {}, "$save", save).saveInds).filter((key) => store_get($$store_subs ??= {}, "$save", save).saveInds[key].name === "BBI").sort((a, b) => {
-      if (a === `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_BBI`) return -1;
-      if (b === `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_BBI`) return 1;
-      return a.localeCompare(b);
-    });
-    console.log("🔧 Applying BBI changes. Existing keys:", existingBbiKeys);
-    console.log("🔧 Current BBI groups:", bbiGroups.length);
-    const currentGroupCount = bbiGroups.length;
-    if (existingBbiKeys.length > currentGroupCount) {
-      for (let i = currentGroupCount; i < existingBbiKeys.length; i++) {
-        const key = existingBbiKeys[i];
-        const savedData = store_get($$store_subs ??= {}, "$save", save).saveInds[key];
-        if (savedData && savedData.pane_id) {
-          try {
-            console.log("🗑️ Removing excess BBI indicator from pane:", savedData.pane_id);
-            store_get($$store_subs ??= {}, "$chart", chart)?.removeIndicator({ paneId: savedData.pane_id, name: "BBI" });
-          } catch (error) {
-            console.log("❌ Error removing excess BBI indicator:", error);
-          }
-        }
-      }
-    }
+    console.log("🔧 Applying BBI changes. Current BBI groups:", bbiGroups.length);
     bbiGroups.forEach((group, index) => {
       const calcParams = [
         group.period1,
@@ -28170,55 +28430,47 @@ function ModalIndCfg($$payload, $$props) {
         group.period3,
         group.period4
       ];
+      const convertLineStyle = (style) => {
+        switch (style) {
+          case "dashed":
+            return {
+              style: kc.LineType.Dashed,
+              dashedValue: [4, 4]
+            };
+          case "dotted":
+            return {
+              style: kc.LineType.Dashed,
+              dashedValue: [2, 2]
+            };
+          default:
+            return {
+              style: kc.LineType.Solid,
+              dashedValue: [2, 2]
+            };
+        }
+      };
+      const bbiStyle = convertLineStyle(group.lineStyle);
       const indicatorStyles = {
         lines: [
           {
             color: group.color,
             size: group.thickness,
-            style: group.lineStyle === "solid" ? kc.LineType.Solid : kc.LineType.Dashed,
-            dashedValue: group.lineStyle === "dashed" ? [4, 4] : group.lineStyle === "dotted" ? [2, 6] : [2, 2],
+            style: bbiStyle.style,
+            dashedValue: bbiStyle.dashedValue,
             smooth: false
           }
         ]
       };
-      if (index === 0) {
-        console.log("🔄 Updating first BBI in pane:", store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId);
-        store_get($$store_subs ??= {}, "$chart", chart)?.overrideIndicator({
-          name: "BBI",
-          calcParams,
-          styles: indicatorStyles,
-          paneId: store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId
-        });
-      } else {
-        const expectedSaveKey = `pane_BBI_${index + 1}_BBI`;
-        const existingGroup = existingBbiKeys.find((key) => key === expectedSaveKey);
-        if (existingGroup) {
-          const existingData = store_get($$store_subs ??= {}, "$save", save).saveInds[existingGroup];
-          if (existingData && existingData.pane_id) {
-            console.log("🔄 Updating existing BBI in pane:", existingData.pane_id);
-            store_get($$store_subs ??= {}, "$chart", chart)?.overrideIndicator({
-              name: "BBI",
-              calcParams,
-              styles: indicatorStyles,
-              paneId: existingData.pane_id
-            });
-          }
-        } else {
-          const newPaneId = `pane_BBI_${index + 1}`;
-          console.log("🆕 Creating new BBI in pane:", newPaneId);
-          const newIndicatorId = store_get($$store_subs ??= {}, "$chart", chart)?.createIndicator(
-            {
-              name: "BBI",
-              calcParams,
-              styles: indicatorStyles
-            },
-            true,
-            { id: newPaneId }
-          );
-          if (newIndicatorId) {
-            console.log("✅ Created new BBI indicator with ID:", newIndicatorId, "in pane:", newPaneId);
-          }
-        }
+      const targetPaneId = group.paneId || (index === 0 ? store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId : `pane_BBI_${index + 1}`);
+      console.log("🔄 Updating BBI group", index, "in pane:", targetPaneId);
+      store_get($$store_subs ??= {}, "$chart", chart)?.overrideIndicator({
+        name: "BBI",
+        calcParams,
+        styles: indicatorStyles,
+        paneId: targetPaneId
+      });
+      if (!group.paneId) {
+        group.paneId = targetPaneId;
       }
     });
     save.update((s) => {
@@ -28228,12 +28480,11 @@ function ModalIndCfg($$payload, $$props) {
         }
       });
       bbiGroups.forEach((group, index) => {
-        const saveKey = index === 0 ? `${store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId}_BBI` : `pane_BBI_${index + 1}_BBI`;
-        const paneId = index === 0 ? store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId : `pane_BBI_${index + 1}`;
+        const saveKey = `${group.paneId}_BBI`;
         const saveData = {
           name: "BBI",
           bbiGroup: group,
-          pane_id: paneId,
+          pane_id: group.paneId,
           groupIndex: index,
           bbiGroups: index === 0 ? [...bbiGroups] : void 0,
           params: [
@@ -28244,7 +28495,7 @@ function ModalIndCfg($$payload, $$props) {
           ]
         };
         s.saveInds[saveKey] = saveData;
-        console.log("💾 Saved BBI group", index, "with key:", saveKey, "and pane ID:", paneId);
+        console.log("💾 Saved BBI group", index, "with key:", saveKey, "and pane ID:", group.paneId);
       });
       return s;
     });
@@ -29592,20 +29843,6 @@ function ModalIndCfg($$payload, $$props) {
       kdjGroups
     });
     if (from === "close" || from === "cancel") {
-      if (from === "close" && isBbi && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
-        const bbiEntries = Object.entries(store_get($$store_subs ??= {}, "$save", save).saveInds).filter(([key, ind]) => ind.name === "BBI");
-        bbiEntries.forEach(([key, ind]) => {
-          delInd(ind.pane_id, "BBI");
-        });
-        save.update((s) => {
-          Object.keys(s.saveInds).forEach((key) => {
-            if (s.saveInds[key].name === "BBI") {
-              delete s.saveInds[key];
-            }
-          });
-          return s;
-        });
-      }
       ctx.update((c) => {
         c.editIndName = "";
         c.editPaneId = "";
@@ -29673,6 +29910,10 @@ function ModalIndCfg($$payload, $$props) {
     }
     if (from === "confirm" && isBias && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
       handleBiasConfirm();
+      return;
+    }
+    if (from === "confirm" && isSma && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
+      handleSmaConfirm();
       return;
     }
     if (from === "confirm" && isCci && store_get($$store_subs ??= {}, "$ctx", ctx).editIndName && store_get($$store_subs ??= {}, "$ctx", ctx).editPaneId) {
@@ -29856,7 +30097,8 @@ function ModalIndCfg($$payload, $$props) {
   function $$render_inner($$payload2) {
     Modal($$payload2, {
       title: store_get($$store_subs ??= {}, "$ctx", ctx).editIndName,
-      width: "min(90vw, 800px)",
+      width: 600,
+      maxWidth: "min(600px, 95vw)",
       maxHeight: "90vh",
       get show() {
         return show;
@@ -29865,219 +30107,220 @@ function ModalIndCfg($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       click: handleConfirm,
       children: ($$payload3) => {
-        $$payload3.out += `<div class="responsive-modal-content svelte-omz3gf">`;
+        $$payload3.out += `<div class="responsive-modal-content svelte-79nxou">`;
         if (isMacd) {
           $$payload3.out += "<!--[-->";
           const each_array = ensure_array_like(macdGroups);
-          $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+          $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
           for (let groupIndex = 0, $$length = each_array.length; groupIndex < $$length; groupIndex++) {
             let group = each_array[groupIndex];
-            $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">MACD ${escape_html(groupIndex + 1)}</span> `;
+            $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">MACD ${escape_html(groupIndex + 1)}</span> `;
             if (macdGroups.length > 1) {
               $$payload3.out += "<!--[-->";
-              $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove MACD"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+              $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove MACD"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
             } else {
               $$payload3.out += "<!--[!-->";
             }
-            $$payload3.out += `<!--]--></div> <div class="grid grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Fast</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.fastPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Slow</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.slowPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Signal</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.signalPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">MACD:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.macd.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">Signal:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.signal.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">Hist:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.histogram.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+            $$payload3.out += `<!--]--></div> <div class="grid grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Fast</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.fastPeriod)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Slow</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.slowPeriod)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Signal</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.signalPeriod)} min="1"></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">MACD:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.macd.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">Signal:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.signal.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">Hist:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.histogram.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
           }
-          $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More MACD"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add MACD</span></button></div></div>`;
+          $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More MACD"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add MACD</span></button></div></div>`;
         } else {
           $$payload3.out += "<!--[!-->";
           if (isRsi) {
             $$payload3.out += "<!--[-->";
             const each_array_1 = ensure_array_like(rsiGroups);
-            $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+            $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
             for (let groupIndex = 0, $$length = each_array_1.length; groupIndex < $$length; groupIndex++) {
               let group = each_array_1[groupIndex];
-              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">RSI ${escape_html(groupIndex + 1)}</span> `;
+              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">RSI ${escape_html(groupIndex + 1)}</span> `;
               if (rsiGroups.length > 1) {
                 $$payload3.out += "<!--[-->";
-                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
               } else {
                 $$payload3.out += "<!--[!-->";
               }
-              $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="space-y-1"><label class="text-xs text-base-content/70">Period</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.period)} min="1" max="100"></div> <div class="space-y-1"><label class="text-xs text-base-content/70">Overbought</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.overboughtLevel)} min="50" max="100"></div> <div class="space-y-1"><label class="text-xs text-base-content/70">Middle</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.middleLevel)} min="0" max="100"></div> <div class="space-y-1"><label class="text-xs text-base-content/70">Oversold</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs"${attr("value", group.oversoldLevel)} min="0" max="50"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center justify-between"><span class="text-xs text-base-content/70">RSI Line</span> <div class="flex items-center gap-2"><button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.rsi.color)}`)} title="Change RSI Color"></button> <select class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-12"><option${attr("value", 1)}>1</option><option${attr("value", 2)}>2</option><option${attr("value", 3)}>3</option><option${attr("value", 4)}>4</option><option${attr("value", 5)}>5</option></select> <select class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-16"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="space-y-2 border-t border-base-200 pt-2 svelte-omz3gf"><span class="text-xs text-base-content/70 font-medium svelte-omz3gf">Zone Colors</span> <div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs text-base-content/60">Overbought</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.overboughtColor || "#EF4444")}`)} title="Change Overbought Color"></button></div> <div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs text-base-content/60">Oversold</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.oversoldColor || "#10B981")}`)} title="Change Oversold Color"></button></div> <div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs text-base-content/60">Middle Line</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0"${attr("style", `background-color: ${stringify(group.styles.middleLineColor || "#6B7280")}`)} title="Change Middle Line Color"></button></div></div></div>`;
+              $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="space-y-1 svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Period</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs svelte-79nxou"${attr("value", group.period)} min="1" max="100"></div> <div class="space-y-1 svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Overbought</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs svelte-79nxou"${attr("value", group.overboughtLevel)} min="50" max="100"></div> <div class="space-y-1 svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Middle</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs svelte-79nxou"${attr("value", group.middleLevel)} min="0" max="100"></div> <div class="space-y-1 svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Oversold</label> <input type="number" class="input input-xs w-full bg-base-100 border-base-300 text-xs svelte-79nxou"${attr("value", group.oversoldLevel)} min="0" max="50"></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs text-base-content/70 svelte-79nxou">RSI Line</span> <div class="flex items-center gap-2 svelte-79nxou"><button class="w-6 h-6 rounded border border-base-300 flex-shrink-0 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.rsi.color)}`)} title="Change RSI Color"></button> <select class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-12 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1</option><option${attr("value", 2)} class="svelte-79nxou">2</option><option${attr("value", 3)} class="svelte-79nxou">3</option><option${attr("value", 4)} class="svelte-79nxou">4</option><option${attr("value", 5)} class="svelte-79nxou">5</option></select> <select class="select select-xs bg-base-100 border-base-300 text-xs min-h-0 h-6 w-16 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="space-y-2 border-t border-base-200 pt-2 svelte-79nxou"><span class="text-xs text-base-content/70 font-medium svelte-79nxou">Zone Colors</span> <div class="flex items-center justify-between svelte-79nxou"><span class="text-xs text-base-content/60 svelte-79nxou">Overbought</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.overboughtColor || "#EF4444")}`)} title="Change Overbought Color"></button></div> <div class="flex items-center justify-between svelte-79nxou"><span class="text-xs text-base-content/60 svelte-79nxou">Oversold</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.oversoldColor || "#10B981")}`)} title="Change Oversold Color"></button></div> <div class="flex items-center justify-between svelte-79nxou"><span class="text-xs text-base-content/60 svelte-79nxou">Middle Line</span> <button class="w-6 h-6 rounded border border-base-300 flex-shrink-0 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.middleLineColor || "#6B7280")}`)} title="Change Middle Line Color"></button></div></div></div>`;
             }
-            $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 sm:gap-2" title="Add More RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add RSI</span></button></div></div>`;
+            $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 sm:gap-2 svelte-79nxou" title="Add More RSI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add RSI</span></button></div></div>`;
           } else {
             $$payload3.out += "<!--[!-->";
             if (isDmi) {
               $$payload3.out += "<!--[-->";
               const each_array_2 = ensure_array_like(dmiGroups);
-              $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+              $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
               for (let groupIndex = 0, $$length = each_array_2.length; groupIndex < $$length; groupIndex++) {
                 let group = each_array_2[groupIndex];
-                $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">DMI ${escape_html(groupIndex + 1)}</span> `;
+                $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">DMI ${escape_html(groupIndex + 1)}</span> `;
                 if (dmiGroups.length > 1) {
                   $$payload3.out += "<!--[-->";
-                  $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                  $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                 } else {
                   $$payload3.out += "<!--[!-->";
                 }
-                $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">DI Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.diPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">ADX Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.adxPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">DI+:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.diPlus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">DI-:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.diMinus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">ADX:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.adx.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">DI Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.diPeriod)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">ADX Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.adxPeriod)} min="1"></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">DI+:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.diPlus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">DI-:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.diMinus.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">ADX:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.adx.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
               }
-              $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add DMI</span></button></div></div>`;
+              $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More DMI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add DMI</span></button></div></div>`;
             } else {
               $$payload3.out += "<!--[!-->";
               if (isWr) {
                 $$payload3.out += "<!--[-->";
                 const each_array_3 = ensure_array_like(wrGroups);
-                $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                 for (let groupIndex = 0, $$length = each_array_3.length; groupIndex < $$length; groupIndex++) {
                   let group = each_array_3[groupIndex];
-                  $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">Williams %R ${escape_html(groupIndex + 1)}</span> `;
+                  $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">Williams %R ${escape_html(groupIndex + 1)}</span> `;
                   if (wrGroups.length > 1) {
                     $$payload3.out += "<!--[-->";
-                    $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove Williams %R"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                    $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove Williams %R"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                   } else {
                     $$payload3.out += "<!--[!-->";
                   }
-                  $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Overbought</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.overboughtLevel)} min="-50" max="0"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Middle</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.middleLevel)} min="-70" max="-30"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Oversold</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.oversoldLevel)} min="-100" max="-50"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-2 text-xs text-base-content/70"><span class="w-12 font-medium">WR Line:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.wr.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div> <div class="space-y-2 svelte-omz3gf"><div class="text-xs font-medium text-base-content/80 border-b border-base-200 pb-1 svelte-omz3gf">Level Lines</div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-20 font-medium">Overbought:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.overbought.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-20 font-medium">Middle:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.middleLine.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-20 font-medium">Oversold:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.oversold.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                  $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Overbought</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.overboughtLevel)} min="-50" max="0"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Middle Level</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.middleLevel)} min="-70" max="-30"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Oversold</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.oversoldLevel)} min="-100" max="-50"></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">WR Line:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.wr.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div> <div class="space-y-2 svelte-79nxou"><div class="text-xs font-medium text-base-content/80 border-b border-base-200 pb-1 svelte-79nxou">Level Lines</div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-20 font-medium svelte-79nxou">Overbought:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.overbought.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-20 font-medium svelte-79nxou">Middle:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.middleLine.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-20 font-medium svelte-79nxou">Oversold:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.oversold.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                 }
-                $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More Williams %R"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add Williams %R</span></button></div></div>`;
+                $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More Williams %R"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add Williams %R</span></button></div></div>`;
               } else {
                 $$payload3.out += "<!--[!-->";
                 if (isVr) {
                   $$payload3.out += "<!--[-->";
                   const each_array_4 = ensure_array_like(vrGroups);
-                  $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                  $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                   for (let groupIndex = 0, $$length = each_array_4.length; groupIndex < $$length; groupIndex++) {
                     let group = each_array_4[groupIndex];
-                    $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">VR ${escape_html(groupIndex + 1)}</span> `;
+                    $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">VR ${escape_html(groupIndex + 1)}</span> `;
                     if (vrGroups.length > 1) {
                       $$payload3.out += "<!--[-->";
-                      $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove VR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                      $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove VR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                     } else {
                       $$payload3.out += "<!--[!-->";
                     }
-                    $$payload3.out += `<!--]--></div> <div class="grid grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Short Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.shortPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Long Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.longPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="text-xs font-medium text-base-content/70 svelte-omz3gf">VR Main Line</div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.vr.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-omz3gf"><div class="text-xs font-medium text-base-content/70 svelte-omz3gf">VR Short Line</div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.vrShort.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-omz3gf"><div class="text-xs font-medium text-base-content/70 svelte-omz3gf">VR Long Line</div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.vrLong.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
+                    $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Short Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.shortPeriod)} min="1"></div> <div class="flex flex-col gap-1 sm:col-span-1 col-span-2 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Long Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.longPeriod)} min="1"></div></div> <div class="space-y-2 svelte-79nxou"><div class="text-xs font-medium text-base-content/70 svelte-79nxou">VR Main Line</div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.vr.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-79nxou"><div class="text-xs font-medium text-base-content/70 svelte-79nxou">VR Short Line</div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.vrShort.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-79nxou"><div class="text-xs font-medium text-base-content/70 svelte-79nxou">VR Long Line</div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.vrLong.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div></div>`;
                   }
-                  $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More VR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add More VR</span></button></div></div>`;
+                  $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More VR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add More VR</span></button></div></div>`;
                 } else {
                   $$payload3.out += "<!--[!-->";
                   if (isBbi) {
                     $$payload3.out += "<!--[-->";
                     const each_array_5 = ensure_array_like(bbiGroups);
-                    $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                    $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                     for (let groupIndex = 0, $$length = each_array_5.length; groupIndex < $$length; groupIndex++) {
                       let group = each_array_5[groupIndex];
-                      $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">BBI ${escape_html(groupIndex + 1)}</span> `;
+                      $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">BBI ${escape_html(groupIndex + 1)}</span> `;
                       if (bbiGroups.length > 1) {
                         $$payload3.out += "<!--[-->";
-                        $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove BBI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                        $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove BBI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                       } else {
                         $$payload3.out += "<!--[!-->";
                       }
-                      $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">P1</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period1)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">P2</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period2)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">P3</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period3)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">P4</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period4)} min="1"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                      $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period 1</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period1)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period 2</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period2)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period 3</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period3)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period 4</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period4)} min="1"></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                     }
-                    $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More BBI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add BBI</span></button></div></div>`;
+                    $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More BBI"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add BBI</span></button></div></div>`;
                   } else {
                     $$payload3.out += "<!--[!-->";
                     if (isEmv) {
                       $$payload3.out += "<!--[-->";
                       const each_array_6 = ensure_array_like(emvGroups);
-                      $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                      $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                       for (let groupIndex = 0, $$length = each_array_6.length; groupIndex < $$length; groupIndex++) {
                         let group = each_array_6[groupIndex];
-                        $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">${escape_html(group.name)}</span> `;
+                        $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">${escape_html(group.name)}</span> `;
                         if (emvGroups.length > 1) {
                           $$payload3.out += "<!--[-->";
-                          $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove EMV"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                          $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove EMV"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                         } else {
                           $$payload3.out += "<!--[!-->";
                         }
-                        $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period 1</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period 2</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period2)} min="1"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                        $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period 1</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period 2</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period2)} min="1"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                       }
-                      $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More EMV"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add EMV</span></button></div></div>`;
+                      $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More EMV"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add EMV</span></button></div></div>`;
                     } else {
                       $$payload3.out += "<!--[!-->";
                       if (isMtm) {
                         $$payload3.out += "<!--[-->";
                         const each_array_7 = ensure_array_like(mtmGroups);
-                        $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                        $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                         for (let groupIndex = 0, $$length = each_array_7.length; groupIndex < $$length; groupIndex++) {
                           let group = each_array_7[groupIndex];
-                          $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">${escape_html(group.name)}</span> `;
+                          $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">${escape_html(group.name)}</span> `;
                           if (mtmGroups.length > 1) {
                             $$payload3.out += "<!--[-->";
-                            $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove MTM"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                            $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove MTM"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                           } else {
                             $$payload3.out += "<!--[!-->";
                           }
-                          $$payload3.out += `<!--]--></div> <div class="grid grid-cols-1 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.period)} min="1"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                          $$payload3.out += `<!--]--></div> <div class="grid grid-cols-1 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.period)} min="1"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                         }
-                        $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More MTM"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add MTM</span></button></div></div>`;
+                        $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More MTM"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add MTM</span></button></div></div>`;
                       } else {
                         $$payload3.out += "<!--[!-->";
                         if (isAo) {
                           $$payload3.out += "<!--[-->";
                           const each_array_8 = ensure_array_like(aoGroups);
-                          $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                          $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                           for (let groupIndex = 0, $$length = each_array_8.length; groupIndex < $$length; groupIndex++) {
                             let group = each_array_8[groupIndex];
-                            $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">${escape_html(groupIndex === 0 ? "Awesome Oscillator" : `AO ${groupIndex + 1}`)}</span> <button class="btn btn-xs btn-ghost text-error hover:bg-error/10" title="Remove this AO"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Short Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="1"${attr("value", group.shortPeriod)}></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Long Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="1"${attr("value", group.longPeriod)}></div></div> <div class="border-t border-base-300 pt-2 mt-2 svelte-omz3gf"><label class="text-xs text-base-content/60 mb-2 block">Histogram Colors</label> <div class="grid grid-cols-1 gap-2 svelte-omz3gf"><div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200"><span class="text-xs text-base-content/70 flex-1">Increasing Color</span> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(group.styles.increasing.color)}`)}></div> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.increasing.color)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200"><span class="text-xs text-base-content/70 flex-1">Decreasing Color</span> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(group.styles.decreasing.color)}`)}></div> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.decreasing.color)}`)}></div></button></div></div></div></div></div>`;
+                            $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">${escape_html(groupIndex === 0 ? "Awesome Oscillator" : `AO ${groupIndex + 1}`)}</span> <button class="btn btn-xs btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove this AO"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Short Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou" min="1"${attr("value", group.shortPeriod)}></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Long Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou" min="1"${attr("value", group.longPeriod)}></div></div> <div class="border-t border-base-300 pt-2 mt-2 svelte-79nxou"><label class="text-xs text-base-content/60 mb-2 block svelte-79nxou">Histogram Colors</label> <div class="grid grid-cols-1 gap-2 svelte-79nxou"><div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Increasing Color</span> <div class="flex items-center gap-2 svelte-79nxou"><div class="w-6 h-6 rounded border-2 border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.increasing.color)}`)}></div> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.increasing.color)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Decreasing Color</span> <div class="flex items-center gap-2 svelte-79nxou"><div class="w-6 h-6 rounded border-2 border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.decreasing.color)}`)}></div> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.decreasing.color)}`)}></div></button></div></div></div></div></div>`;
                           }
-                          $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More Awesome Oscillator"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add More AO</span></button></div></div>`;
+                          $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More Awesome Oscillator"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add More AO</span></button></div></div>`;
                         } else {
                           $$payload3.out += "<!--[!-->";
                           if (isCr) {
                             $$payload3.out += "<!--[-->";
                             const each_array_9 = ensure_array_like(crGroups);
-                            $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                            $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                             for (let groupIndex = 0, $$length = each_array_9.length; groupIndex < $$length; groupIndex++) {
                               let group = each_array_9[groupIndex];
-                              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">CR ${escape_html(groupIndex + 1)}</span> `;
+                              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">CR ${escape_html(groupIndex + 1)}</span> `;
                               if (crGroups.length > 1) {
                                 $$payload3.out += "<!--[-->";
-                                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove CR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove CR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                               } else {
                                 $$payload3.out += "<!--[!-->";
                               }
-                              $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">CR Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.crPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">MA1 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.crMa1Period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">MA2 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.crMa2Period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">MA3 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.crMa3Period)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">MA4 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.crMa4Period)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">CR:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.cr.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">MA1:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.ma1.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">MA2:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.ma2.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">MA3:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.ma3.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">MA4:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.ma4.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                              $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">CR Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.crPeriod)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">MA1 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.crMa1Period)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">MA2 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.crMa2Period)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">MA3 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.crMa3Period)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">MA4 Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.crMa4Period)} min="1"></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">CR:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.cr.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">MA1:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.ma1.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">MA2:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.ma2.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">MA3:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.ma3.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">MA4:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.ma4.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                             }
-                            $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1" title="Add More CR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add CR</span></button></div></div>`;
+                            $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-xs sm:btn-sm btn-outline btn-primary gap-1 svelte-79nxou" title="Add More CR"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 sm:h-4 sm:w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add CR</span></button></div></div>`;
                           } else {
                             $$payload3.out += "<!--[!-->";
                             if (isZigzag) {
                               $$payload3.out += "<!--[-->";
-                              $$payload3.out += `<div class="space-y-2 mt-3"><div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">ZigZag Indicator</span></div> <div class="space-y-3 svelte-omz3gf"><div class="flex flex-col gap-1 svelte-omz3gf"><label class="text-xs text-base-content/60">Deviation %</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="1" max="50" step="0.1"${attr("value", params[0])}></div> <div class="flex flex-col gap-1 svelte-omz3gf"><label class="text-xs text-base-content/60">Depth</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="1" max="50"${attr("value", params[1])}></div></div> <div class="border-t border-base-300 pt-2 mt-2 svelte-omz3gf"><label class="text-xs text-base-content/60 mb-2 block">ZigZag Line Style</label> <div class="space-y-3 svelte-omz3gf"><div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-omz3gf"><span class="text-xs text-base-content/70 flex-1">Line Color</span> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(zigzagColor)}`)}></div> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(zigzagColor)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-omz3gf"><span class="text-xs text-base-content/70 flex-1">Line Thickness</span> <select class="select select-bordered select-xs w-20"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-omz3gf"><span class="text-xs text-base-content/70 flex-1">Line Style</span> <select class="select select-bordered select-xs w-24"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div></div>`;
+                              $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">ZigZag Indicator</span></div> <div class="space-y-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Deviation %</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou" min="1" max="50" step="0.1"${attr("value", params[0])}></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Depth</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou" min="1" max="50"${attr("value", params[1])}></div></div> <div class="border-t border-base-300 pt-2 mt-2 svelte-79nxou"><label class="text-xs text-base-content/60 mb-2 block svelte-79nxou">ZigZag Line Style</label> <div class="space-y-3 svelte-79nxou"><div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Line Color</span> <div class="flex items-center gap-2 svelte-79nxou"><div class="w-6 h-6 rounded border-2 border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(zigzagColor)}`)}></div> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(zigzagColor)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Line Thickness</span> <select class="select select-bordered select-xs w-20 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Line Style</span> <select class="select select-bordered select-xs w-24 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div></div></div>`;
                             } else {
                               $$payload3.out += "<!--[!-->";
                               if (isPvt) {
                                 $$payload3.out += "<!--[-->";
                                 const each_array_10 = ensure_array_like(pvtGroups);
-                                $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                                $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                                 for (let groupIndex = 0, $$length = each_array_10.length; groupIndex < $$length; groupIndex++) {
                                   let group = each_array_10[groupIndex];
-                                  $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">${escape_html(group.name)} (ID: ${escape_html(group.id.slice(0, 8))})</span> `;
+                                  $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">${escape_html(group.name)} (ID: ${escape_html(group.id.slice(0, 8))})</span> `;
                                   if (pvtGroups.length > 1) {
                                     $$payload3.out += "<!--[-->";
-                                    $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Delete this PVT instance">✕</button>`;
+                                    $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Delete this PVT instance">✕</button>`;
                                   } else {
                                     $$payload3.out += "<!--[!-->";
                                   }
-                                  $$payload3.out += `<!--]--></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-20 sm:w-24 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                                  $$payload3.out += `<!--]--></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs w-20 sm:w-24 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                                 }
-                                $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-omz3gf"><button class="btn btn-sm btn-primary">➕ Add More PVT</button></div></div>`;
+                                $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-sm btn-primary svelte-79nxou">➕ Add More PVT</button></div></div>`;
                               } else {
                                 $$payload3.out += "<!--[!-->";
                                 if (isSar) {
                                   $$payload3.out += "<!--[-->";
                                   const each_array_11 = ensure_array_like(sarGroups);
-                                  $$payload3.out += `<div class="space-y-2 mt-3 svelte-omz3gf"><!--[-->`;
+                                  $$payload3.out += `<div class="space-y-2 mt-3 svelte-79nxou"><!--[-->`;
                                   for (let groupIndex = 0, $$length = each_array_11.length; groupIndex < $$length; groupIndex++) {
                                     let group = each_array_11[groupIndex];
-                                    $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">SAR ${escape_html(groupIndex + 1)}</span> `;
+                                    $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">SAR ${escape_html(groupIndex + 1)}</span> `;
                                     if (sarGroups.length > 1) {
                                       $$payload3.out += "<!--[-->";
-                                      $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove SAR Group"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                      $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove SAR Group"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                     } else {
                                       $$payload3.out += "<!--[!-->";
                                     }
-                                    $$payload3.out += `<!--]--></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Start</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.start)} min="0.001" max="0.1" step="0.001"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Increment</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.increment)} min="0.001" max="0.1" step="0.001"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Max value</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.maxValue)} min="0.1" max="1.0" step="0.01"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Dot size:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div></div></div>`;
+                                    $$payload3.out += `<!--]--></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Start</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.start)} min="0.001" max="0.1" step="0.001"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Increment</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.increment)} min="0.001" max="0.1" step="0.001"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Max value</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.maxValue)} min="0.1" max="1.0" step="0.01"></div></div> <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Dot size:</label> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div></div></div>`;
                                   }
                                   $$payload3.out += `<!--]--></div>`;
                                 } else {
@@ -30085,275 +30328,309 @@ function ModalIndCfg($$payload, $$props) {
                                   if (isEma) {
                                     $$payload3.out += "<!--[-->";
                                     const each_array_12 = ensure_array_like(fields);
-                                    $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
+                                    $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-79nxou"><!--[-->`;
                                     for (let i = 0, $$length = each_array_12.length; i < $$length; i++) {
                                       let field = each_array_12[i];
-                                      $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
+                                      $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-79nxou"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit svelte-79nxou">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 svelte-79nxou"><input type="number" class="flex-1 input input-bordered input-sm min-w-0 svelte-79nxou"${attr("value", params[i])}> `;
                                       if (params.length > 1) {
                                         $$payload3.out += "<!--[-->";
-                                        $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" title="Delete EMA parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                        $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0 svelte-79nxou" title="Delete EMA parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                       } else {
                                         $$payload3.out += "<!--[!-->";
-                                        $$payload3.out += `<div class="w-8 flex-shrink-0"></div>`;
+                                        $$payload3.out += `<div class="w-8 flex-shrink-0 svelte-79nxou"></div>`;
                                       }
-                                      $$payload3.out += `<!--]--></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                                      $$payload3.out += `<!--]--></div></div> `;
+                                      if (styles[i]) {
+                                        $$payload3.out += "<!--[-->";
+                                        $$payload3.out += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div>`;
+                                      } else {
+                                        $$payload3.out += "<!--[!-->";
+                                      }
+                                      $$payload3.out += `<!--]--></div>`;
                                     }
                                     $$payload3.out += `<!--]--> `;
                                     if (fields.length < 10) {
                                       $$payload3.out += "<!--[-->";
-                                      $$payload3.out += `<div class="flex justify-center mt-4 svelte-omz3gf"><button class="btn btn-sm btn-outline btn-primary" title="Add more EMA"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4"></path></svg> Add EMA</button></div>`;
+                                      $$payload3.out += `<div class="flex justify-center mt-4 svelte-79nxou"><button class="btn btn-sm btn-outline btn-primary svelte-79nxou" title="Add more EMA"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> Add EMA</button></div>`;
                                     } else {
                                       $$payload3.out += "<!--[!-->";
                                     }
                                     $$payload3.out += `<!--]--></div>`;
                                   } else {
                                     $$payload3.out += "<!--[!-->";
-                                    if (isVol) {
+                                    if (isSma) {
                                       $$payload3.out += "<!--[-->";
-                                      const each_array_13 = ensure_array_like(volGroups);
-                                      $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
+                                      const each_array_13 = ensure_array_like(smaGroups);
+                                      $$payload3.out += `<div class="space-y-3 mt-3 svelte-79nxou"><!--[-->`;
                                       for (let groupIndex = 0, $$length = each_array_13.length; groupIndex < $$length; groupIndex++) {
                                         let group = each_array_13[groupIndex];
-                                        $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">Volume ${escape_html(groupIndex + 1)}</span> `;
-                                        if (volGroups.length > 1) {
+                                        $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-sm font-medium text-base-content/80 svelte-79nxou">SMA (${escape_html(group.period)})</span> `;
+                                        if (smaGroups.length > 1) {
                                           $$payload3.out += "<!--[-->";
-                                          $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove Volume"><span class="text-xs">×</span></button>`;
+                                          $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Delete this SMA"><svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                         } else {
                                           $$payload3.out += "<!--[!-->";
-                                          $$payload3.out += `<div class="w-6"></div>`;
                                         }
-                                        $$payload3.out += `<!--]--></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs"${attr("value", group.period)} min="1" max="200"></div></div> <div class="space-y-2 svelte-omz3gf"><h4 class="text-xs font-medium text-base-content/70 svelte-omz3gf">Volume Histogram</h4> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Up Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.histogram.upColor)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Down Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.histogram.downColor)}`)}></div></button></div></div></div> <div class="space-y-2 svelte-omz3gf"><h4 class="text-xs font-medium text-base-content/70 svelte-omz3gf">EMA Line</h4> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.ema.color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
+                                        $$payload3.out += `<!--]--></div> <div class="flex flex-col gap-2 svelte-79nxou"><label class="text-xs text-base-content/70 font-medium svelte-79nxou">Period</label> <input type="number" class="input input-bordered input-sm svelte-79nxou"${attr("value", group.period)} min="1" max="500"></div> <div class="space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Color</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center justify-between svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Line Thickness</label> <select class="select select-bordered select-xs w-20 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center justify-between svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Line Style</label> <select class="select select-bordered select-xs w-24 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                                       }
-                                      $$payload3.out += `<!--]--> <div class="flex justify-center mt-4 svelte-omz3gf"><button class="btn btn-sm btn-outline btn-primary" title="Add more Volume indicator"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4"></path></svg> Add More Volume</button></div></div>`;
+                                      $$payload3.out += `<!--]--> <div class="flex justify-center mt-3 svelte-79nxou"><button class="btn btn-sm btn-outline btn-primary svelte-79nxou" title="Add more SMA"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> Add SMA</button></div></div>`;
                                     } else {
                                       $$payload3.out += "<!--[!-->";
-                                      if (isTrix) {
+                                      if (isVol) {
                                         $$payload3.out += "<!--[-->";
-                                        const each_array_14 = ensure_array_like(trixGroups);
-                                        $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
+                                        const each_array_14 = ensure_array_like(volGroups);
+                                        $$payload3.out += `<div class="space-y-3 mt-3 svelte-79nxou"><!--[-->`;
                                         for (let groupIndex = 0, $$length = each_array_14.length; groupIndex < $$length; groupIndex++) {
                                           let group = each_array_14[groupIndex];
-                                          $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">${escape_html(group.name)}</span> `;
-                                          if (trixGroups.length > 1) {
+                                          $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">Volume ${escape_html(groupIndex + 1)}</span> `;
+                                          if (volGroups.length > 1) {
                                             $$payload3.out += "<!--[-->";
-                                            $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove TRIX"><span class="text-xs">×</span></button>`;
+                                            $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove Volume"><span class="text-xs svelte-79nxou">×</span></button>`;
                                           } else {
                                             $$payload3.out += "<!--[!-->";
+                                            $$payload3.out += `<div class="w-6 svelte-79nxou"></div>`;
                                           }
-                                          $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex items-center gap-2 sm:gap-3"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0">TRIX:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm"${attr("value", group.trixPeriod)} min="1"></div> <div class="flex items-center gap-2 sm:gap-3"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0">Signal:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm"${attr("value", group.signalPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-1 svelte-omz3gf"><span class="text-xs text-base-content/60">TRIX Line:</span> <div class="w-3 h-2 rounded"${attr("style", `background-color: ${stringify(group.styles.trix.color)}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer"${attr("value", group.styles.trix.color)}></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center gap-1 svelte-omz3gf"><span class="text-xs text-base-content/60">Signal Line:</span> <div class="w-3 h-2 rounded"${attr("style", `background-color: ${stringify(group.styles.signal.color)}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer"${attr("value", group.styles.signal.color)}></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs w-16 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
+                                          $$payload3.out += `<!--]--></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period</label> <input type="number" class="input input-bordered input-xs svelte-79nxou"${attr("value", group.period)} min="1" max="200"></div></div> <div class="space-y-2 svelte-79nxou"><h4 class="text-xs font-medium text-base-content/70 svelte-79nxou">Volume Histogram</h4> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Up Color:</label> <button class="btn btn-xs btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.histogram.upColor)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Down Color:</label> <button class="btn btn-xs btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.histogram.downColor)}`)}></div></button></div></div></div> <div class="space-y-2 svelte-79nxou"><h4 class="text-xs font-medium text-base-content/70 svelte-79nxou">EMA Line</h4> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-xs btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.ema.color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div></div>`;
                                         }
-                                        $$payload3.out += `<!--]--> <div class="flex justify-center pt-2 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs" title="Add More TRIX"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> + Add More TRIX</button></div></div>`;
+                                        $$payload3.out += `<!--]--> <div class="flex justify-center mt-4 svelte-79nxou"><button class="btn btn-sm btn-outline btn-primary svelte-79nxou" title="Add more Volume indicator"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> Add More Volume</button></div></div>`;
                                       } else {
                                         $$payload3.out += "<!--[!-->";
-                                        if (isBias) {
+                                        if (isTrix) {
                                           $$payload3.out += "<!--[-->";
-                                          const each_array_15 = ensure_array_like(biasGroups);
-                                          $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
+                                          const each_array_15 = ensure_array_like(trixGroups);
+                                          $$payload3.out += `<div class="space-y-3 mt-3 svelte-79nxou"><!--[-->`;
                                           for (let groupIndex = 0, $$length = each_array_15.length; groupIndex < $$length; groupIndex++) {
                                             let group = each_array_15[groupIndex];
-                                            $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">BIAS ${escape_html(groupIndex + 1)}</span> `;
-                                            if (biasGroups.length > 1) {
+                                            $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">${escape_html(group.name)}</span> `;
+                                            if (trixGroups.length > 1) {
                                               $$payload3.out += "<!--[-->";
-                                              $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove BIAS"><span class="text-xs">×</span></button>`;
+                                              $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove TRIX"><span class="text-xs svelte-79nxou">×</span></button>`;
                                             } else {
                                               $$payload3.out += "<!--[!-->";
                                             }
-                                            $$payload3.out += `<!--]--></div> <div class="flex items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0">Period:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs svelte-omz3gf"><div class="flex items-center gap-1"><span class="text-base-content/60 text-xs">Color:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-1"><span class="text-base-content/60 text-xs">Width:</span> <select class="select select-bordered select-xs w-12 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option></select></div> <div class="flex items-center gap-1"><span class="text-base-content/60 text-xs">Style:</span> <select class="select select-bordered select-xs w-14 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dash</option><option value="dotted">Dot</option></select></div></div></div>`;
+                                            $$payload3.out += `<!--]--></div> <div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 sm:gap-3 svelte-79nxou"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0 svelte-79nxou">TRIX:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm svelte-79nxou"${attr("value", group.trixPeriod)} min="1"></div> <div class="flex items-center gap-2 sm:gap-3 svelte-79nxou"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0 svelte-79nxou">Signal:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm svelte-79nxou"${attr("value", group.signalPeriod)} min="1"></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center gap-1 svelte-79nxou"><span class="text-xs text-base-content/60 svelte-79nxou">TRIX Line:</span> <div class="w-3 h-2 rounded svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.trix.color)}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer svelte-79nxou"${attr("value", group.styles.trix.color)}></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs w-16 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center gap-1 svelte-79nxou"><span class="text-xs text-base-content/60 svelte-79nxou">Signal Line:</span> <div class="w-3 h-2 rounded svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.signal.color)}`)}></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <input type="color" class="w-8 h-6 rounded border border-base-300 cursor-pointer svelte-79nxou"${attr("value", group.styles.signal.color)}></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs w-12 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs w-16 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div></div>`;
                                           }
-                                          $$payload3.out += `<!--]--> <div class="flex justify-center pt-2 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1" title="Add More BIAS"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add BIAS</span></button></div></div>`;
+                                          $$payload3.out += `<!--]--> <div class="flex justify-center pt-2 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs svelte-79nxou" title="Add More TRIX"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> + Add More TRIX</button></div></div>`;
                                         } else {
                                           $$payload3.out += "<!--[!-->";
-                                          if (isCci) {
+                                          if (isBias) {
                                             $$payload3.out += "<!--[-->";
-                                            const each_array_16 = ensure_array_like(cciGroups);
-                                            $$payload3.out += `<div class="space-y-3 mt-3 svelte-omz3gf"><!--[-->`;
+                                            const each_array_16 = ensure_array_like(biasGroups);
+                                            $$payload3.out += `<div class="space-y-3 mt-3 svelte-79nxou"><!--[-->`;
                                             for (let groupIndex = 0, $$length = each_array_16.length; groupIndex < $$length; groupIndex++) {
                                               let group = each_array_16[groupIndex];
-                                              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><span class="text-xs sm:text-sm font-medium text-base-content/80">CCI ${escape_html(groupIndex + 1)}</span> `;
-                                              if (cciGroups.length > 1) {
+                                              $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">BIAS ${escape_html(groupIndex + 1)}</span> `;
+                                              if (biasGroups.length > 1) {
                                                 $$payload3.out += "<!--[-->";
-                                                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" title="Remove CCI"><span class="text-xs">×</span></button>`;
+                                                $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove BIAS"><span class="text-xs svelte-79nxou">×</span></button>`;
                                               } else {
                                                 $$payload3.out += "<!--[!-->";
                                               }
-                                              $$payload3.out += `<!--]--></div> <div class="flex items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0">Period:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm"${attr("value", group.period)} min="1"></div> <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs svelte-omz3gf"><div class="flex items-center gap-1"><span class="text-base-content/60 text-xs">Color:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-1"><span class="text-base-content/60 text-xs">Width:</span> <select class="select select-bordered select-xs w-12 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option></select></div> <div class="flex items-center gap-1"><span class="text-base-content/60 text-xs">Style:</span> <select class="select select-bordered select-xs w-14 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dash</option><option value="dotted">Dot</option></select></div></div></div>`;
+                                              $$payload3.out += `<!--]--></div> <div class="flex items-center gap-2 sm:gap-3 svelte-79nxou"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0 svelte-79nxou">Period:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm svelte-79nxou"${attr("value", group.period)} min="1"></div> <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs svelte-79nxou"><div class="flex items-center gap-1 svelte-79nxou"><span class="text-base-content/60 text-xs svelte-79nxou">Color:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-1 svelte-79nxou"><span class="text-base-content/60 text-xs svelte-79nxou">Width:</span> <select class="select select-bordered select-xs w-12 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option></select></div> <div class="flex items-center gap-1 svelte-79nxou"><span class="text-base-content/60 text-xs svelte-79nxou">Style:</span> <select class="select select-bordered select-xs w-14 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dash</option><option value="dotted" class="svelte-79nxou">Dot</option></select></div></div></div>`;
                                             }
-                                            $$payload3.out += `<!--]--> <div class="flex justify-center pt-2 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1" title="Add More CCI"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> <span class="text-xs sm:text-sm">Add CCI</span></button></div></div>`;
+                                            $$payload3.out += `<!--]--> <div class="flex justify-center pt-2 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 svelte-79nxou" title="Add More BIAS"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add BIAS</span></button></div></div>`;
                                           } else {
                                             $$payload3.out += "<!--[!-->";
-                                            if (isIchimoku) {
+                                            if (isCci) {
                                               $$payload3.out += "<!--[-->";
-                                              const each_array_17 = ensure_array_like(fields);
-                                              $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                              for (let i = 0, $$length = each_array_17.length; i < $$length; i++) {
-                                                let field = each_array_17[i];
-                                                $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-32 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
-                                              }
-                                              $$payload3.out += `<!--]--></div>`;
-                                            } else {
-                                              $$payload3.out += "<!--[!-->";
-                                              if (isSma) {
-                                                $$payload3.out += "<!--[-->";
-                                                const each_array_18 = ensure_array_like(fields);
-                                                $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                                for (let i = 0, $$length = each_array_18.length; i < $$length; i++) {
-                                                  let field = each_array_18[i];
-                                                  $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
-                                                  if (params.length > 1) {
-                                                    $$payload3.out += "<!--[-->";
-                                                    $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" title="Delete SMA parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
-                                                  } else {
-                                                    $$payload3.out += "<!--[!-->";
-                                                    $$payload3.out += `<div class="w-8 flex-shrink-0"></div>`;
-                                                  }
-                                                  $$payload3.out += `<!--]--></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
-                                                }
-                                                $$payload3.out += `<!--]--> `;
-                                                if (fields.length < 10) {
+                                              const each_array_17 = ensure_array_like(cciGroups);
+                                              $$payload3.out += `<div class="space-y-3 mt-3 svelte-79nxou"><!--[-->`;
+                                              for (let groupIndex = 0, $$length = each_array_17.length; groupIndex < $$length; groupIndex++) {
+                                                let group = each_array_17[groupIndex];
+                                                $$payload3.out += `<div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><span class="text-xs sm:text-sm font-medium text-base-content/80 svelte-79nxou">CCI ${escape_html(groupIndex + 1)}</span> `;
+                                                if (cciGroups.length > 1) {
                                                   $$payload3.out += "<!--[-->";
-                                                  $$payload3.out += `<div class="flex justify-center mt-4 svelte-omz3gf"><button class="btn btn-sm btn-outline btn-primary" title="Add more SMA"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4"></path></svg> Add SMA</button></div>`;
+                                                  $$payload3.out += `<button class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove CCI"><span class="text-xs svelte-79nxou">×</span></button>`;
                                                 } else {
                                                   $$payload3.out += "<!--[!-->";
                                                 }
-                                                $$payload3.out += `<!--]--></div>`;
+                                                $$payload3.out += `<!--]--></div> <div class="flex items-center gap-2 sm:gap-3 svelte-79nxou"><span class="text-xs sm:text-sm text-base-content/60 w-12 sm:w-16 flex-shrink-0 svelte-79nxou">Period:</span> <input type="number" class="input input-bordered input-xs sm:input-sm flex-1 max-w-16 sm:max-w-20 text-xs sm:text-sm svelte-79nxou"${attr("value", group.period)} min="1"></div> <div class="flex flex-wrap items-center gap-2 sm:gap-3 text-xs svelte-79nxou"><div class="flex items-center gap-1 svelte-79nxou"><span class="text-base-content/60 text-xs svelte-79nxou">Color:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.color)}`)}></div></button></div> <div class="flex items-center gap-1 svelte-79nxou"><span class="text-base-content/60 text-xs svelte-79nxou">Width:</span> <select class="select select-bordered select-xs w-12 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option></select></div> <div class="flex items-center gap-1 svelte-79nxou"><span class="text-base-content/60 text-xs svelte-79nxou">Style:</span> <select class="select select-bordered select-xs w-14 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dash</option><option value="dotted" class="svelte-79nxou">Dot</option></select></div></div></div>`;
+                                              }
+                                              $$payload3.out += `<!--]--> <div class="flex justify-center pt-2 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 svelte-79nxou" title="Add More CCI"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> <span class="text-xs sm:text-sm svelte-79nxou">Add CCI</span></button></div></div>`;
+                                            } else {
+                                              $$payload3.out += "<!--[!-->";
+                                              if (isIchimoku) {
+                                                $$payload3.out += "<!--[-->";
+                                                const each_array_18 = ensure_array_like(fields);
+                                                $$payload3.out += `<div class="mt-3 sm:mt-5 svelte-79nxou"><div class="border border-base-300 rounded-lg p-4 bg-base-50/50 svelte-79nxou"><div class="flex items-center gap-3 mb-6 pb-4 border-b border-base-200 svelte-79nxou"><div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center svelte-79nxou"><svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" class="svelte-79nxou"></path></svg></div> <div class="svelte-79nxou"><h3 class="text-lg font-semibold text-base-content svelte-79nxou">Ichimoku Kinko Hyo</h3> <p class="text-sm text-base-content/60 svelte-79nxou">Complete cloud indicator with all components</p></div></div> <div class="space-y-5 svelte-79nxou"><!--[-->`;
+                                                for (let i = 0, $$length = each_array_18.length; i < $$length; i++) {
+                                                  let field = each_array_18[i];
+                                                  $$payload3.out += `<div class="flex flex-col gap-3 p-3 bg-base-100/50 rounded-lg svelte-79nxou"><div class="grid grid-cols-1 sm:grid-cols-2 gap-3 svelte-79nxou"><div class="flex items-center gap-3 svelte-79nxou"><div class="w-4 h-4 rounded-full border-2 border-white shadow-sm svelte-79nxou"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div> <span class="text-sm font-medium text-base-content min-w-fit svelte-79nxou">${escape_html(field.title)}</span></div> <div class="flex items-center gap-2 svelte-79nxou"><span class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Period:</span> <input type="number" class="input input-bordered input-sm w-20 text-center svelte-79nxou"${attr("value", params[i])} min="1" max="200"></div></div> <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
+                                                }
+                                                $$payload3.out += `<!--]--></div> <div class="mt-6 pt-4 border-t border-base-200 svelte-79nxou"><div class="text-xs text-base-content/60 space-y-1 svelte-79nxou"><p class="svelte-79nxou"><strong class="svelte-79nxou">Components:</strong> Tenkan Sen (Conversion), Kijun Sen (Base), Senkou Span A &amp; B (Cloud)</p> <p class="svelte-79nxou"><strong class="svelte-79nxou">Usage:</strong> Trend direction, support/resistance levels, and momentum analysis</p></div></div></div></div>`;
                                               } else {
                                                 $$payload3.out += "<!--[!-->";
-                                                if (isMa) {
+                                                if (isSma) {
                                                   $$payload3.out += "<!--[-->";
                                                   const each_array_19 = ensure_array_like(fields);
-                                                  $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
+                                                  $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-79nxou"><!--[-->`;
                                                   for (let i = 0, $$length = each_array_19.length; i < $$length; i++) {
                                                     let field = each_array_19[i];
-                                                    $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
+                                                    $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-79nxou"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit svelte-79nxou">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 svelte-79nxou"><input type="number" class="flex-1 input input-bordered input-sm min-w-0 svelte-79nxou"${attr("value", params[i])}> `;
                                                     if (params.length > 1) {
                                                       $$payload3.out += "<!--[-->";
-                                                      $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" title="Delete MA parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                                      $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0 svelte-79nxou" title="Delete SMA parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                                     } else {
                                                       $$payload3.out += "<!--[!-->";
-                                                      $$payload3.out += `<div class="w-8 flex-shrink-0"></div>`;
+                                                      $$payload3.out += `<div class="w-8 flex-shrink-0 svelte-79nxou"></div>`;
                                                     }
-                                                    $$payload3.out += `<!--]--></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
+                                                    $$payload3.out += `<!--]--></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
                                                   }
                                                   $$payload3.out += `<!--]--> `;
                                                   if (fields.length < 10) {
                                                     $$payload3.out += "<!--[-->";
-                                                    $$payload3.out += `<div class="flex justify-center mt-4 svelte-omz3gf"><button class="btn btn-sm btn-outline btn-primary" title="Add more MA"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4"></path></svg> Add MA</button></div>`;
+                                                    $$payload3.out += `<div class="flex justify-center mt-4 svelte-79nxou"><button class="btn btn-sm btn-outline btn-primary svelte-79nxou" title="Add more SMA"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> Add SMA</button></div>`;
                                                   } else {
                                                     $$payload3.out += "<!--[!-->";
                                                   }
                                                   $$payload3.out += `<!--]--></div>`;
                                                 } else {
                                                   $$payload3.out += "<!--[!-->";
-                                                  if (isRoc) {
+                                                  if (isMa) {
                                                     $$payload3.out += "<!--[-->";
-                                                    const each_array_20 = ensure_array_like(rocGroups);
-                                                    $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
-                                                    for (let groupIndex = 0, $$length = each_array_20.length; groupIndex < $$length; groupIndex++) {
-                                                      let group = each_array_20[groupIndex];
-                                                      $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">ROC ${escape_html(groupIndex + 1)}</h4> `;
-                                                      if (rocGroups.length > 1) {
+                                                    const each_array_20 = ensure_array_like(fields);
+                                                    $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-79nxou"><!--[-->`;
+                                                    for (let i = 0, $$length = each_array_20.length; i < $$length; i++) {
+                                                      let field = each_array_20[i];
+                                                      $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-79nxou"><span class="w-full sm:w-20 text-base-content/70 text-sm font-medium min-w-fit svelte-79nxou">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 svelte-79nxou"><input type="number" class="flex-1 input input-bordered input-sm min-w-0 svelte-79nxou"${attr("value", params[i])}> `;
+                                                      if (params.length > 1) {
                                                         $$payload3.out += "<!--[-->";
-                                                        $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10" title="Remove ROC"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                                        $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0 svelte-79nxou" title="Delete MA parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
+                                                      } else {
+                                                        $$payload3.out += "<!--[!-->";
+                                                        $$payload3.out += `<div class="w-8 flex-shrink-0 svelte-79nxou"></div>`;
+                                                      }
+                                                      $$payload3.out += `<!--]--></div></div> `;
+                                                      if (styles[i]) {
+                                                        $$payload3.out += "<!--[-->";
+                                                        $$payload3.out += `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div>`;
                                                       } else {
                                                         $$payload3.out += "<!--[!-->";
                                                       }
-                                                      $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-omz3gf"><div class="flex flex-col gap-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium">Period</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24"${attr("value", group.period)}></div> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-3"><label class="text-xs text-base-content/60 min-w-[45px]">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.roc.color)}`)}></div></button></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[60px]">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[35px]">Style:</span> <select class="select select-bordered select-xs w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
+                                                      $$payload3.out += `<!--]--></div>`;
                                                     }
-                                                    $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs" title="Add more ROC"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> + Add More ROC</button></div></div>`;
+                                                    $$payload3.out += `<!--]--> `;
+                                                    if (fields.length < 10) {
+                                                      $$payload3.out += "<!--[-->";
+                                                      $$payload3.out += `<div class="flex justify-center mt-4 svelte-79nxou"><button class="btn btn-sm btn-outline btn-primary svelte-79nxou" title="Add more MA"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> Add MA</button></div>`;
+                                                    } else {
+                                                      $$payload3.out += "<!--[!-->";
+                                                    }
+                                                    $$payload3.out += `<!--]--></div>`;
                                                   } else {
                                                     $$payload3.out += "<!--[!-->";
-                                                    if (isPsy) {
+                                                    if (isRoc) {
                                                       $$payload3.out += "<!--[-->";
-                                                      const each_array_21 = ensure_array_like(psyGroups);
-                                                      $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
+                                                      const each_array_21 = ensure_array_like(rocGroups);
+                                                      $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-79nxou"><!--[-->`;
                                                       for (let groupIndex = 0, $$length = each_array_21.length; groupIndex < $$length; groupIndex++) {
                                                         let group = each_array_21[groupIndex];
-                                                        $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">PSY ${escape_html(groupIndex + 1)}</h4> `;
-                                                        if (psyGroups.length > 1) {
+                                                        $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">ROC ${escape_html(groupIndex + 1)}</h4> `;
+                                                        if (rocGroups.length > 1) {
                                                           $$payload3.out += "<!--[-->";
-                                                          $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10" title="Remove PSY"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                                          $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove ROC"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                                         } else {
                                                           $$payload3.out += "<!--[!-->";
                                                         }
-                                                        $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-omz3gf"><div class="flex flex-col gap-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium">Param 1 (PSY Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24"${attr("value", group.psyPeriod)}></div> <div class="space-y-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium svelte-omz3gf">PSY Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-3"><label class="text-xs text-base-content/60 min-w-[45px]">Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.psy.color)}`)}></div></button></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[60px]">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[35px]">Style:</span> <select class="select select-bordered select-xs w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="flex flex-col gap-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium">Param 2 (MAPSY Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24"${attr("value", group.mapsyPeriod)}></div> <div class="space-y-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium svelte-omz3gf">MAPSY Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-3"><label class="text-xs text-base-content/60 min-w-[45px]">Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.mapsy.color)}`)}></div></button></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[60px]">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[35px]">Style:</span> <select class="select select-bordered select-xs w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="flex items-center gap-2 pt-2 svelte-omz3gf"><input type="checkbox" class="checkbox checkbox-primary checkbox-sm"${attr("checked", group.showMapsy, true)}${attr("id", `showMapsy_${stringify(group.id)}`)}> <label${attr("for", `showMapsy_${stringify(group.id)}`)} class="text-sm text-base-content/80 cursor-pointer">Show MAPSY</label></div></div></div>`;
+                                                        $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-79nxou"><div class="flex flex-col gap-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">Period</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24 svelte-79nxou"${attr("value", group.period)}></div> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-3 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-[45px] svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.roc.color)}`)}></div></button></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[60px] svelte-79nxou">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[35px] svelte-79nxou">Style:</span> <select class="select select-bordered select-xs w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div></div>`;
                                                       }
-                                                      $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs" title="Add more PSY"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> + Add More PSY</button></div></div>`;
+                                                      $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs svelte-79nxou" title="Add more ROC"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> + Add More ROC</button></div></div>`;
                                                     } else {
                                                       $$payload3.out += "<!--[!-->";
-                                                      if (isObv) {
+                                                      if (isPsy) {
                                                         $$payload3.out += "<!--[-->";
-                                                        const each_array_22 = ensure_array_like(obvGroups);
-                                                        $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
+                                                        const each_array_22 = ensure_array_like(psyGroups);
+                                                        $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-79nxou"><!--[-->`;
                                                         for (let groupIndex = 0, $$length = each_array_22.length; groupIndex < $$length; groupIndex++) {
                                                           let group = each_array_22[groupIndex];
-                                                          $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">OBV ${escape_html(groupIndex + 1)}</h4> `;
-                                                          if (obvGroups.length > 1) {
+                                                          $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">PSY ${escape_html(groupIndex + 1)}</h4> `;
+                                                          if (psyGroups.length > 1) {
                                                             $$payload3.out += "<!--[-->";
-                                                            $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10" title="Remove OBV"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                                            $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove PSY"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                                           } else {
                                                             $$payload3.out += "<!--[!-->";
                                                           }
-                                                          $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-omz3gf"><div class="flex flex-col gap-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium">Param 1 (OBV Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24"${attr("value", group.obvPeriod)}></div> <div class="space-y-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium svelte-omz3gf">OBV Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-3"><label class="text-xs text-base-content/60 min-w-[45px]">Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.obv.color)}`)}></div></button></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[60px]">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[35px]">Style:</span> <select class="select select-bordered select-xs w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="flex flex-col gap-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium">Param 2 (MAOBV Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24"${attr("value", group.maobvPeriod)}></div> <div class="space-y-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium svelte-omz3gf">MAOBV Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-3"><label class="text-xs text-base-content/60 min-w-[45px]">Color:</label> <button class="btn btn-xs btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.maobv.color)}`)}></div></button></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[60px]">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-3"><span class="text-base-content/60 text-xs min-w-[35px]">Style:</span> <select class="select select-bordered select-xs w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div> <div class="flex items-center gap-2 pt-2 svelte-omz3gf"><input type="checkbox" class="checkbox checkbox-primary checkbox-sm"${attr("checked", group.showMaobv, true)}${attr("id", `showMaobv_${stringify(group.id)}`)}> <label${attr("for", `showMaobv_${stringify(group.id)}`)} class="text-sm text-base-content/80 cursor-pointer">Show MAOBV</label></div></div></div>`;
+                                                          $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-79nxou"><div class="flex flex-col gap-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">Param 1 (PSY Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24 svelte-79nxou"${attr("value", group.psyPeriod)}></div> <div class="space-y-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">PSY Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-3 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-[45px] svelte-79nxou">Color:</label> <button class="btn btn-xs btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.psy.color)}`)}></div></button></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[60px] svelte-79nxou">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[35px] svelte-79nxou">Style:</span> <select class="select select-bordered select-xs w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="flex flex-col gap-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">Param 2 (MAPSY Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24 svelte-79nxou"${attr("value", group.mapsyPeriod)}></div> <div class="space-y-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">MAPSY Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-3 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-[45px] svelte-79nxou">Color:</label> <button class="btn btn-xs btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.mapsy.color)}`)}></div></button></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[60px] svelte-79nxou">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[35px] svelte-79nxou">Style:</span> <select class="select select-bordered select-xs w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="flex items-center gap-2 pt-2 svelte-79nxou"><input type="checkbox" class="checkbox checkbox-primary checkbox-sm svelte-79nxou"${attr("checked", group.showMapsy, true)}${attr("id", `showMapsy_${stringify(group.id)}`)}> <label${attr("for", `showMapsy_${stringify(group.id)}`)} class="text-sm text-base-content/80 cursor-pointer svelte-79nxou">Show MAPSY</label></div></div></div>`;
                                                         }
-                                                        $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs" title="Add more OBV"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> + Add More OBV</button></div></div>`;
+                                                        $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs svelte-79nxou" title="Add more PSY"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> + Add More PSY</button></div></div>`;
                                                       } else {
                                                         $$payload3.out += "<!--[!-->";
-                                                        if (isKdj) {
+                                                        if (isObv) {
                                                           $$payload3.out += "<!--[-->";
-                                                          const each_array_23 = ensure_array_like(kdjGroups);
-                                                          $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-omz3gf"><!--[-->`;
+                                                          const each_array_23 = ensure_array_like(obvGroups);
+                                                          $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-79nxou"><!--[-->`;
                                                           for (let groupIndex = 0, $$length = each_array_23.length; groupIndex < $$length; groupIndex++) {
                                                             let group = each_array_23[groupIndex];
-                                                            $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80">KDJ ${escape_html(groupIndex + 1)}</h4> `;
-                                                            if (kdjGroups.length > 1) {
+                                                            $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">OBV ${escape_html(groupIndex + 1)}</h4> `;
+                                                            if (obvGroups.length > 1) {
                                                               $$payload3.out += "<!--[-->";
-                                                              $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10" title="Remove KDJ"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
+                                                              $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove OBV"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                                             } else {
                                                               $$payload3.out += "<!--[!-->";
                                                             }
-                                                            $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-omz3gf"><div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">K Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.kPeriod)} min="1"></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">D Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"${attr("value", group.dPeriod)} min="1"></div></div> <div class="space-y-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium svelte-omz3gf">K Line Style</span> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">K:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.k.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div> <div class="space-y-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium svelte-omz3gf">D Line Style</span> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">D:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.d.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div> <div class="space-y-2 svelte-omz3gf"><span class="text-base-content/70 text-xs font-medium svelte-omz3gf">J Line Style</span> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-omz3gf"><span class="w-12 font-medium">J:</span> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(group.styles.j.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
+                                                            $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-79nxou"><div class="flex flex-col gap-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">Param 1 (OBV Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24 svelte-79nxou"${attr("value", group.obvPeriod)}></div> <div class="space-y-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">OBV Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-3 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-[45px] svelte-79nxou">Color:</label> <button class="btn btn-xs btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.obv.color)}`)}></div></button></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[60px] svelte-79nxou">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[35px] svelte-79nxou">Style:</span> <select class="select select-bordered select-xs w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="flex flex-col gap-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">Param 2 (MAOBV Period)</span> <input type="number" class="input input-bordered input-xs text-xs w-full max-w-24 svelte-79nxou"${attr("value", group.maobvPeriod)}></div> <div class="space-y-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">MAOBV Line Style</span> <div class="grid grid-cols-1 md:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-3 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-[45px] svelte-79nxou">Color:</label> <button class="btn btn-xs btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.maobv.color)}`)}></div></button></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[60px] svelte-79nxou">Thickness:</span> <select class="select select-bordered select-xs w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-3 svelte-79nxou"><span class="text-base-content/60 text-xs min-w-[35px] svelte-79nxou">Style:</span> <select class="select select-bordered select-xs w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div> <div class="flex items-center gap-2 pt-2 svelte-79nxou"><input type="checkbox" class="checkbox checkbox-primary checkbox-sm svelte-79nxou"${attr("checked", group.showMaobv, true)}${attr("id", `showMaobv_${stringify(group.id)}`)}> <label${attr("for", `showMaobv_${stringify(group.id)}`)} class="text-sm text-base-content/80 cursor-pointer svelte-79nxou">Show MAOBV</label></div></div></div>`;
                                                           }
-                                                          $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-omz3gf"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs" title="Add more KDJ"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> + Add More KDJ</button></div></div>`;
+                                                          $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs svelte-79nxou" title="Add more OBV"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> + Add More OBV</button></div></div>`;
                                                         } else {
                                                           $$payload3.out += "<!--[!-->";
-                                                          if (isBollingerBands) {
+                                                          if (isKdj) {
                                                             $$payload3.out += "<!--[-->";
-                                                            $$payload3.out += `<div class="space-y-4 mt-3"><div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80 svelte-omz3gf">Parameters</h4> <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 svelte-omz3gf"><div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="1" max="200"${attr("value", bollingerPeriod)}></div> <div class="flex flex-col gap-1"><label class="text-xs text-base-content/60">Standard Deviation</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="0.1" max="10" step="0.1"${attr("value", bollingerStdDev)}></div></div></div> <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80 svelte-omz3gf">Fill Area Settings</h4> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-omz3gf"><span class="text-xs text-base-content/70 flex-1">Fill Color</span> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(bollingerFillColor)}; opacity: ${stringify(bollingerFillOpacity / 100)}`)}></div> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(bollingerFillColor)}; opacity: ${stringify(bollingerFillOpacity / 100)}`)}></div></button></div></div> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center justify-between svelte-omz3gf"><label class="text-xs text-base-content/70">Opacity</label> <span class="text-xs font-medium text-primary">${escape_html(bollingerFillOpacity)}%</span></div> <input type="range" class="range range-primary range-xs svelte-omz3gf" min="0" max="100" step="1"${attr("value", bollingerFillOpacity)}> <div class="flex justify-between text-xs text-base-content/50 svelte-omz3gf"><span>0%</span> <span>50%</span> <span>100%</span></div></div></div> <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80 svelte-omz3gf">Line Colors</h4> <div class="space-y-2 svelte-omz3gf"><div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-omz3gf"><span class="text-xs text-base-content/70 flex-1">Upper Band</span> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(bollingerUpperColor)}`)}></div> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(bollingerUpperColor)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-omz3gf"><span class="text-xs text-base-content/70 flex-1">Middle Line (SMA)</span> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(bollingerMiddleColor)}`)}></div> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(bollingerMiddleColor)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-omz3gf"><span class="text-xs text-base-content/70 flex-1">Lower Band</span> <div class="flex items-center gap-2"><div class="w-6 h-6 rounded border-2 border-base-300"${attr("style", `background-color: ${stringify(bollingerLowerColor)}`)}></div> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(bollingerLowerColor)}`)}></div></button></div></div></div></div> <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-omz3gf"><h4 class="text-sm font-medium text-base-content/80 svelte-omz3gf">Line Style</h4> <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div></div>`;
-                                                          } else {
-                                                            $$payload3.out += "<!--[!-->";
-                                                            if (!fields.length) {
-                                                              $$payload3.out += "<!--[-->";
-                                                              $$payload3.out += `<div class="flex justify-center items-center min-h-[120px]"><div class="text-base-content/70">${escape_html(/* @__PURE__ */ no_ind_params())}</div></div>`;
-                                                            } else {
-                                                              $$payload3.out += "<!--[!-->";
-                                                              const each_array_24 = ensure_array_like(fields);
-                                                              $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-omz3gf"><!--[-->`;
-                                                              for (let i = 0, $$length = each_array_24.length; i < $$length; i++) {
-                                                                let field = each_array_24[i];
-                                                                $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-omz3gf"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-omz3gf"><span class="w-full sm:w-16 text-base-content/70 text-sm font-medium min-w-fit">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0"><input type="number" class="flex-1 input input-bordered input-sm min-w-0"${attr("value", params[i])}> `;
-                                                                if (params.length > 1 && !isBollingerBands) {
-                                                                  $$payload3.out += "<!--[-->";
-                                                                  $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0" title="Delete parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>`;
-                                                                } else {
-                                                                  $$payload3.out += "<!--[!-->";
-                                                                  if (!isBollingerBands) {
-                                                                    $$payload3.out += "<!--[-->";
-                                                                    $$payload3.out += `<div class="w-8 flex-shrink-0"></div>`;
-                                                                  } else {
-                                                                    $$payload3.out += "<!--[!-->";
-                                                                  }
-                                                                  $$payload3.out += `<!--]-->`;
-                                                                }
-                                                                $$payload3.out += `<!--]--></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-omz3gf"><div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Color:</label> <button class="btn btn-sm btn-outline"><div class="w-4 h-4 rounded border border-base-300"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option${attr("value", 1)}>1px</option><option${attr("value", 2)}>2px</option><option${attr("value", 3)}>3px</option><option${attr("value", 4)}>4px</option><option${attr("value", 5)}>5px</option></select></div> <div class="flex items-center gap-2"><label class="text-xs text-base-content/60 min-w-fit">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0"><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div></div></div>`;
-                                                              }
-                                                              $$payload3.out += `<!--]--> `;
-                                                              if (fields.length < 10 && !isBollingerBands && !isPvt && !isZigzag) {
+                                                            const each_array_24 = ensure_array_like(kdjGroups);
+                                                            $$payload3.out += `<div class="space-y-2 sm:space-y-3 mt-2 sm:mt-3 svelte-79nxou"><!--[-->`;
+                                                            for (let groupIndex = 0, $$length = each_array_24.length; groupIndex < $$length; groupIndex++) {
+                                                              let group = each_array_24[groupIndex];
+                                                              $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">KDJ ${escape_html(groupIndex + 1)}</h4> `;
+                                                              if (kdjGroups.length > 1) {
                                                                 $$payload3.out += "<!--[-->";
-                                                                $$payload3.out += `<div class="flex justify-center mt-4 svelte-omz3gf"><button class="btn btn-sm btn-outline btn-primary"${attr("title", isBias ? "Add more BIAS indicator" : isAo ? "Add more Awesome Oscillator" : isWr ? "Add more WR indicator" : isEma ? "Add more EMA" : "Add parameter")}><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4"></path></svg></button></div>`;
+                                                                $$payload3.out += `<button class="btn btn-xs btn-ghost text-error hover:bg-error/10 svelte-79nxou" title="Remove KDJ"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
                                                               } else {
                                                                 $$payload3.out += "<!--[!-->";
                                                               }
-                                                              $$payload3.out += `<!--]--></div>`;
+                                                              $$payload3.out += `<!--]--></div> <div class="space-y-3 svelte-79nxou"><div class="grid grid-cols-2 gap-2 sm:gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">K Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.kPeriod)} min="1"></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">D Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou"${attr("value", group.dPeriod)} min="1"></div></div> <div class="space-y-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">K Line Style</span> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">K:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.k.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div> <div class="space-y-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">D Line Style</span> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">D:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.d.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div> <div class="space-y-2 svelte-79nxou"><span class="text-base-content/70 text-xs font-medium svelte-79nxou">J Line Style</span> <div class="flex items-center gap-2 text-xs text-base-content/70 svelte-79nxou"><span class="w-12 font-medium svelte-79nxou">J:</span> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(group.styles.j.color)}`)}></div></button> <select class="select select-bordered select-xs w-14 sm:w-16 text-xs svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select> <select class="select select-bordered select-xs w-16 sm:w-20 text-xs svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div></div>`;
+                                                            }
+                                                            $$payload3.out += `<!--]--> <div class="flex justify-center pt-1 svelte-79nxou"><button class="btn btn-xs btn-outline btn-primary gap-1 text-xs svelte-79nxou" title="Add more KDJ"><svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg> + Add More KDJ</button></div></div>`;
+                                                          } else {
+                                                            $$payload3.out += "<!--[!-->";
+                                                            if (isBollingerBands) {
+                                                              $$payload3.out += "<!--[-->";
+                                                              $$payload3.out += `<div class="space-y-4 mt-3 svelte-79nxou"><div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">Parameters</h4> <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 svelte-79nxou"><div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Period</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou" min="1" max="200"${attr("value", bollingerPeriod)}></div> <div class="flex flex-col gap-1 svelte-79nxou"><label class="text-xs text-base-content/60 svelte-79nxou">Standard Deviation</label> <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm svelte-79nxou" min="0.1" max="10" step="0.1"${attr("value", bollingerStdDev)}></div></div></div> <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">Fill Area Settings</h4> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Fill Color</span> <div class="flex items-center gap-2 svelte-79nxou"><div class="w-6 h-6 rounded border-2 border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerFillColor)}; opacity: ${stringify(bollingerFillOpacity / 100)}`)}></div> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerFillColor)}; opacity: ${stringify(bollingerFillOpacity / 100)}`)}></div></button></div></div> <div class="space-y-2 svelte-79nxou"><div class="flex items-center justify-between svelte-79nxou"><label class="text-xs text-base-content/70 svelte-79nxou">Opacity</label> <span class="text-xs font-medium text-primary svelte-79nxou">${escape_html(bollingerFillOpacity)}%</span></div> <input type="range" class="range range-primary range-xs svelte-79nxou" min="0" max="100" step="1"${attr("value", bollingerFillOpacity)}> <div class="flex justify-between text-xs text-base-content/50 svelte-79nxou"><span class="svelte-79nxou">0%</span> <span class="svelte-79nxou">50%</span> <span class="svelte-79nxou">100%</span></div></div></div> <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">Line Colors</h4> <div class="space-y-2 svelte-79nxou"><div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Upper Band</span> <div class="flex items-center gap-2 svelte-79nxou"><div class="w-6 h-6 rounded border-2 border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerUpperColor)}`)}></div> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerUpperColor)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Middle Line (SMA)</span> <div class="flex items-center gap-2 svelte-79nxou"><div class="w-6 h-6 rounded border-2 border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerMiddleColor)}`)}></div> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerMiddleColor)}`)}></div></button></div></div> <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200 svelte-79nxou"><span class="text-xs text-base-content/70 flex-1 svelte-79nxou">Lower Band</span> <div class="flex items-center gap-2 svelte-79nxou"><div class="w-6 h-6 rounded border-2 border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerLowerColor)}`)}></div> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(bollingerLowerColor)}`)}></div></button></div></div></div></div> <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3 svelte-79nxou"><h4 class="text-sm font-medium text-base-content/80 svelte-79nxou">Line Style</h4> <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div></div>`;
+                                                            } else {
+                                                              $$payload3.out += "<!--[!-->";
+                                                              if (!fields.length) {
+                                                                $$payload3.out += "<!--[-->";
+                                                                $$payload3.out += `<div class="flex justify-center items-center min-h-[120px] svelte-79nxou"><div class="text-base-content/70 svelte-79nxou">${escape_html(/* @__PURE__ */ no_ind_params())}</div></div>`;
+                                                              } else {
+                                                                $$payload3.out += "<!--[!-->";
+                                                                const each_array_25 = ensure_array_like(fields);
+                                                                $$payload3.out += `<div class="space-y-3 sm:space-y-4 mt-3 sm:mt-5 svelte-79nxou"><!--[-->`;
+                                                                for (let i = 0, $$length = each_array_25.length; i < $$length; i++) {
+                                                                  let field = each_array_25[i];
+                                                                  $$payload3.out += `<div class="border border-base-300 rounded-lg p-2 sm:p-3 space-y-2 sm:space-y-3 svelte-79nxou"><div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 svelte-79nxou"><span class="w-full sm:w-16 text-base-content/70 text-sm font-medium min-w-fit svelte-79nxou">${escape_html(field.title)}</span> <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 svelte-79nxou"><input type="number" class="flex-1 input input-bordered input-sm min-w-0 svelte-79nxou"${attr("value", params[i])}> `;
+                                                                  if (params.length > 1 && !isBollingerBands) {
+                                                                    $$payload3.out += "<!--[-->";
+                                                                    $$payload3.out += `<button class="btn btn-sm btn-circle btn-ghost text-error hover:bg-error/10 flex-shrink-0 svelte-79nxou" title="Delete parameter"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M6 18L18 6M6 6l12 12" class="svelte-79nxou"></path></svg></button>`;
+                                                                  } else {
+                                                                    $$payload3.out += "<!--[!-->";
+                                                                    if (!isBollingerBands) {
+                                                                      $$payload3.out += "<!--[-->";
+                                                                      $$payload3.out += `<div class="w-8 flex-shrink-0 svelte-79nxou"></div>`;
+                                                                    } else {
+                                                                      $$payload3.out += "<!--[!-->";
+                                                                    }
+                                                                    $$payload3.out += `<!--]-->`;
+                                                                  }
+                                                                  $$payload3.out += `<!--]--></div></div> <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 svelte-79nxou"><div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Color:</label> <button class="btn btn-sm btn-outline svelte-79nxou"><div class="w-4 h-4 rounded border border-base-300 svelte-79nxou"${attr("style", `background-color: ${stringify(styles[i].color)}`)}></div></button></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Thickness:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option${attr("value", 1)} class="svelte-79nxou">1px</option><option${attr("value", 2)} class="svelte-79nxou">2px</option><option${attr("value", 3)} class="svelte-79nxou">3px</option><option${attr("value", 4)} class="svelte-79nxou">4px</option><option${attr("value", 5)} class="svelte-79nxou">5px</option></select></div> <div class="flex items-center gap-2 svelte-79nxou"><label class="text-xs text-base-content/60 min-w-fit svelte-79nxou">Style:</label> <select class="select select-bordered select-xs flex-1 min-w-0 svelte-79nxou"><option value="solid" class="svelte-79nxou">Solid</option><option value="dashed" class="svelte-79nxou">Dashed</option><option value="dotted" class="svelte-79nxou">Dotted</option></select></div></div></div>`;
+                                                                }
+                                                                $$payload3.out += `<!--]--> `;
+                                                                if (fields.length < 10 && !isBollingerBands && !isPvt && !isZigzag) {
+                                                                  $$payload3.out += "<!--[-->";
+                                                                  $$payload3.out += `<div class="flex justify-center mt-4 svelte-79nxou"><button class="btn btn-sm btn-outline btn-primary svelte-79nxou"${attr("title", isBias ? "Add more BIAS indicator" : isAo ? "Add more Awesome Oscillator" : isWr ? "Add more WR indicator" : isEma ? "Add more EMA" : "Add parameter")}><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1 svelte-79nxou" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4" class="svelte-79nxou"></path></svg></button></div>`;
+                                                                } else {
+                                                                  $$payload3.out += "<!--[!-->";
+                                                                }
+                                                                $$payload3.out += `<!--]--></div>`;
+                                                              }
+                                                              $$payload3.out += `<!--]-->`;
                                                             }
                                                             $$payload3.out += `<!--]-->`;
                                                           }
@@ -30864,7 +31141,7 @@ function ModalIndCfg($$payload, $$props) {
         showSmaColorPalette = $$value;
         $$settled = false;
       },
-      selectedColor: styles[smaColorPaletteIndex]?.color || "#2563eb",
+      selectedColor: smaGroups[smaColorPaletteIndex]?.color || "#FF6C37",
       position: smaColorPalettePosition
     });
     $$payload2.out += `<!----> `;
@@ -32098,6 +32375,7 @@ function ModalChartSetting($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       click,
       buttons: ["confirm", "reset"],
       children: ($$payload3) => {
@@ -32422,6 +32700,7 @@ function ModalSetting($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       click,
       buttons: ["confirm", "reset"],
       children: ($$payload3) => {
@@ -32478,7 +32757,10 @@ function ModalSetting($$payload, $$props) {
   pop();
 }
 function ModalScreenShot($$payload, $$props) {
+  push();
+  var $$store_subs;
   let { show = void 0, url = void 0 } = $$props;
+  const save = getContext("save");
   function handleConfirm(from) {
     if (from === "confirm") {
       const a = document.createElement("a");
@@ -32503,6 +32785,7 @@ function ModalScreenShot($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       click: handleConfirm,
       children: ($$payload3) => {
         $$payload3.out += `<img${attr("src", url)} alt="screenshot" class="w-[500px] mt-5">`;
@@ -32516,12 +32799,15 @@ function ModalScreenShot($$payload, $$props) {
     $$render_inner($$inner_payload);
   } while (!$$settled);
   assign_payload($$payload, $$inner_payload);
+  if ($$store_subs) unsubscribe_stores($$store_subs);
   bind_props($$props, { show, url });
+  pop();
 }
 function ModalTimezone($$payload, $$props) {
   push();
+  var $$store_subs;
   let { show = void 0 } = $$props;
-  getContext("save");
+  const save = getContext("save");
   const timezoneOptions = getTimezoneSelectOptions();
   function handleConfirm(from) {
     show = false;
@@ -32539,6 +32825,7 @@ function ModalTimezone($$payload, $$props) {
         show = $$value;
         $$settled = false;
       },
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
       click: handleConfirm,
       children: ($$payload3) => {
         const each_array = ensure_array_like(timezoneOptions);
@@ -32558,6 +32845,7 @@ function ModalTimezone($$payload, $$props) {
     $$render_inner($$inner_payload);
   } while (!$$settled);
   assign_payload($$payload, $$inner_payload);
+  if ($$store_subs) unsubscribe_stores($$store_subs);
   bind_props($$props, { show });
   pop();
 }
@@ -32618,352 +32906,439 @@ function ModalChartType($$payload, $$props) {
         $$settled = false;
       },
       title: "Chart Type",
-      width: "auto",
+      width: "550px",
       maxWidth: "95vw",
       maxHeight: "90vh",
       buttons: [],
-      class: "chart-type-modal",
+      theme: store_get($$store_subs ??= {}, "$save", save).theme,
+      class: "chart-type-modal-premium",
       children: ($$payload3) => {
         const each_array = ensure_array_like(chartTypes);
-        $$payload3.out += `<div class="premium-chart-grid p-4 sm:p-5"><!--[-->`;
+        $$payload3.out += `<div class="premium-grid"><!--[-->`;
         for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
           let chartType = each_array[$$index];
-          $$payload3.out += `<div${attr("class", `premium-chart-item group ${stringify([
+          $$payload3.out += `<button${attr("class", `chart-card ${stringify([
             getCurrentChartType() === chartType.id ? "active" : ""
-          ].filter(Boolean).join(" "))}`)}><div class="premium-icon-container">`;
+          ].filter(Boolean).join(" "))}`)}><div class="card-bg"></div> `;
+          if (getCurrentChartType() === chartType.id) {
+            $$payload3.out += "<!--[-->";
+            $$payload3.out += `<div class="selection-badge"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13.3 4.3L6 11.6 2.7 8.3l1.1-1.1L6 9.4l6.2-6.2 1.1 1.1z" fill="currentColor" stroke="currentColor" stroke-width="0.5"></path></svg></div>`;
+          } else {
+            $$payload3.out += "<!--[!-->";
+          }
+          $$payload3.out += `<!--]--> <div class="icon-container"><div class="icon-glow"></div> `;
           Icon$1($$payload3, {
             name: chartType.icon,
-            size: 20,
-            class: `premium-icon ${stringify(getCurrentChartType() === chartType.id ? "active-icon" : "")}`
+            size: 26,
+            class: "chart-icon"
           });
-          $$payload3.out += `<!----> `;
-          if (getCurrentChartType() === chartType.id) {
-            $$payload3.out += "<!--[-->";
-            $$payload3.out += `<svg class="active-indicator" width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill="currentColor" class="checkmark"></path></svg>`;
-          } else {
-            $$payload3.out += "<!--[!-->";
-          }
-          $$payload3.out += `<!--]--></div> <div class="premium-chart-name">${escape_html(chartType.name)}</div> <div class="premium-hover-effect"></div> `;
-          if (getCurrentChartType() === chartType.id) {
-            $$payload3.out += "<!--[-->";
-            $$payload3.out += `<div class="active-glow"></div>`;
-          } else {
-            $$payload3.out += "<!--[!-->";
-          }
-          $$payload3.out += `<!--]--></div>`;
+          $$payload3.out += `<!----></div> <span class="chart-name">${escape_html(chartType.name)}</span> <div class="shine-effect"></div></button>`;
         }
         $$payload3.out += `<!--]--></div> <style>
-    .premium-chart-grid {
+    /* ===== PREMIUM GRID LAYOUT ===== */
+    .premium-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
-      max-width: 400px;
-      margin: 0 auto;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      padding: 8px;
     }
     
-    @media (max-width: 480px) {
-      .premium-chart-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 8px;
-        max-width: none;
+    @media (max-width: 640px) {
+      .premium-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        padding: 6px;
       }
     }
     
-    .premium-chart-item {
+    @media (max-width: 480px) {
+      .premium-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        padding: 8px;
+      }
+    }
+    
+    /* ===== PREMIUM CHART CARD ===== */
+    .chart-card {
       position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 12px 8px;
-      border-radius: 16px;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px 12px 18px;
+      background: linear-gradient(145deg, 
+        rgba(30, 35, 48, 0.6) 0%, 
+        rgba(20, 25, 35, 0.4) 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.05) 0%, 
-        rgba(255, 255, 255, 0.02) 50%, 
-        rgba(255, 255, 255, 0.05) 100%
-      );
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      overflow: hidden;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 
+        0 4px 20px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
     
-    @media (max-width: 480px) {
-      .premium-chart-item {
-        padding: 10px 6px;
-        border-radius: 14px;
+    @media (max-width: 640px) {
+      .chart-card {
+        padding: 16px 10px 14px;
+        gap: 8px;
       }
     }
     
-    .premium-chart-item:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-      border-color: rgba(138, 43, 226, 0.3);
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.1) 0%, 
-        rgba(138, 43, 226, 0.05) 50%, 
-        rgba(138, 43, 226, 0.1) 100%
-      );
+    @media (max-width: 480px) {
+      .chart-card {
+        padding: 22px 14px 20px;
+        gap: 12px;
+      }
     }
     
-    .premium-chart-item.active {
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.2) 0%, 
-        rgba(138, 43, 226, 0.15) 50%, 
-        rgba(138, 43, 226, 0.2) 100%
-      );
-      border-color: rgba(138, 43, 226, 0.4);
+    /* Animated background */
+    .card-bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(145deg,
+        rgba(45, 55, 75, 0.3) 0%,
+        rgba(30, 40, 60, 0.2) 50%,
+        rgba(20, 30, 50, 0.3) 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 0;
+    }
+    
+    /* Hover state */
+    .chart-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 255, 255, 0.12);
+      background: linear-gradient(145deg, 
+        rgba(35, 45, 60, 0.7) 0%, 
+        rgba(25, 35, 50, 0.5) 100%);
       box-shadow: 
-        0 4px 20px rgba(138, 43, 226, 0.25),
-        0 0 0 1px rgba(138, 43, 226, 0.3);
+        0 12px 40px rgba(0, 0, 0, 0.4),
+        0 6px 20px rgba(20, 30, 50, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
     
-    .premium-icon-container {
-      position: relative;
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
+    .chart-card:hover .card-bg {
+      opacity: 1;
+    }
+    
+    /* Active state */
+    .chart-card.active {
+      background: linear-gradient(145deg, 
+        rgba(30, 50, 80, 0.5) 0%,
+        rgba(20, 40, 70, 0.4) 50%,
+        rgba(25, 45, 75, 0.5) 100%);
+      border-color: rgba(70, 120, 180, 0.4);
+      box-shadow: 
+        0 8px 32px rgba(30, 60, 100, 0.3),
+        0 4px 16px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 0 0 1px rgba(60, 100, 150, 0.2);
+      transform: translateY(-2px);
+    }
+    
+    .chart-card.active .card-bg {
+      background: linear-gradient(145deg,
+        rgba(40, 65, 95, 0.4) 0%,
+        rgba(30, 55, 85, 0.3) 50%,
+        rgba(35, 60, 90, 0.4) 100%);
+      opacity: 1;
+    }
+    
+    .chart-card.active:hover {
+      transform: translateY(-2px);
+      border-color: rgba(80, 130, 190, 0.5);
+    }
+    
+    /* ===== SELECTION BADGE ===== */
+    .selection-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 20px;
+      height: 20px;
+      background: linear-gradient(135deg, 
+        rgba(70, 120, 180, 0.9) 0%, 
+        rgba(50, 100, 160, 0.85) 100%);
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 10px;
-      background: linear-gradient(135deg, 
-        rgba(255, 255, 255, 0.1) 0%, 
-        rgba(255, 255, 255, 0.05) 100%
-      );
-      transition: all 0.3s ease;
+      color: white;
+      z-index: 10;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 
+        0 3px 10px rgba(30, 60, 100, 0.4),
+        0 1px 3px rgba(0, 0, 0, 0.3);
+      animation: badgePulse 2.5s ease-in-out infinite;
     }
     
-    @media (max-width: 480px) {
-      .premium-icon-container {
-        width: 40px;
-        height: 40px;
-        margin-bottom: 8px;
+    @keyframes badgePulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 
+          0 3px 10px rgba(30, 60, 100, 0.4),
+          0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+      50% {
+        transform: scale(1.05);
+        box-shadow: 
+          0 4px 14px rgba(40, 70, 110, 0.5),
+          0 2px 5px rgba(0, 0, 0, 0.35);
+      }
+    }
+    
+    /* ===== ICON CONTAINER ===== */
+    .icon-container {
+      position: relative;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: linear-gradient(145deg, 
+        rgba(40, 50, 65, 0.5) 0%, 
+        rgba(25, 35, 50, 0.3) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 
+        0 3px 12px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      z-index: 1;
+    }
+    
+    @media (max-width: 640px) {
+      .icon-container {
+        width: 42px;
+        height: 42px;
         border-radius: 10px;
       }
     }
     
-    .premium-chart-item:hover .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.2) 0%, 
-        rgba(138, 43, 226, 0.1) 100%
-      );
+    @media (max-width: 480px) {
+      .icon-container {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+      }
     }
     
-    .premium-chart-item.active .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(138, 43, 226, 0.3) 0%, 
-        rgba(138, 43, 226, 0.2) 100%
-      );
-    }
-    
-    .premium-icon {
-      color: rgba(255, 255, 255, 0.8);
-      transition: all 0.3s ease;
-    }
-    
-    .premium-chart-item:hover .premium-icon {
-      color: rgba(255, 255, 255, 0.95);
-    }
-    
-    .active-icon {
-      color: #ffffff !important;
-    }
-    
-    .active-indicator {
+    .icon-glow {
       position: absolute;
-      top: -4px;
-      right: -4px;
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #8a2be2 0%, #6a0dad 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 2px 8px rgba(138, 43, 226, 0.4);
+      inset: -3px;
+      background: linear-gradient(145deg, 
+        rgba(50, 90, 140, 0.3) 0%, 
+        rgba(35, 70, 120, 0.25) 100%);
+      border-radius: inherit;
+      opacity: 0;
+      filter: blur(10px);
+      transition: opacity 0.3s ease;
+      z-index: -1;
     }
     
-    .checkmark {
-      color: #ffffff;
-      width: 12px;
-      height: 12px;
+    .chart-card:hover .icon-container {
+      transform: scale(1.06);
+      background: linear-gradient(145deg, 
+        rgba(50, 65, 85, 0.6) 0%, 
+        rgba(35, 50, 70, 0.4) 100%);
+      box-shadow: 
+        0 5px 18px rgba(0, 0, 0, 0.25),
+        0 2px 10px rgba(30, 50, 80, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
     
-    .premium-chart-name {
-      font-size: 13px;
+    .chart-card.active .icon-container {
+      background: linear-gradient(145deg, 
+        rgba(40, 70, 110, 0.5) 0%, 
+        rgba(30, 60, 95, 0.4) 100%);
+      border-color: rgba(70, 110, 160, 0.3);
+      transform: scale(1.04);
+      box-shadow: 
+        0 6px 20px rgba(30, 60, 100, 0.3),
+        0 3px 12px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    }
+    
+    .chart-card.active .icon-glow {
+      opacity: 0.5;
+    }
+    
+    /* ===== CHART ICON ===== */
+    :global(.chart-icon) {
+      color: rgba(200, 210, 230, 0.85);
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 2;
+    }
+    
+    .chart-card:hover :global(.chart-icon) {
+      color: rgba(220, 230, 245, 0.95);
+      filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.35));
+      transform: scale(1.05);
+    }
+    
+    .chart-card.active :global(.chart-icon) {
+      color: rgba(160, 200, 240, 1);
+      filter: drop-shadow(0 4px 12px rgba(40, 80, 130, 0.5));
+      transform: scale(1.03);
+    }
+    
+    /* ===== CHART NAME ===== */
+    .chart-name {
+      color: rgba(180, 190, 210, 0.85);
+      font-size: 12px;
       font-weight: 500;
-      color: rgba(255, 255, 255, 0.9);
       text-align: center;
-      transition: all 0.3s ease;
+      line-height: 1.3;
+      letter-spacing: 0.4px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 1;
     }
     
-    .premium-chart-item:hover .premium-chart-name {
-      color: #ffffff;
+    @media (max-width: 640px) {
+      .chart-name {
+        font-size: 11px;
+      }
     }
     
-    .premium-chart-item.active .premium-chart-name {
-      color: #ffffff;
+    @media (max-width: 480px) {
+      .chart-name {
+        font-size: 12.5px;
+      }
+    }
+    
+    .chart-card:hover .chart-name {
+      color: rgba(210, 220, 235, 0.95);
+      transform: translateY(-1px);
+    }
+    
+    .chart-card.active .chart-name {
+      color: rgba(180, 210, 240, 1);
       font-weight: 600;
+      letter-spacing: 0.5px;
     }
     
-    .premium-hover-effect {
+    /* ===== SHINE EFFECT ===== */
+    .shine-effect {
       position: absolute;
       inset: 0;
-      border-radius: 16px;
-      background: radial-gradient(
-        400px circle at var(--mouse-x) var(--mouse-y),
-        rgba(138, 43, 226, 0.1),
-        transparent 40%
+      background: linear-gradient(
+        115deg,
+        transparent 25%,
+        rgba(255, 255, 255, 0.08) 45%,
+        rgba(200, 220, 240, 0.12) 50%,
+        rgba(255, 255, 255, 0.08) 55%,
+        transparent 75%
       );
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      pointer-events: none;
+      transform: translateX(-100%) skewX(-15deg);
+      transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
-    .premium-chart-item:hover .premium-hover-effect {
-      opacity: 1;
+    .chart-card:hover .shine-effect {
+      transform: translateX(100%) skewX(-15deg);
     }
     
-    .active-glow {
-      position: absolute;
-      inset: -2px;
-      border-radius: 18px;
-      background: linear-gradient(45deg, 
-        rgba(138, 43, 226, 0.4), 
-        rgba(138, 43, 226, 0.2), 
-        rgba(138, 43, 226, 0.4)
-      );
-      filter: blur(8px);
-      z-index: -1;
-      animation: activeGlow 2s ease-in-out infinite alternate;
-    }
-    
-    @keyframes activeGlow {
-      0% { opacity: 0.6; }
-      100% { opacity: 0.8; }
-    }
-    
-    /* Light theme adjustments - Fixed text colors */
-    :global([data-theme="light"]) .premium-chart-item {
-      background: linear-gradient(135deg, 
-        rgba(240, 240, 240, 0.8) 0%, 
-        rgba(245, 245, 245, 0.9) 50%, 
-        rgba(240, 240, 240, 0.8) 100%
-      );
-      border: 1px solid rgba(0, 0, 0, 0.15);
-    }
-    
-    :global([data-theme="light"]) .premium-chart-item:hover {
-      border-color: rgba(59, 130, 246, 0.3);
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.08) 0%, 
-        rgba(59, 130, 246, 0.04) 50%, 
-        rgba(59, 130, 246, 0.08) 100%
-      );
-    }
-    
-    :global([data-theme="light"]) .premium-chart-item.active {
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.15) 0%, 
-        rgba(59, 130, 246, 0.1) 50%, 
-        rgba(59, 130, 246, 0.15) 100%
-      );
-      border-color: rgba(59, 130, 246, 0.4);
+    /* ===== LIGHT THEME ===== */
+    :global([data-theme="light"]) .chart-card {
+      background: #ffffff;
+      border-color: rgba(0, 0, 0, 0.05);
       box-shadow: 
-        0 4px 20px rgba(59, 130, 246, 0.15),
-        0 0 0 1px rgba(59, 130, 246, 0.2);
+        0 1px 3px rgba(0, 0, 0, 0.03),
+        0 0px 1px rgba(0, 0, 0, 0.02);
     }
     
-    :global([data-theme="light"]) .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(230, 230, 230, 0.7) 0%, 
-        rgba(235, 235, 235, 0.8) 100%
-      );
+    :global([data-theme="light"]) .card-bg {
+      background: transparent;
+      opacity: 0;
     }
     
-    :global([data-theme="light"]) .premium-chart-item:hover .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.1) 0%, 
-        rgba(59, 130, 246, 0.05) 100%
-      );
+    :global([data-theme="light"]) .chart-card:hover {
+      background: #ffffff;
+      border-color: rgba(100, 150, 220, 0.2);
+      box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.06),
+        0 2px 6px rgba(0, 0, 0, 0.04);
     }
     
-    :global([data-theme="light"]) .premium-chart-item.active .premium-icon-container {
-      background: linear-gradient(135deg, 
-        rgba(59, 130, 246, 0.2) 0%, 
-        rgba(59, 130, 246, 0.1) 100%
-      );
+    :global([data-theme="light"]) .chart-card.active {
+      background: linear-gradient(145deg, #e8f4ff 0%, #f0f8ff 100%);
+      border-color: rgba(100, 150, 220, 0.4);
+      box-shadow: 
+        0 3px 10px rgba(100, 150, 220, 0.15),
+        0 1px 4px rgba(0, 0, 0, 0.05);
     }
     
-    /* Light mode - Force black text for ALL unselected items */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) .premium-icon {
-      color: #000000 !important;
+    :global([data-theme="light"]) .chart-card.active .card-bg {
+      opacity: 0;
     }
     
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active):hover .premium-icon {
-      color: #000000 !important;
+    :global([data-theme="light"]) .icon-container {
+      background: #f8f9fa;
+      border-color: rgba(0, 0, 0, 0.05);
+      box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        inset 0 0.5px 0 rgba(255, 255, 255, 1);
     }
     
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) .premium-chart-name {
-      color: #000000 !important;
-      font-weight: 500;
+    :global([data-theme="light"]) .chart-card:hover .icon-container {
+      background: #f0f2f5;
+      box-shadow: 
+        0 2px 6px rgba(0, 0, 0, 0.05),
+        inset 0 0.5px 0 rgba(255, 255, 255, 1);
     }
     
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active):hover .premium-chart-name {
-      color: #000000 !important;
+    :global([data-theme="light"]) .chart-card.active .icon-container {
+      background: linear-gradient(145deg, #dceeff 0%, #e6f3ff 100%);
+      border-color: rgba(100, 150, 220, 0.2);
+      box-shadow: 
+        0 2px 8px rgba(100, 150, 220, 0.12),
+        inset 0 0.5px 0 rgba(255, 255, 255, 1);
+    }
+    
+    :global([data-theme="light"]) .icon-glow {
+      opacity: 0;
+    }
+    
+    :global([data-theme="light"]) :global(.chart-icon) {
+      color: #5a6c84;
+      filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.1));
+    }
+    
+    :global([data-theme="light"]) .chart-card:hover :global(.chart-icon) {
+      color: #4a5c74;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+    }
+    
+    :global([data-theme="light"]) .chart-card.active :global(.chart-icon) {
+      color: #4a90e2;
+      filter: drop-shadow(0 1px 3px rgba(74, 144, 226, 0.3));
+    }
+    
+    :global([data-theme="light"]) .chart-name {
+      color: #6b7a94;
+    }
+    
+    :global([data-theme="light"]) .chart-card:hover .chart-name {
+      color: #5a6c84;
+    }
+    
+    :global([data-theme="light"]) .chart-card.active .chart-name {
+      color: #4a90e2;
       font-weight: 600;
     }
     
-    /* Additional specificity for any nested elements */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) * {
-      color: #000000 !important;
-    }
-    
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item:not(.active) svg {
-      color: #000000 !important;
-      fill: #000000 !important;
-    }
-    
-    /* Light mode - Selected/Active items - Force white text */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active .premium-icon,
-    :global([data-theme="light"]) .chart-type-modal .active-icon {
-      color: #ffffff !important;
-    }
-    
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active .premium-chart-name {
-      color: #ffffff !important;
-      font-weight: 600;
-    }
-    
-    /* Override any nested elements in active items to be white */
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active * {
-      color: #ffffff !important;
-    }
-    
-    :global([data-theme="light"]) .chart-type-modal .premium-chart-item.active svg {
-      color: #ffffff !important;
-      fill: #ffffff !important;
-    }
-    
-    :global([data-theme="light"]) .premium-hover-effect {
-      background: radial-gradient(
-        400px circle at var(--mouse-x) var(--mouse-y),
-        rgba(59, 130, 246, 0.08),
-        transparent 40%
-      );
-    }
-    
-    :global([data-theme="light"]) .active-glow {
-      background: linear-gradient(45deg, 
-        rgba(59, 130, 246, 0.3), 
-        rgba(59, 130, 246, 0.15), 
-        rgba(59, 130, 246, 0.3)
-      );
-    }
-    
-    :global([data-theme="light"]) .checkmark {
-      color: #ffffff !important;
+    :global([data-theme="light"]) .selection-badge {
+      background: linear-gradient(135deg, #5ba3f5 0%, #4a90e2 100%);
+      border-color: rgba(255, 255, 255, 0.8);
+      box-shadow: 
+        0 2px 8px rgba(74, 144, 226, 0.3),
+        0 1px 2px rgba(0, 0, 0, 0.1);
     }
   </style>`;
       },
@@ -34372,6 +34747,7 @@ function SaveSystemIntegration($$payload, $$props) {
   getContext("save");
   getContext("ctx");
   getContext("chart");
+  getContext("drawingManager");
   const storage = new LocalStorageProvider();
   const saveManager = new SaveManager(storage);
   onDestroy(() => {
