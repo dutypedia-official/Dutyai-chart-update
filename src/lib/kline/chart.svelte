@@ -94,6 +94,8 @@
   // Infinite scrolling state
   let isLoadingHistoricalData = $state(false);
   let historicalLoadError = $state<string | null>(null);
+  // Track if user is pinned to the right edge (latest bars)
+  let isPinnedToRight = true;
   
   // Render system integration
   const renderIntegration = getChartRenderIntegration();
@@ -513,6 +515,8 @@
     const loadCooldown = 800; // Reduced to 800ms for faster loading
     let consecutiveLoadCount = 0;
     const maxConsecutiveLoads = 5; // Allow more consecutive loads
+    // Track visible bars to detect zoom vs pan
+    let lastVisibleBars: number | null = null;
     
     // Poll for scroll changes with optimized logic
     const checkScrollPosition = () => {
@@ -523,13 +527,20 @@
         
         const dataList = chartObj.getDataList();
         if (dataList.length === 0) return;
+        // Update right-edge pin status: if rightmost visible index is near the last bar, consider pinned
+        const lastIndex = dataList.length - 1;
+        const rightThreshold = 1; // allow a tiny buffer
+        isPinnedToRight = visibleRange.to >= (lastIndex - rightThreshold);
         
         // More aggressive threshold for faster loading
         const visibleBars = visibleRange.to - visibleRange.from;
+        // Track last visible bars (for potential future heuristics)
+        lastVisibleBars = visibleBars;
         const scrollThreshold = Math.max(3, Math.min(15, Math.floor(visibleBars * 0.15))); // 15% of visible range, min 3, max 15
         
         // Check if user scrolled to the left edge (need more historical data)
         const isScrollingLeft = lastVisibleRange && visibleRange.from < lastVisibleRange.from;
+        // Near-left detection using dynamic threshold (pan near edge)
         const isNearLeftEdge = visibleRange.from <= scrollThreshold;
         const hasSignificantMovement = !lastVisibleRange || Math.abs(visibleRange.from - lastVisibleRange.from) > 1; // Reduced movement threshold
         
@@ -539,9 +550,10 @@
         const canLoad = now - lastLoadTime > adaptiveCooldown;
         
         // More aggressive loading conditions
-        const isVeryNearEdge = visibleRange.from <= Math.max(1, scrollThreshold / 2); // Very close to edge
-        const shouldLoadAggressively = isVeryNearEdge && hasSignificantMovement && canLoad;
-        const shouldLoadNormally = isScrollingLeft && isNearLeftEdge && hasSignificantMovement && canLoad;
+        const isVeryNearEdge = visibleRange.from <= Math.max(1, Math.floor(scrollThreshold / 2)); // closer to absolute edge
+        // Load whenever left edge hits the boundary, regardless of zoom; rely on cooldown
+        const shouldLoadAggressively = isVeryNearEdge && canLoad;
+        const shouldLoadNormally = isNearLeftEdge && canLoad;
         
         if (shouldLoadAggressively || shouldLoadNormally) {
           const firstDataPoint = dataList[0];
@@ -606,8 +618,8 @@
             // Merge data: new historical data first, then existing data
             const mergedData = [...uniqueNewData, ...currentData].sort((a, b) => a.timestamp - b.timestamp);
             
-            // Apply the merged data to the chart
-            chartObj.applyNewData(mergedData, true);
+            // Apply the merged data to the chart without forcing right alignment
+            chartObj.applyNewData(mergedData, false);
             
             console.log(`✅ Successfully loaded and merged ${uniqueNewData.length} more historical bars`);
             
@@ -620,10 +632,14 @@
               const newIndexOfFirstVisible = mergedData.findIndex(d => d.timestamp === firstVisibleTimestamp);
               
               if (newIndexOfFirstVisible !== -1) {
-                // Use immediate scroll adjustment without delay for smoother experience
+                // Defer scroll adjustment to next frame to avoid jump
                 try {
-                  chartObj.scrollToDataIndex(newIndexOfFirstVisible);
-                  console.log(`🎯 Scroll position adjusted to index ${newIndexOfFirstVisible} (was ${currentVisibleRange.from})`);
+                  requestAnimationFrame(() => {
+                    try {
+                      chartObj.scrollToDataIndex(newIndexOfFirstVisible);
+                      console.log(`🎯 Scroll position adjusted to index ${newIndexOfFirstVisible} (was ${currentVisibleRange.from})`);
+                    } catch {}
+                  });
                 } catch (_error) {
                   // Fallback: Use the simple offset method
                   const fallbackIndex = currentVisibleRange.from + uniqueNewData.length;
@@ -638,7 +654,9 @@
                 // Fallback: Use offset method if timestamp lookup fails
                 const offsetIndex = currentVisibleRange.from + uniqueNewData.length;
                 try {
-                  chartObj.scrollToDataIndex(offsetIndex);
+                  requestAnimationFrame(() => {
+                    try { chartObj.scrollToDataIndex(offsetIndex); } catch {}
+                  });
                   console.log(`📍 Offset scroll to index ${offsetIndex}`);
                 } catch (error) {
                   console.warn('Could not maintain scroll position:', error);
@@ -759,7 +777,30 @@
           ] : null
           const ohlcvArr = build_ohlcvs(result.bars, result.secs * 1000, tf_msecs, lastBar)
           const store = (chartObj as Chart & { getChartStore(): any }).getChartStore()
-          store.addData(ohlcvArr, 'backward', {forward: true, backward:false})
+          // Capture current viewport and compute pinned state in real-time
+          const preVisibleRange = chartObj.getVisibleRange();
+          const preData = chartObj.getDataList();
+          const preFirstVisibleTs = preVisibleRange && preData[preVisibleRange.from]
+            ? preData[preVisibleRange.from].timestamp
+            : null;
+          const lastIndexNow = preData.length - 1;
+          const pinnedNow = preVisibleRange ? (preVisibleRange.to >= (lastIndexNow - 1)) : true;
+          // Append new ticks; only advance if pinned at this exact moment
+          store.addData(ohlcvArr, 'backward', {forward: pinnedNow, backward:false})
+          // Restore viewport when not pinned
+          if (!pinnedNow && preVisibleRange && preFirstVisibleTs) {
+            requestAnimationFrame(() => {
+              try {
+                const postData = chartObj.getDataList();
+                const newIndex = postData.findIndex(d => d.timestamp === preFirstVisibleTs);
+                if (newIndex !== -1) {
+                  chartObj.scrollToDataIndex(newIndex);
+                } else {
+                  chartObj.scrollToDataIndex(preVisibleRange.from);
+                }
+              } catch (_e) {}
+            });
+          }
         })
       }
     }

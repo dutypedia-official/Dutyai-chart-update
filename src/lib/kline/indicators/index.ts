@@ -22,5 +22,6 @@ import { volume } from './volume';
 import { sma } from './sma';
 import { stochastic } from './stochastic';
 import { superTrend } from './superTrend';
+import { customMACD } from './customMACD';
 
-export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma, stochastic, superTrend]
+export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma, stochastic, superTrend, customMACD]

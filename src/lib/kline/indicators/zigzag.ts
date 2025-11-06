@@ -145,11 +145,13 @@ export const zigzag: IndicatorTemplate = {
 
     ctx.save();
 
-    // Get style configuration
+    // Get style configuration (support solid/dashed/dotted via dashedValue)
     const lineStyle = indicator.styles?.lines?.[0] || {
       color: '#2962FF',
-      size: 2
-    };
+      size: 2,
+      style: kc.LineType.Solid,
+      dashedValue: [2, 2]
+    } as any;
 
     const circleStyle = indicator.styles?.circles?.[0] || {
       upColor: '#26A69A',
@@ -173,9 +175,15 @@ export const zigzag: IndicatorTemplate = {
     }
 
     // Draw lines between consecutive pivots
-    ctx.strokeStyle = lineStyle.color as string;
-    ctx.lineWidth = lineStyle.size || 2;
-    ctx.setLineDash([]);
+    ctx.strokeStyle = (lineStyle.color as string) || '#2962FF';
+    ctx.lineWidth = (lineStyle.size as number) || 2;
+    // Apply dashed pattern if requested
+    if (lineStyle.style === kc.LineType.Dashed) {
+      const dv = Array.isArray(lineStyle.dashedValue) ? lineStyle.dashedValue as number[] : [4, 4];
+      ctx.setLineDash(dv);
+    } else {
+      ctx.setLineDash([]);
+    }
 
     for (let i = 0; i < pivots.length - 1; i++) {
       const pivot1 = pivots[i];

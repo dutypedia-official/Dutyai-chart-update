@@ -668,6 +668,77 @@
       });
       
       console.log('✅ Bulk DMI deletion completed');
+    } else if (name === 'SAR') {
+      // For SAR, delete all instances on main pane and clear all saved keys
+      console.log('🗑️ Starting bulk SAR deletion...');
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const sarIndicators = indicators.filter(ind => ind.name === 'SAR');
+          console.log('📊 Found SAR indicators on chart:', sarIndicators.length);
+          sarIndicators.forEach(indicator => {
+            console.log('🗑️ Removing SAR from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'SAR' });
+          });
+        } catch (error) {
+          console.error('❌ Error removing SAR indicators from chart:', error);
+          // Fallback: attempt removal from common pane(s)
+          try { $chart.removeIndicator({ paneId: 'candle_pane', name: 'SAR' }); } catch (_) {}
+          try { $chart.removeIndicator({ paneId: $ctx.editPaneId, name: 'SAR' }); } catch (_) {}
+        }
+      }
+
+      // Clear all SAR-related saved data (handles keys like candle_pane_SAR, SAR_2, etc.)
+      save.update(s => {
+        Object.keys(s.saveInds).forEach(key => {
+          if (s.saveInds[key].name === 'SAR') {
+            delete s.saveInds[key];
+          }
+        });
+        return s;
+      });
+
+      // If currently editing SAR, clear edit context
+      ctx.update(c => {
+        if (c.editIndName === 'SAR') {
+          c.editIndName = '';
+          c.editPaneId = '';
+          c.modalIndCfg = false;
+        }
+        return c;
+      });
+
+      console.log('✅ Bulk SAR deletion completed');
+    } else if (name === 'SUPERTREND') {
+      // For SuperTrend, delete all instances on all panes and clear all saved keys
+      console.log('🗑️ Starting bulk SUPERTREND deletion...');
+      if ($chart) {
+        try {
+          const indicators = $chart.getIndicators();
+          const stIndicators = indicators.filter(ind => ind.name === 'SUPERTREND');
+          console.log('📊 Found SUPERTREND indicators on chart:', stIndicators.length);
+          stIndicators.forEach(indicator => {
+            console.log('🗑️ Removing SUPERTREND from pane:', indicator.paneId);
+            $chart.removeIndicator({ paneId: indicator.paneId, name: 'SUPERTREND' });
+          });
+        } catch (error) {
+          console.error('❌ Error removing SUPERTREND indicators from chart:', error);
+          // Fallback: try common panes
+          try { $chart.removeIndicator({ paneId: 'candle_pane', name: 'SUPERTREND' }); } catch (_) {}
+          try { $chart.removeIndicator({ paneId: $ctx.editPaneId, name: 'SUPERTREND' }); } catch (_) {}
+        }
+      }
+
+      // Clear all SUPERTREND-related saved data
+      save.update(s => {
+        Object.keys(s.saveInds).forEach(key => {
+          if (s.saveInds[key].name === 'SUPERTREND') {
+            delete s.saveInds[key];
+          }
+        });
+        return s;
+      });
+      console.log('✅ Bulk SUPERTREND deletion completed');
     } else if (name === 'CR') {
       // For CR, delete all instances and groups from all sub-panes
       console.log('🗑️ Starting bulk CR deletion...');
@@ -1398,12 +1469,23 @@
       console.log('🧹 Updated localStorage indicators:', savedIndicators)
     }
     
-    // Clean up saved state for this indicator key
+    // Clean up saved state for this indicator (handle multi-instance keys e.g. ZIGZAG)
     save.update(s => {
-      const key = `${paneId}_${name}`
-      console.log('🧹 Cleaning saved state key:', key, 'existed:', !!s.saveInds[key])
       console.log('🧹 Before cleanup saveInds keys:', Object.keys(s.saveInds))
-      delete s.saveInds[key]
+      if (name === 'ZIGZAG') {
+        const prefix = `${paneId}_ZIGZAG`;
+        Object.keys(s.saveInds).forEach(k => {
+          const entry = (s.saveInds as any)[k];
+          if (k.startsWith(prefix) && entry?.name === 'ZIGZAG') {
+            console.log('🧹 Removing ZigZag save key:', k)
+            delete (s.saveInds as any)[k];
+          }
+        });
+      } else {
+        const key = `${paneId}_${name}`
+        console.log('🧹 Cleaning saved state key:', key, 'existed:', !!s.saveInds[key])
+        delete s.saveInds[key]
+      }
       console.log('🧹 After cleanup saveInds keys:', Object.keys(s.saveInds))
       return s
     })
