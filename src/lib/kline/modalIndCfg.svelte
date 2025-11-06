@@ -2367,7 +2367,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           {
             upColor: newGroup.styles.positiveHistogram.color,
             downColor: newGroup.styles.negativeHistogram.color,
-            noChangeColor: newGroup.styles.positiveHistogram.color
+            noChangeColor: newGroup.styles.positiveHistogram.color,
+            // Ensure fully filled histogram bars like TradingView
+            borderSize: 0,
+            borderColor: newGroup.styles.positiveHistogram.color
           }
         ]
       };
@@ -2515,7 +2518,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         {
           upColor: group.styles.positiveHistogram.color,
           downColor: group.styles.negativeHistogram.color,
-          noChangeColor: group.styles.positiveHistogram.color
+          noChangeColor: group.styles.positiveHistogram.color,
+          // Ensure fully filled histogram bars like TradingView
+          borderSize: 0,
+          borderColor: group.styles.positiveHistogram.color
         }
       ]
     };
@@ -2571,7 +2577,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         {
           upColor: group.styles.positiveHistogram.color,
           downColor: group.styles.negativeHistogram.color,
-          noChangeColor: group.styles.positiveHistogram.color
+          noChangeColor: group.styles.positiveHistogram.color,
+          // Ensure fully filled histogram bars like TradingView
+          borderSize: 0,
+          borderColor: group.styles.positiveHistogram.color
         }
       ]
     };
