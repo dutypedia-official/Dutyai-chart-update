@@ -34,8 +34,8 @@ export const sar: IndicatorTemplate = {
   styles: {
     lines: [
       {
-        color: '#FF6B6B', // Red color for SAR dots
-        size: 3, // Default dot size
+        color: '#2563eb', // Default blue color for SAR dots
+        size: 1, // Default dot size 1px
         style: kc.LineType.Solid,
         smooth: false,
         dashedValue: [2, 2]
@@ -128,12 +128,12 @@ export const sar: IndicatorTemplate = {
 
     // Get line style configuration
     const lineStyle = indicator.styles?.lines?.[0] || {
-      color: '#FF6B6B',
-      size: 3
+      color: '#2563eb',
+      size: 1
     };
 
     // Use the size property as dot size (radius)
-    const dotSize = lineStyle.size || 3;
+    const dotSize = lineStyle.size || 1;
 
     // Draw SAR dots
     for (let i = from; i < to; i++) {

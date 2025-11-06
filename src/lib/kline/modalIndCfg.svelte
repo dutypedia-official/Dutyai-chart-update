@@ -176,7 +176,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   let showSmaColorPalette = $state(false);
   let smaColorPalettePosition = $state({ x: 0, y: 0 });
   let smaColorPaletteIndex = $state(0); // Track which SMA line is being edited
-  let ichimokuColorPaletteIndex = $state(0); // Track which Ichimoku line is being edited
+  let ichimokuColorPaletteIndex = $state(0); // Track which Ichimoku line within a group is being edited
+  let ichimokuColorPaletteGroupIndex = $state(0); // Track which Ichimoku group is being edited
   
   // MA color palette states
   let showMaColorPalette = $state(false);
@@ -258,6 +259,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   let zigzagLineStyle = $state('solid');
 
   // CR specific style variables
+  // Apply ZigZag changes to chart in real-time while editing
+  // Realtime rebuild is invoked directly from UI change handlers for ZigZag groups
+
   let crPeriod = $state(26);
   let crMa1Period = $state(10);
   let crMa2Period = $state(20);
@@ -437,40 +441,35 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       if (period && stdDev && fillColor && upperColor && middleColor && lowerColor && thickness && lineStyle) {
         // Small delay to prevent excessive updates during rapid changes
         const timeoutId = setTimeout(() => {
-          // Create custom styles for Bollinger Bands
-          const indicatorStyles = {
-            lines: [
-              {
-                color: upperColor,
-                size: thickness,
-                style: lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-                dashedValue: lineStyle === 'dashed' ? [4, 4] : [0, 0]
-              },
-              {
-                color: middleColor,
-                size: thickness,
-                style: lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-                dashedValue: lineStyle === 'dashed' ? [4, 4] : [0, 0]
-              },
-              {
-                color: lowerColor,
-                size: thickness,
-                style: lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-                dashedValue: lineStyle === 'dashed' ? [4, 4] : [0, 0]
+          // Sync group 0 from single-state controls then rebuild all instances
+          if (bollGroups.length === 0) {
+            bollGroups = [{
+              id: generateUUID(),
+              paneId: $ctx.editPaneId || 'candle_pane',
+              period,
+              stdDev,
+              styles: {
+                fillColor,
+                fillOpacity,
+                upperColor,
+                middleColor,
+                lowerColor,
+                thickness,
+                lineStyle
               }
-            ],
-            fill: {
-              color: fillColor,
-              opacity: fillOpacity / 100 // Convert percentage to decimal (0-1)
-            }
-          };
-
-          $chart?.overrideIndicator({
-            name: 'BOLL',
-            calcParams: [period, stdDev],
-            styles: indicatorStyles,
-            paneId: $ctx.editPaneId
-          });
+            }];
+          } else {
+            bollGroups[0].period = period as number;
+            bollGroups[0].stdDev = stdDev as number;
+            bollGroups[0].styles.fillColor = fillColor as string;
+            bollGroups[0].styles.fillOpacity = fillOpacity as number;
+            bollGroups[0].styles.upperColor = upperColor as string;
+            bollGroups[0].styles.middleColor = middleColor as string;
+            bollGroups[0].styles.lowerColor = lowerColor as string;
+            bollGroups[0].styles.thickness = thickness as number;
+            bollGroups[0].styles.lineStyle = lineStyle as string;
+          }
+          rebuildAllBollOnPane();
         }, 100);
         
         return () => clearTimeout(timeoutId);
@@ -870,6 +869,208 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     thickness: number;
     lineStyle: string;
   }>>([]);
+
+  // BOLL groups management (multiple BOLL overlays on main chart)
+  interface BollGroup {
+    id: string;
+    paneId?: string;
+    period: number;
+    stdDev: number;
+    styles: {
+      upperColor: string;
+      middleColor: string;
+      lowerColor: string;
+      thickness: number;
+      lineStyle: string;
+      fillColor: string;
+      fillOpacity: number; // percentage 0-100
+    };
+  }
+  let bollGroups = $state<BollGroup[]>([]);
+  let bollColorPaletteGroupIndex = $state(0);
+
+  // ZigZag groups management (multiple ZigZag overlays on main chart)
+  interface ZigzagGroup {
+    id: string;
+    deviation: number; // percentage
+    depth: number;
+    styles: {
+      color: string;
+      thickness: number;
+      lineStyle: string; // 'solid' | 'dashed' | 'dotted'
+    };
+  }
+  let zigzagGroups = $state<ZigzagGroup[]>([]);
+  let zigzagColorPaletteIndex = $state(0);
+
+  function openZigzagPalette(groupIndex: number) {
+    zigzagColorPaletteIndex = groupIndex;
+    zigzagColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    showZigzagColorPalette = true;
+  }
+
+  function rebuildAllZigzagOnPane() {
+    if (!$chart) return;
+    const targetPaneId = $ctx.editPaneId || 'candle_pane';
+
+    // Remove existing ZigZag instances (try multiple times to ensure all are removed)
+    for (let i = 0; i < 6; i++) {
+      try { ($chart as any).removeIndicator({ paneId: targetPaneId, name: 'ZIGZAG' }); } catch (e) { /* ignore */ }
+    }
+
+    // Re-create all ZigZag groups in order and persist save entries
+    zigzagGroups.forEach((group, index) => {
+      const styleCode = (group.styles.lineStyle === 'solid') ? kc.LineType.Solid : kc.LineType.Dashed;
+      const dashedValue = group.styles.lineStyle === 'dashed' ? [4, 4] : (group.styles.lineStyle === 'dotted' ? [2, 6] : [2, 2]);
+      const indicatorStyles = {
+        lines: [
+          { color: group.styles.color, size: group.styles.thickness, style: styleCode, dashedValue, smooth: false }
+        ]
+      } as any;
+
+      ($chart as any).createIndicator({
+        name: 'ZIGZAG',
+        calcParams: [group.deviation, group.depth],
+        styles: indicatorStyles
+      }, true, { id: targetPaneId });
+
+      // Save this instance with unique key
+      const saveKey = index === 0 ? `${targetPaneId}_ZIGZAG` : `${targetPaneId}_ZIGZAG_${index + 1}`;
+      save.update(s => {
+        (s.saveInds as any)[saveKey] = {
+          name: 'ZIGZAG',
+          pane_id: targetPaneId,
+          params: [group.deviation, group.depth],
+          styles: indicatorStyles
+        };
+        return s;
+      });
+    });
+
+    // Clean up any extra saved ZigZag keys beyond current group count
+    save.update(s => {
+      const prefix = `${targetPaneId}_ZIGZAG`;
+      const keys = Object.keys(s.saveInds).filter(k => k.startsWith(prefix));
+      keys.forEach(k => {
+        const m = k.match(/_ZIGZAG(?:_(\d+))?$/);
+        const idx = m && m[1] ? parseInt(m[1], 10) : 1;
+        if (idx > zigzagGroups.length) {
+          delete (s.saveInds as any)[k];
+        }
+      });
+      return s;
+    });
+  }
+
+  function addZigzagGroup() {
+    const newGroup: ZigzagGroup = {
+      id: generateUUID(),
+      deviation: 5,
+      depth: 5,
+      styles: { color: '#2962FF', thickness: 2, lineStyle: 'solid' }
+    };
+    zigzagGroups = [...zigzagGroups, newGroup];
+    rebuildAllZigzagOnPane();
+  }
+
+  function openBollingerPalette(type: 'fill' | 'upper' | 'middle' | 'lower', groupIndex: number) {
+    bollColorPaletteGroupIndex = groupIndex;
+    const pos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    if (type === 'fill') { bollingerFillColorPalettePosition = pos; showBollingerFillColorPalette = true; }
+    if (type === 'upper') { bollingerUpperColorPalettePosition = pos; showBollingerUpperColorPalette = true; }
+    if (type === 'middle') { bollingerMiddleColorPalettePosition = pos; showBollingerMiddleColorPalette = true; }
+    if (type === 'lower') { bollingerLowerColorPalettePosition = pos; showBollingerLowerColorPalette = true; }
+  }
+
+  function rebuildAllBollOnPane() {
+    if (!$chart) return;
+    const targetPaneId = $ctx.editPaneId || 'candle_pane';
+
+    // Remove existing BOLL instances (try multiple times to ensure all are removed)
+    for (let i = 0; i < 6; i++) {
+      try { ($chart as any).removeIndicator({ paneId: targetPaneId, name: 'BOLL' }); } catch (e) { /* ignore */ }
+    }
+
+    // Re-create all BOLL groups in order and persist save entries
+    let created = 0;
+    bollGroups.forEach((group, index) => {
+      const lineStyle = group.styles.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed;
+      const dashedValue = group.styles.lineStyle === 'dashed' ? [4, 4] : [0, 0];
+      const indicatorStyles = {
+        lines: [
+          { color: group.styles.upperColor, size: group.styles.thickness, style: lineStyle, dashedValue },
+          { color: group.styles.middleColor, size: group.styles.thickness, style: lineStyle, dashedValue },
+          { color: group.styles.lowerColor, size: group.styles.thickness, style: lineStyle, dashedValue }
+        ],
+        fill: { color: group.styles.fillColor, opacity: (group.styles.fillOpacity || 0) / 100 }
+      };
+
+      const indId = ($chart as any).createIndicator({
+        name: 'BOLL',
+        calcParams: [group.period, group.stdDev],
+        styles: indicatorStyles
+      }, true, { id: targetPaneId });
+      if (indId) created++;
+
+      // Save this instance with unique key
+      const saveKey = index === 0 ? `${targetPaneId}_BOLL` : `${targetPaneId}_BOLL_${index + 1}`;
+      save.update(s => {
+        (s.saveInds as any)[saveKey] = {
+          name: 'BOLL',
+          pane_id: targetPaneId,
+          params: [group.period, group.stdDev],
+          bollingerStyles: {
+            fillColor: group.styles.fillColor,
+            fillOpacity: group.styles.fillOpacity,
+            upperColor: group.styles.upperColor,
+            middleColor: group.styles.middleColor,
+            lowerColor: group.styles.lowerColor,
+            thickness: group.styles.thickness,
+            lineStyle: group.styles.lineStyle
+          }
+        };
+        return s;
+      });
+    });
+
+    // Clean up any extra saved BOLL keys beyond current group count
+    save.update(s => {
+      const prefix = `${targetPaneId}_BOLL`;
+      const keys = Object.keys(s.saveInds).filter(k => k.startsWith(prefix));
+      keys.forEach(k => {
+        const m = k.match(/_BOLL(?:_(\d+))?$/);
+        const idx = m && m[1] ? parseInt(m[1], 10) : 1;
+        if (idx > bollGroups.length) {
+          delete (s.saveInds as any)[k];
+        }
+      });
+      return s;
+    });
+  }
+
+  function removeBollGroup(index: number) {
+    if (bollGroups.length <= 1) return; // keep at least one
+
+    // Remove selected group
+    bollGroups = bollGroups.filter((_, i) => i !== index);
+
+    // Sync single-state controls with new first group
+    const g0 = bollGroups[0];
+    if (g0) {
+      bollingerPeriod = g0.period;
+      bollingerStdDev = g0.stdDev;
+      bollingerFillColor = g0.styles.fillColor;
+      bollingerFillOpacity = g0.styles.fillOpacity;
+      bollingerUpperColor = g0.styles.upperColor;
+      bollingerMiddleColor = g0.styles.middleColor;
+      bollingerLowerColor = g0.styles.lowerColor;
+      bollingerThickness = g0.styles.thickness;
+      bollingerLineStyle = g0.styles.lineStyle;
+    }
+
+    // Rebuild chart and save state
+    rebuildAllBollOnPane();
+  }
 
   // BIAS groups management
   let biasGroups = $state<Array<{
@@ -4771,49 +4972,44 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function initializeSarGroups() {
     if (!isSar) return;
     
-    // Check for saved SAR groups
-    const savedKey = `${$ctx.editPaneId}_SAR`;
-    const savedInd = $save.saveInds[savedKey];
-    
-    if (savedInd && (savedInd as any).sarGroups && (savedInd as any).sarGroups.length > 0) {
-      // Load saved SAR groups
-      sarGroups = [...(savedInd as any).sarGroups];
-    } else if (sarGroups.length === 0) {
-      // Create default SAR group
+    // Reconstruct SAR groups from saved state (or default)
+    const allSarEntries = Object.values($save.saveInds || {}).filter((ind: any) => ind?.name === 'SAR');
+    const mainPaneSarEntries = allSarEntries.filter((ind: any) => ind?.pane_id === 'candle_pane');
+
+    if (mainPaneSarEntries.length > 0) {
+      // If first entry contains sarGroups (saved via confirm), prefer it
+      const first = mainPaneSarEntries[0] as any;
+      if (first.sarGroups && Array.isArray(first.sarGroups) && first.sarGroups.length > 0) {
+        sarGroups = [...first.sarGroups];
+      } else {
+        // Otherwise, create one group per saved entry (using params if available)
+        sarGroups = mainPaneSarEntries.map((entry: any) => {
+          const [start = 0.02, increment = 0.02, maxValue = 0.2] = entry.params || [];
+          return {
+            id: generateUUID(),
+            start,
+            increment,
+            maxValue,
+            color: '#2563eb',
+            dotSize: 1
+          };
+        });
+      }
+    } else {
+      // No saved SAR: initialize a single default group
       sarGroups = [{
         id: generateUUID(),
         start: 0.02,
         increment: 0.02,
         maxValue: 0.2,
-        color: '#FF6B6B',
-        dotSize: 3
+        color: '#2563eb',
+        dotSize: 1
       }];
     }
 
-    // Apply the loaded configuration to the chart immediately
-    // This ensures the chart reflects the correct values when the modal opens
+    // Apply the loaded configuration to the chart immediately for ALL groups
     if ($chart && sarGroups.length > 0) {
-      sarGroups.forEach((group, index) => {
-        const calcParams = [group.start, group.increment, group.maxValue];
-        const indicatorStyles = {
-          lines: [{
-            color: group.color,
-            size: group.dotSize,
-            style: kc.LineType.Solid
-          }]
-        };
-
-        // For the first SAR group, update the current edit pane (main panel)
-        if (index === 0) {
-          $chart.overrideIndicator({
-            name: 'SAR',
-            calcParams: calcParams,
-            styles: indicatorStyles,
-            paneId: 'candle_pane'
-          });
-        }
-        // Additional groups will be handled by the confirmation
-      });
+      rebuildAllSarOnPane();
     }
   }
 
@@ -4822,36 +5018,58 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function removeSarGroup(groupId: string) {
     if (!isSar || sarGroups.length <= 1) return;
     sarGroups = sarGroups.filter(group => group.id !== groupId);
+    rebuildAllSarOnPane();
+  }
+
+  function addSarGroup() {
+    if (!isSar) return;
+
+    const base = sarGroups[sarGroups.length - 1] || sarGroups[0];
+    const newGroup = {
+      id: generateUUID(),
+      start: base?.start ?? 0.02,
+      increment: base?.increment ?? 0.02,
+      maxValue: base?.maxValue ?? 0.2,
+      color: '#2563eb',
+      dotSize: 1
+    };
+
+    sarGroups = [...sarGroups, newGroup];
+
+    // Immediately rebuild all SAR indicators on the main candle pane
+    rebuildAllSarOnPane();
   }
 
   // Update SAR indicator in real-time
   function updateSarIndicator(index: number) {
     if (!isSar || !$chart || index >= sarGroups.length) return;
-    
-    const group = sarGroups[index];
-    const calcParams = [group.start, group.increment, group.maxValue];
-    const indicatorStyles = {
-      lines: [{
-        color: group.color,
-        size: group.dotSize,
-        style: kc.LineType.Solid
-      }]
-    };
+    rebuildAllSarOnPane();
+  }
 
-    // For the first SAR group, update the current edit pane (main panel)
-    if (index === 0) {
-      $chart.overrideIndicator({
-        name: 'SAR',
-        calcParams: calcParams,
-        styles: indicatorStyles,
-        paneId: 'candle_pane'
-      });
-    } else {
-      // For additional groups, we need to remove and recreate
-      // This is a limitation of the SAR multi-group system
-      // The confirmation will handle proper recreation
-      console.log(`⚠️ SAR group ${index + 1} will be updated on confirm`);
+  // Build all SAR instances on main pane from groups
+  function rebuildAllSarOnPane() {
+    if (!$chart || !isSar) return;
+    const targetPaneId = 'candle_pane';
+    // Remove existing SAR instances on main pane (repeat to ensure all removed)
+    for (let i = 0; i < 6; i++) {
+      try { ($chart as any).removeIndicator({ paneId: targetPaneId, name: 'SAR' }); } catch (e) { /* ignore */ }
     }
+    // Re-create all groups
+    sarGroups.forEach((group) => {
+      const calcParams = [group.start, group.increment, group.maxValue];
+      const indicatorStyles = {
+        lines: [{
+          color: group.color,
+          size: group.dotSize,
+          style: kc.LineType.Solid
+        }]
+      };
+      $chart?.createIndicator({
+        name: 'SAR',
+        calcParams,
+        styles: indicatorStyles
+      }, true, { id: targetPaneId });
+    });
   }
 
   // SuperTrend groups management functions
@@ -4879,39 +5097,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       }];
     }
 
-    // Apply the loaded configuration to the chart immediately
-    if ($chart && superTrendGroups.length > 0) {
-      superTrendGroups.forEach((group, index) => {
-        const calcParams = [group.period, group.multiplier];
-        const indicatorStyles = {
-          lines: [{
-            color: group.styles.uptrend.color,
-            size: group.styles.uptrend.thickness,
-            style: group.styles.uptrend.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid
-          }]
-        };
-
-        // For the first SuperTrend group, update the current edit pane (main panel)
-        if (index === 0) {
-          $chart.overrideIndicator({
-            name: 'SUPERTREND',
-            calcParams: calcParams,
-            styles: indicatorStyles,
-            extendData: {
-              showLabels: group.showLabels,
-              uptrendColor: group.styles.uptrend.color,
-              downtrendColor: group.styles.downtrend.color
-            },
-            paneId: 'candle_pane'
-          });
-        }
-      });
-    }
+    // Ensure the chart shows all groups immediately
+    rebuildAllSuperTrendOnPane();
   }
 
   function removeSuperTrendGroup(groupId: string) {
     if (!isSuperTrend || superTrendGroups.length <= 1) return;
     superTrendGroups = superTrendGroups.filter(group => group.id !== groupId);
+    rebuildAllSuperTrendOnPane();
   }
 
   function addSuperTrendGroup() {
@@ -4923,10 +5116,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     const availableColors = colors.filter(c => !usedColors.includes(c));
     const newColor = availableColors.length > 0 ? availableColors[0] : colors[superTrendGroups.length % colors.length];
     
+    const base = superTrendGroups[superTrendGroups.length - 1] || superTrendGroups[0];
     const newGroup = {
       id: generateUUID(),
-      period: 10,
-      multiplier: 3.0,
+      period: (base?.period || 10) + 2,
+      multiplier: base?.multiplier || 3.0,
       showLabels: false,
       styles: {
         uptrend: {
@@ -4944,6 +5138,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     
     superTrendGroups = [...superTrendGroups, newGroup];
     console.log('✅ Added new SuperTrend group:', newGroup);
+    rebuildAllSuperTrendOnPane();
   }
 
   // Update SuperTrend indicator in real-time
@@ -4951,31 +5146,63 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (!isSuperTrend || !$chart || index >= superTrendGroups.length) return;
     
     const group = superTrendGroups[index];
-    const calcParams = [group.period, group.multiplier];
-    const indicatorStyles = {
-      lines: [{
-        color: group.styles.uptrend.color,
-        size: group.styles.uptrend.thickness,
-        style: group.styles.uptrend.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid
-      }]
-    };
+    // Rebuild all groups to reflect this change immediately
+    rebuildAllSuperTrendOnPane();
+  }
 
-    // For the first SuperTrend group, update the current edit pane (main panel)
-    if (index === 0) {
-      $chart.overrideIndicator({
+  // Build all SUPERTREND instances on main pane from groups and persist save data
+  function rebuildAllSuperTrendOnPane() {
+    if (!$chart || !isSuperTrend) return;
+    const targetPaneId = 'candle_pane';
+
+    // Remove existing SuperTrend instances on main pane (several times to be safe)
+    for (let i = 0; i < 6; i++) {
+      try { ($chart as any).removeIndicator({ paneId: targetPaneId, name: 'SUPERTREND' }); } catch (e) { /* ignore */ }
+    }
+
+    // Re-create all groups
+    superTrendGroups.forEach((group, index) => {
+      const calcParams = [group.period, group.multiplier];
+      const indicatorStyles = {
+        lines: [{
+          color: group.styles.uptrend.color,
+          size: group.styles.uptrend.thickness,
+          style: group.styles.uptrend.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid
+        }]
+      };
+      $chart?.createIndicator({
         name: 'SUPERTREND',
-        calcParams: calcParams,
+        calcParams,
         styles: indicatorStyles,
         extendData: {
           showLabels: group.showLabels,
           uptrendColor: group.styles.uptrend.color,
           downtrendColor: group.styles.downtrend.color
-        },
-        paneId: 'candle_pane'
+        }
+      }, true, { id: targetPaneId });
+    });
+
+    // Persist saveInds with unique keys
+    save.update(s => {
+      // Clear existing SUPERTREND entries for main pane
+      Object.keys(s.saveInds).forEach(key => {
+        if (s.saveInds[key].name === 'SUPERTREND') {
+          delete s.saveInds[key];
+        }
       });
-    } else {
-      console.log(`⚠️ SuperTrend group ${index + 1} will be updated on confirm`);
-    }
+
+      superTrendGroups.forEach((group, index) => {
+        const saveKey = index === 0 ? `${targetPaneId}_SUPERTREND` : `${targetPaneId}_SUPERTREND_${index + 1}`;
+        (s.saveInds as any)[saveKey] = {
+          name: 'SUPERTREND',
+          pane_id: targetPaneId,
+          params: [group.period, group.multiplier],
+          superTrendGroup: group,
+          groupIndex: index
+        };
+      });
+      return s;
+    });
   }
 
   // Initialize default DMI group
@@ -7056,6 +7283,222 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     console.log('🔄 Updated Ichimoku indicator:', params, styles);
   }
 
+  // Ichimoku multi-group management
+  let ichimokuGroups = $state<Array<{
+    id: string;
+    name: string;
+    params: [number, number, number]; // Tenkan, Kijun, SenkouB
+    styles: Array<{ color: string; thickness: number; lineStyle: 'solid' | 'dashed' | 'dotted' }>;
+  }>>([]);
+
+  function initializeIchimokuGroups() {
+    if (!isIchimoku) return;
+    if (ichimokuGroups.length > 0) return;
+    // Try to load from saved state first
+    const savedKey = `${$ctx.editPaneId}_ICHIMOKU`;
+    const savedInd = $save.saveInds[savedKey] as any;
+    if (savedInd && Array.isArray(savedInd.ichimokuGroups) && savedInd.ichimokuGroups.length > 0) {
+      ichimokuGroups = savedInd.ichimokuGroups.map((g: any, idx: number) => ({
+        id: g.id || generateUUID(),
+        name: g.name || `Ichimoku #${idx + 1}`,
+        params: (g.params as [number, number, number]) || [9, 26, 52],
+        styles: (g.styles as Array<any>)?.map((st: any) => ({
+          color: st.color || '#2563eb',
+          thickness: st.thickness ?? 1,
+          lineStyle: (st.lineStyle as any) || 'solid'
+        })) || [
+          { color: '#ef4444', thickness: 1, lineStyle: 'solid' },
+          { color: '#3b82f6', thickness: 1, lineStyle: 'solid' },
+          { color: '#10b981', thickness: 1, lineStyle: 'solid' }
+        ]
+      }));
+    } else {
+      // Fallback: create a default group from current params/styles
+      const baseParams: [number, number, number] = [
+        (params[0] as number) || 9,
+        (params[1] as number) || 26,
+        (params[2] as number) || 52
+      ];
+      const baseStyles = [0,1,2].map((i) => ({
+        color: styles[i]?.color || ['#ef4444', '#3b82f6', '#10b981'][i] || '#2563eb',
+        thickness: styles[i]?.thickness ?? 1,
+        lineStyle: (styles[i]?.lineStyle as any) || 'solid'
+      }));
+      ichimokuGroups = [{
+        id: generateUUID(),
+        name: 'Ichimoku #1',
+        params: baseParams,
+        styles: baseStyles as Array<{ color: string; thickness: number; lineStyle: 'solid' | 'dashed' | 'dotted' }>
+      }];
+    }
+  }
+
+  function addIchimokuGroup() {
+    if (!isIchimoku) return;
+    const index = ichimokuGroups.length + 1;
+    const palette = [
+      ['#ef4444', '#3b82f6', '#10b981'],
+      ['#f59e0b', '#8b5cf6', '#06b6d4'],
+      ['#22c55e', '#e11d48', '#0ea5e9']
+    ];
+    const colors = palette[(index - 1) % palette.length];
+    const newGroup = {
+      id: generateUUID(),
+      name: `Ichimoku #${index}`,
+      params: [9, 26, 52] as [number, number, number],
+      styles: [
+        { color: colors[0], thickness: 1, lineStyle: 'solid' },
+        { color: colors[1], thickness: 1, lineStyle: 'solid' },
+        { color: colors[2], thickness: 1, lineStyle: 'solid' }
+      ]
+    };
+    ichimokuGroups = [...ichimokuGroups, newGroup];
+
+    // Immediately add another Ichimoku to the same pane (overlay)
+    try {
+      const indicatorStyles: any = {
+        lines: newGroup.styles.map((st) => ({
+          color: st.color,
+          size: st.thickness,
+          style: (st.lineStyle === 'dashed' || st.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+          dashedValue: st.lineStyle === 'dashed' ? [4, 4] : st.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+        }))
+      };
+      $chart?.createIndicator({
+        name: 'ICHIMOKU',
+        calcParams: newGroup.params,
+        styles: indicatorStyles
+      }, true, { id: $ctx.editPaneId });
+
+      // Persist consolidated groups under edit pane key
+      const saveKey = `${$ctx.editPaneId}_ICHIMOKU`;
+      save.update((s) => {
+        s.saveInds[saveKey] = {
+          name: 'ICHIMOKU',
+          pane_id: $ctx.editPaneId,
+          params: ichimokuGroups[0]?.params || [9,26,52],
+          ichimokuGroups: ichimokuGroups.map(g => ({...g}))
+        } as any;
+        return s;
+      });
+    } catch (e) {
+      console.error('❌ Error adding Ichimoku group:', e);
+    }
+  }
+
+  function updateIchimokuIndicatorGroup(groupIndex: number) {
+    if (!isIchimoku || !$chart) return;
+    try {
+      // Remove ALL Ichimoku indicators from the edit pane
+      const indicators = $chart?.getIndicators?.() || [];
+      const ichiIndicators = indicators.filter((ind: any) => ind.name === 'ICHIMOKU' && ind.paneId === $ctx.editPaneId);
+      for (const ind of ichiIndicators) {
+        $chart?.removeIndicator({ paneId: ind.paneId, name: 'ICHIMOKU' });
+      }
+
+      // Re-create ALL Ichimoku groups on the edit pane
+      ichimokuGroups.forEach((g) => {
+        const indicatorStyles: any = {
+          lines: g.styles.map((st) => ({
+            color: st.color,
+            size: st.thickness,
+            style: (st.lineStyle === 'dashed' || st.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+            dashedValue: st.lineStyle === 'dashed' ? [4, 4] : st.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+          }))
+        };
+        $chart?.createIndicator({
+          name: 'ICHIMOKU',
+          calcParams: g.params,
+          styles: indicatorStyles
+        }, true, { id: $ctx.editPaneId });
+      });
+
+      // Persist consolidated groups under edit pane key
+      const saveKey = `${$ctx.editPaneId}_ICHIMOKU`;
+      save.update((s) => {
+        s.saveInds[saveKey] = {
+          name: 'ICHIMOKU',
+          pane_id: $ctx.editPaneId,
+          params: ichimokuGroups[0]?.params || [9,26,52],
+          ichimokuGroups: ichimokuGroups.map(g => ({...g}))
+        } as any;
+        return s;
+      });
+
+      console.log('🔄 Updated Ichimoku groups');
+    } catch (e) {
+      console.error('❌ Error updating Ichimoku groups:', e);
+    }
+  }
+
+  function removeIchimokuGroup(groupIndex: number) {
+    if (!isIchimoku) return;
+    if (ichimokuGroups.length <= 1) return; // keep at least one
+    if (groupIndex < 0 || groupIndex >= ichimokuGroups.length) return;
+    try {
+      // Remove selected group from array
+      ichimokuGroups = ichimokuGroups.filter((_, idx) => idx !== groupIndex);
+      // Rebuild remaining indicators on chart and save
+      updateIchimokuIndicatorGroup(0);
+      console.log('🗑️ Removed Ichimoku group at index:', groupIndex);
+    } catch (e) {
+      console.error('❌ Error removing Ichimoku group:', e);
+    }
+  }
+
+  function handleIchimokuConfirm() {
+    if (!isIchimoku || !$chart) return;
+    try {
+      // Remove all existing Ichimoku indicators on the edit pane
+      const indicators = $chart?.getIndicators?.() || [];
+      const ichiIndicators = indicators.filter((ind: any) => ind.name === 'ICHIMOKU' && ind.paneId === $ctx.editPaneId);
+      for (const ind of ichiIndicators) {
+        $chart?.removeIndicator({ paneId: ind.paneId, name: 'ICHIMOKU' });
+      }
+
+      // Re-create each Ichimoku group
+      ichimokuGroups.forEach((g) => {
+        const indicatorStyles: any = {
+          lines: g.styles.map((st) => ({
+            color: st.color,
+            size: st.thickness,
+            style: (st.lineStyle === 'dashed' || st.lineStyle === 'dotted') ? kc.LineType.Dashed : kc.LineType.Solid,
+            dashedValue: st.lineStyle === 'dashed' ? [4, 4] : st.lineStyle === 'dotted' ? [2, 2] : [2, 2]
+          }))
+        };
+        $chart?.createIndicator({
+          name: 'ICHIMOKU',
+          calcParams: g.params,
+          styles: indicatorStyles
+        }, true, { id: $ctx.editPaneId });
+      });
+
+      // Save consolidated groups under the pane key
+      const saveKey = `${$ctx.editPaneId}_ICHIMOKU`;
+      save.update((s) => {
+        s.saveInds[saveKey] = {
+          name: 'ICHIMOKU',
+          pane_id: $ctx.editPaneId,
+          params: ichimokuGroups[0]?.params || [9,26,52],
+          ichimokuGroups: ichimokuGroups.map(g => ({...g}))
+        } as any;
+        return s;
+      });
+
+      // Close modal and clear state
+      ctx.update(c => {
+        c.editIndName = '';
+        c.editPaneId = '';
+        c.modalIndCfg = false;
+        return c;
+      });
+      show = false;
+      console.log('✅ Ichimoku confirm applied');
+    } catch (e) {
+      console.error('❌ Error confirming Ichimoku groups:', e);
+    }
+  }
+
   function removeKdjGroup(groupId: string) {
     if (!isKdj || kdjGroups.length <= 1) return;
     
@@ -7312,78 +7755,67 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   // Bollinger Bands initialization function
   function initializeBollingerBands() {
     if (!isBollingerBands) return;
-    
-    // Get saved Bollinger Bands configuration
-    const savedKey = `${$ctx.editPaneId}_${$ctx.editIndName}`;
-    const savedInd = $save.saveInds[savedKey];
 
-    if (savedInd && savedInd.bollingerStyles) {
-      // Load saved styles
-      bollingerFillColor = savedInd.bollingerStyles.fillColor || '#2196F3';
-      bollingerFillOpacity = savedInd.bollingerStyles.fillOpacity ?? 5; // Default 5%
-      bollingerUpperColor = savedInd.bollingerStyles.upperColor || '#f23645';
-      bollingerMiddleColor = savedInd.bollingerStyles.middleColor || '#2962ff';
-      bollingerLowerColor = savedInd.bollingerStyles.lowerColor || '#089981';
-      bollingerThickness = savedInd.bollingerStyles.thickness || 1;
-      bollingerLineStyle = savedInd.bollingerStyles.lineStyle || 'solid';
-    } else {
-      // Use default values
-      bollingerFillColor = '#2196F3';
-      bollingerFillOpacity = 5; // Default 5%
-      bollingerUpperColor = '#f23645'; // Red for upper band
-      bollingerMiddleColor = '#2962ff'; // Blue for middle line
-      bollingerLowerColor = '#089981'; // Green for lower band
-      bollingerThickness = 1;
-      bollingerLineStyle = 'solid';
-    }
+    const targetPaneId = $ctx.editPaneId || 'candle_pane';
+    const entries = Object.entries($save.saveInds).filter(([key, ind]) => ind && ind.name === 'BOLL' && ind.pane_id === targetPaneId);
 
-    // Load saved parameters
-    if (savedInd && savedInd.params && savedInd.params.length >= 2) {
-      bollingerPeriod = savedInd.params[0] || 20;
-      bollingerStdDev = savedInd.params[1] || 2;
-    } else {
-      // Use default parameters
-      bollingerPeriod = 20;
-      bollingerStdDev = 2;
-    }
-
-    // Apply the loaded configuration to the chart immediately
-    // This ensures the chart reflects the correct values when the modal opens
-    if ($chart) {
-      const indicatorStyles = {
-        lines: [
-          {
-            color: bollingerUpperColor,
-            size: bollingerThickness,
-            style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-            dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
-          },
-          {
-            color: bollingerMiddleColor,
-            size: bollingerThickness,
-            style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-            dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
-          },
-          {
-            color: bollingerLowerColor,
-            size: bollingerThickness,
-            style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-            dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
-          }
-        ],
-        fill: {
-          color: bollingerFillColor,
-          opacity: bollingerFillOpacity / 100 // Convert percentage to decimal (0-1)
-        }
-      };
-
-      $chart.overrideIndicator({
-        name: 'BOLL',
-        calcParams: [bollingerPeriod, bollingerStdDev],
-        styles: indicatorStyles,
-        paneId: $ctx.editPaneId
+    if (entries.length > 0) {
+      // Sort by suffix index (base key counts as 1)
+      const sorted = entries.sort(([aKey], [bKey]) => {
+        const ai = (aKey.match(/_BOLL_(\d+)$/)?.[1] ? parseInt(aKey.match(/_BOLL_(\d+)$/)![1], 10) : 1);
+        const bi = (bKey.match(/_BOLL_(\d+)$/)?.[1] ? parseInt(bKey.match(/_BOLL_(\d+)$/)![1], 10) : 1);
+        return ai - bi;
       });
+      bollGroups = sorted.map(([key, ind]: any) => ({
+        id: generateUUID(),
+        paneId: targetPaneId,
+        period: (ind.params && ind.params[0]) || 20,
+        stdDev: (ind.params && ind.params[1]) || 2,
+        styles: {
+          fillColor: ind.bollingerStyles?.fillColor || '#2196F3',
+          fillOpacity: ind.bollingerStyles?.fillOpacity ?? 5,
+          upperColor: ind.bollingerStyles?.upperColor || '#f23645',
+          middleColor: ind.bollingerStyles?.middleColor || '#2962ff',
+          lowerColor: ind.bollingerStyles?.lowerColor || '#089981',
+          thickness: ind.bollingerStyles?.thickness || 1,
+          lineStyle: ind.bollingerStyles?.lineStyle || 'solid'
+        }
+      }));
+    } else {
+      // Default to one group based on current single-state values
+      bollGroups = [{
+        id: generateUUID(),
+        paneId: targetPaneId,
+        period: bollingerPeriod || 20,
+        stdDev: bollingerStdDev || 2,
+        styles: {
+          fillColor: bollingerFillColor || '#2196F3',
+          fillOpacity: bollingerFillOpacity ?? 5,
+          upperColor: bollingerUpperColor || '#f23645',
+          middleColor: bollingerMiddleColor || '#2962ff',
+          lowerColor: bollingerLowerColor || '#089981',
+          thickness: bollingerThickness || 1,
+          lineStyle: bollingerLineStyle || 'solid'
+        }
+      }];
     }
+
+    // Sync single-state controls with first group
+    const g0 = bollGroups[0];
+    if (g0) {
+      bollingerPeriod = g0.period;
+      bollingerStdDev = g0.stdDev;
+      bollingerFillColor = g0.styles.fillColor;
+      bollingerFillOpacity = g0.styles.fillOpacity;
+      bollingerUpperColor = g0.styles.upperColor;
+      bollingerMiddleColor = g0.styles.middleColor;
+      bollingerLowerColor = g0.styles.lowerColor;
+      bollingerThickness = g0.styles.thickness;
+      bollingerLineStyle = g0.styles.lineStyle;
+    }
+
+    // Ensure chart reflects full group set
+    rebuildAllBollOnPane();
   }
 
   // Apply AO changes in real-time without closing modal
@@ -7865,8 +8297,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     };
   }
 
-  function showIchimokuColorPaletteHandler(index: number) {
+  function showIchimokuColorPaletteHandler(index: number, groupIndex: number = 0) {
     return (event: MouseEvent) => {
+      ichimokuColorPaletteGroupIndex = groupIndex;
       ichimokuColorPaletteIndex = index;
       ichimokuColorPalettePosition = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
       showIchimokuColorPalette = true;
@@ -7895,6 +8328,67 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   const showEdit = derived(ctx, ($ctx) => $ctx.modalIndCfg)
   showEdit.subscribe(() => {
     if (!$ctx.editIndName) return;
+    // Initialize Ichimoku groups if this is Ichimoku indicator
+    if (isIchimoku) {
+      initializeIchimokuGroups();
+      // Ensure fields are available for rendering group rows (Tenkan/Kijun/Senkou B)
+      const defaultFields = IndFieldsMap['ICHIMOKU'] || [];
+      fields.splice(0, fields.length, ...defaultFields);
+      return; // Skip normal parameter handling for Ichimoku
+    }
+    
+    // Initialize ZigZag groups if this is ZigZag indicator
+    if (isZigzag) {
+      // Build groups from saved data
+      const targetPaneId = $ctx.editPaneId || 'candle_pane';
+      const prefix = `${targetPaneId}_ZIGZAG`;
+      const zigzagKeys = Object.keys($save.saveInds)
+        .filter(k => k.startsWith(prefix) && ($save.saveInds as any)[k]?.name === 'ZIGZAG')
+        .sort((a, b) => {
+          const getIndex = (key: string) => {
+            const m = key.match(/_ZIGZAG(?:_(\d+))?$/);
+            return m && m[1] ? parseInt(m[1], 10) : 1;
+          };
+          return getIndex(a) - getIndex(b);
+        });
+
+      zigzagGroups = [];
+      if (zigzagKeys.length > 0) {
+        zigzagKeys.forEach(key => {
+          const saved = ($save.saveInds as any)[key];
+          const line0 = saved?.styles?.lines?.[0] || {};
+          const dv = Array.isArray(line0.dashedValue) ? line0.dashedValue.join(',') : '';
+          const lineStyle = line0.style === kc.LineType.Solid ? 'solid' : (dv === '2,6' ? 'dotted' : 'dashed');
+          zigzagGroups.push({
+            id: generateUUID(),
+            deviation: Number(saved?.params?.[0] ?? 5),
+            depth: Number(saved?.params?.[1] ?? 5),
+            styles: {
+              color: line0.color ?? '#2962FF',
+              thickness: Number(line0.size ?? 2),
+              lineStyle
+            }
+          });
+        });
+      } else {
+        // No saved groups, create one default
+        zigzagGroups = [{
+          id: generateUUID(),
+          deviation: 5,
+          depth: 5,
+          styles: { color: '#2962FF', thickness: 2, lineStyle: 'solid' }
+        }];
+      }
+
+      // Sync single-state controls with first group (for backward compatibility, not used in UI)
+      const g0 = zigzagGroups[0];
+      params.splice(0, params.length, g0.deviation, g0.depth);
+      zigzagColor = g0.styles.color;
+      zigzagThickness = g0.styles.thickness;
+      zigzagLineStyle = g0.styles.lineStyle as any;
+
+      return; // Skip normal parameter handling
+    }
     
     // Initialize MACD groups if this is MACD indicator
     if (isMacd) {
@@ -9545,34 +10039,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function handleSarConfirm() {
     if (!isSar) return;
     
-    // Apply each SAR group as a separate indicator - all in main panel
-    sarGroups.forEach((group, index) => {
-      const calcParams = [group.start, group.increment, group.maxValue];
-      const indicatorStyles = {
-        lines: [{
-          color: group.color,
-          size: group.dotSize,
-          style: kc.LineType.Solid
-        }]
-      };
-
-      // For the first SAR group, update the current edit pane (main panel)
-      if (index === 0) {
-        $chart?.overrideIndicator({
-          name: 'SAR',
-          calcParams: calcParams,
-          styles: indicatorStyles,
-          paneId: 'candle_pane'
-        }); // Force main panel
-      } else {
-        // For additional groups, create in main panel only
-        $chart?.createIndicator({
-          name: 'SAR',
-          calcParams: calcParams,
-          styles: indicatorStyles
-        }, false, { id: 'candle_pane' }); // false = don't create new pane, use main panel
-      }
-    });
+    // Ensure the chart reflects ALL groups in main pane
+    rebuildAllSarOnPane();
 
     // Save SAR groups configuration
     save.update(s => {
@@ -9615,71 +10083,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function handleSuperTrendConfirm() {
     if (!isSuperTrend) return;
     
-    // Apply each SuperTrend group as a separate indicator - all in main panel
-    superTrendGroups.forEach((group, index) => {
-      const calcParams = [group.period, group.multiplier];
-      const indicatorStyles = {
-        lines: [{
-          color: group.styles.uptrend.color,
-          size: group.styles.uptrend.thickness,
-          style: group.styles.uptrend.lineStyle === 'dashed' ? kc.LineType.Dashed : kc.LineType.Solid
-        }]
-      };
-
-      // For the first SuperTrend group, update the current edit pane (main panel)
-      if (index === 0) {
-        $chart?.overrideIndicator({
-          name: 'SUPERTREND',
-          calcParams: calcParams,
-          styles: indicatorStyles,
-          extendData: {
-            showLabels: group.showLabels,
-            uptrendColor: group.styles.uptrend.color,
-            downtrendColor: group.styles.downtrend.color
-          },
-          paneId: 'candle_pane'
-        }); // Force main panel
-      } else {
-        // For additional groups, create in main panel only
-        $chart?.createIndicator({
-          name: 'SUPERTREND',
-          calcParams: calcParams,
-          styles: indicatorStyles,
-          extendData: {
-            showLabels: group.showLabels,
-            uptrendColor: group.styles.uptrend.color,
-            downtrendColor: group.styles.downtrend.color
-          }
-        }, false, { id: 'candle_pane' }); // false = don't create new pane, use main panel
-      }
-    });
-
-    // Save SuperTrend groups configuration
-    save.update(s => {
-      // Clear existing SuperTrend data first
-      Object.keys(s.saveInds).forEach(key => {
-        if (s.saveInds[key].name === 'SUPERTREND') {
-          delete s.saveInds[key];
-        }
-      });
-      
-      // Save each SuperTrend group separately
-      superTrendGroups.forEach((group, index) => {
-        const saveKey = index === 0 ? `candle_pane_SUPERTREND` : `SUPERTREND_${index + 1}`;
-        const saveData: any = {
-          name: 'SUPERTREND',
-          superTrendGroup: group,
-          pane_id: 'candle_pane', // Always main panel
-          groupIndex: index,
-          superTrendGroups: index === 0 ? [...superTrendGroups] : undefined,
-          params: [group.period, group.multiplier]
-        };
-        
-        s.saveInds[saveKey] = saveData;
-      });
-      
-      return s;
-    });
+    // Rebuild all groups and persist with consistent keys
+    rebuildAllSuperTrendOnPane();
     
     // Clear edit state
     ctx.update(c => {
@@ -10611,42 +11016,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
   function handleZigzagConfirm() {
     if (!isZigzag) return;
+    // Rebuild and save all ZigZag instances on confirm
+    rebuildAllZigzagOnPane();
     
-    // Create indicator styles for ZigZag
-    const indicatorStyles: any = {
-      lines: [
-        {
-          color: zigzagColor,
-          size: zigzagThickness,
-          style: zigzagLineStyle === 'solid' ? 0 : zigzagLineStyle === 'dashed' ? 1 : 2,
-          smooth: false,
-          dashedValue: [2, 2]
-        }
-      ]
-    };
+    // Ensure any open ZigZag color palette is closed before exiting
+    showZigzagColorPalette = false;
 
-    // Update the ZigZag indicator
-    $chart?.overrideIndicator({
-      name: 'ZIGZAG',
-      calcParams: [params[0], params[1]], // [deviation, depth]
-      styles: indicatorStyles,
-      paneId: $ctx.editPaneId
-    });
-
-    // Save ZigZag configuration
-    save.update(s => {
-      const saveKey = `${$ctx.editPaneId}_ZIGZAG`;
-      const saveData: any = {
-        name: 'ZIGZAG',
-        pane_id: $ctx.editPaneId,
-        params: [params[0], params[1]],
-        styles: indicatorStyles
-      };
-      
-      s.saveInds[saveKey] = saveData;
-      return s;
-    });
-    
     // Clear edit state
     ctx.update(c => {
       c.editIndName = '';
@@ -10791,61 +11166,36 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   function handleBollingerBandsConfirm() {
     if (!isBollingerBands) return;
 
-    // Create custom styles for Bollinger Bands
-    const indicatorStyles = {
-      lines: [
-        {
-          color: bollingerUpperColor,
-          size: bollingerThickness,
-          style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-          dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
-        },
-        {
-          color: bollingerMiddleColor,
-          size: bollingerThickness,
-          style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-          dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
-        },
-        {
-          color: bollingerLowerColor,
-          size: bollingerThickness,
-          style: bollingerLineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
-          dashedValue: bollingerLineStyle === 'dashed' ? [4, 4] : [0, 0]
-        }
-      ],
-      fill: {
-        color: bollingerFillColor,
-        opacity: bollingerFillOpacity / 100 // Convert percentage to decimal (0-1)
-      }
-    };
-
-    $chart?.overrideIndicator({
-      name: 'BOLL',
-      calcParams: [bollingerPeriod, bollingerStdDev],
-      styles: indicatorStyles,
-      paneId: $ctx.editPaneId
-    });
-
-    // Save Bollinger Bands configuration
-    save.update(s => {
-      const saveData: any = {
-        name: 'BOLL',
-        pane_id: $ctx.editPaneId,
-        params: [bollingerPeriod, bollingerStdDev],
-        bollingerStyles: {
+    // Sync group 0 from single-state values then rebuild and save all
+    if (bollGroups.length === 0) {
+      bollGroups = [{
+        id: generateUUID(),
+        paneId: $ctx.editPaneId || 'candle_pane',
+        period: bollingerPeriod,
+        stdDev: bollingerStdDev,
+        styles: {
           fillColor: bollingerFillColor,
-          fillOpacity: bollingerFillOpacity, // Save opacity percentage
+          fillOpacity: bollingerFillOpacity,
           upperColor: bollingerUpperColor,
           middleColor: bollingerMiddleColor,
           lowerColor: bollingerLowerColor,
           thickness: bollingerThickness,
           lineStyle: bollingerLineStyle
         }
-      };
+      }];
+    } else {
+      bollGroups[0].period = bollingerPeriod as number;
+      bollGroups[0].stdDev = bollingerStdDev as number;
+      bollGroups[0].styles.fillColor = bollingerFillColor as string;
+      bollGroups[0].styles.fillOpacity = bollingerFillOpacity as number;
+      bollGroups[0].styles.upperColor = bollingerUpperColor as string;
+      bollGroups[0].styles.middleColor = bollingerMiddleColor as string;
+      bollGroups[0].styles.lowerColor = bollingerLowerColor as string;
+      bollGroups[0].styles.thickness = bollingerThickness as number;
+      bollGroups[0].styles.lineStyle = bollingerLineStyle as string;
+    }
 
-      s.saveInds[`${$ctx.editPaneId}_BOLL`] = saveData;
-      return s;
-    });
+    rebuildAllBollOnPane();
 
     // Clear edit state
     ctx.update(c => {
@@ -10856,6 +11206,31 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     });
 
     show = false;
+  }
+
+  // Add another Bollinger Bands on the same (main) pane with current settings
+  function addMoreBollinger() {
+    if (!isBollingerBands) return;
+    const targetPaneId = $ctx.editPaneId || 'candle_pane';
+
+    // New group copies current single-state values
+    bollGroups.push({
+      id: generateUUID(),
+      paneId: targetPaneId,
+      period: bollingerPeriod,
+      stdDev: bollingerStdDev,
+      styles: {
+        fillColor: bollingerFillColor,
+        fillOpacity: bollingerFillOpacity,
+        upperColor: bollingerUpperColor,
+        middleColor: bollingerMiddleColor,
+        lowerColor: bollingerLowerColor,
+        thickness: bollingerThickness,
+        lineStyle: bollingerLineStyle
+      }
+    });
+
+    rebuildAllBollOnPane();
   }
 
   function handleConfirm(from: string) {
@@ -10876,6 +11251,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         return c;
       });
       
+      // Close any open ZigZag color palette to avoid overlay blocking interactions
+      showZigzagColorPalette = false;
+
       show = false;
       return;
     }
@@ -11015,6 +11393,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       return;
     }
     
+    // Handle Ichimoku groups specially
+    if (from === 'confirm' && isIchimoku && $ctx.editIndName && $ctx.editPaneId) {
+      handleIchimokuConfirm();
+      return;
+    }
+
     // Handle KDJ groups specially
     if (from === 'confirm' && isKdj && $ctx.editIndName && $ctx.editPaneId) {
       console.log('✅ KDJ confirm condition met, calling handleKdjConfirm');
@@ -12821,89 +13205,106 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     </div>
 
   {:else if isZigzag}
-    <!-- ZigZag Custom UI -->
+    <!-- ZigZag Multi-Instance UI -->
     <div class="space-y-2 mt-3">
-      <div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3">
-        <!-- ZigZag Header -->
-        <div class="flex items-center justify-between">
-          <span class="text-xs sm:text-sm font-medium text-base-content/80">ZigZag Indicator</span>
-        </div>
-        
-        <!-- Parameters Section - Vertical Layout -->
-        <div class="space-y-3">
-          <!-- Deviation % -->
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-base-content/60">Deviation %</label>
-            <input 
-              type="number" 
-              class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
-              min="1"
-              max="50"
-              step="0.1"
-              bind:value={params[0]}
-            />
+      {#each zigzagGroups as group, groupIndex}
+        <div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3">
+          <!-- Group Header -->
+          <div class="flex items-center justify-between">
+            <span class="text-xs sm:text-sm font-medium text-base-content/80">ZigZag {groupIndex + 1}</span>
           </div>
-          
-          <!-- Depth -->
-          <div class="flex flex-col gap-1">
-            <label class="text-xs text-base-content/60">Depth</label>
-            <input 
-              type="number" 
-              class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" 
-              min="1"
-              max="50"
-              bind:value={params[1]}
-            />
-          </div>
-        </div>
-        
-        <!-- Style Section -->
-        <div class="border-t border-base-300 pt-2 mt-2">
-          <label class="text-xs text-base-content/60 mb-2 block">ZigZag Line Style</label>
+
+          <!-- Parameters Section -->
           <div class="space-y-3">
-            <!-- Color -->
-            <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
-              <span class="text-xs text-base-content/70 flex-1">Line Color</span>
-              <div class="flex items-center gap-2">
-                <div class="w-6 h-6 rounded border-2 border-base-300" style="background-color: {zigzagColor}"></div>
-                <button 
-                  class="btn btn-sm btn-outline"
-                  onclick={showZigzagColorPaletteHandler}
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-base-content/60">Deviation %</label>
+              <input
+                type="number"
+                class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"
+                min="1"
+                max="50"
+                step="0.1"
+                bind:value={group.deviation}
+                oninput={rebuildAllZigzagOnPane}
+              />
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="text-xs text-base-content/60">Depth</label>
+              <input
+                type="number"
+                class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm"
+                min="1"
+                max="50"
+                bind:value={group.depth}
+                oninput={rebuildAllZigzagOnPane}
+              />
+            </div>
+          </div>
+
+          <!-- Style Section -->
+          <div class="border-t border-base-300 pt-2 mt-2">
+            <label class="text-xs text-base-content/60 mb-2 block">ZigZag Line Style</label>
+            <div class="space-y-3">
+              <!-- Color -->
+              <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
+                <span class="text-xs text-base-content/70 flex-1">Line Color</span>
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded border-2 border-base-300" style="background-color: {group.styles.color}"></div>
+                  <button 
+                    class="btn btn-sm btn-outline"
+                    onclick={() => openZigzagPalette(groupIndex)}
+                  >
+                    <div class="w-4 h-4 rounded border border-base-300" style="background-color: {group.styles.color}"></div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Thickness -->
+              <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
+                <span class="text-xs text-base-content/70 flex-1">Line Thickness</span>
+                <select
+                  class="select select-bordered select-xs w-20"
+                  bind:value={group.styles.thickness}
+                  onchange={rebuildAllZigzagOnPane}
                 >
-                  <div class="w-4 h-4 rounded border border-base-300" style="background-color: {zigzagColor}"></div>
-                </button>
+                  <option value={1}>1px</option>
+                  <option value={2}>2px</option>
+                  <option value={3}>3px</option>
+                  <option value={4}>4px</option>
+                  <option value={5}>5px</option>
+                </select>
+              </div>
+
+              <!-- Line Style -->
+              <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
+                <span class="text-xs text-base-content/70 flex-1">Line Style</span>
+                <select
+                  class="select select-bordered select-xs w-24"
+                  bind:value={group.styles.lineStyle}
+                  onchange={rebuildAllZigzagOnPane}
+                >
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                </select>
               </div>
             </div>
-            
-            <!-- Thickness -->
-            <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
-              <span class="text-xs text-base-content/70 flex-1">Line Thickness</span>
-              <select 
-                class="select select-bordered select-xs w-20" 
-                bind:value={zigzagThickness}
-              >
-                <option value={1}>1px</option>
-                <option value={2}>2px</option>
-                <option value={3}>3px</option>
-                <option value={4}>4px</option>
-                <option value={5}>5px</option>
-              </select>
-            </div>
-            
-            <!-- Line Style -->
-            <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
-              <span class="text-xs text-base-content/70 flex-1">Line Style</span>
-              <select 
-                class="select select-bordered select-xs w-24" 
-                bind:value={zigzagLineStyle}
-              >
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
-            </div>
           </div>
         </div>
+      {/each}
+
+      <!-- Add More ZigZag Button -->
+      <div class="flex justify-center pt-1">
+        <button 
+          class="btn btn-xs btn-outline btn-primary gap-1 text-xs" 
+          onclick={addZigzagGroup}
+          title="Add more ZigZag"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          + Add More ZigZag
+        </button>
       </div>
     </div>
 
@@ -13070,13 +13471,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         </div>
       {/each}
       
-      <!-- Add SuperTrend Group Button -->
+      <!-- Add SAR Group Button -->
       <div class="flex justify-center mt-3">
         <button 
           class="btn btn-sm btn-primary"
-          onclick={addSuperTrendGroup}
+          onclick={addSarGroup}
         >
-          ➕ Add More SuperTrend
+          ➕ Add More SAR
         </button>
       </div>
     </div>
@@ -13215,6 +13616,18 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
         </div>
       {/each}
+      <div class="flex justify-center mt-2">
+        <button 
+          class="btn btn-xs btn-outline btn-primary" 
+          onclick={addSuperTrendGroup}
+          title="Add more SuperTrend"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Add SuperTrend
+        </button>
+      </div>
     </div>
   {:else if isEma}
     <!-- EMA Specific UI -->
@@ -13826,7 +14239,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       </div>
     </div>
   {:else if isIchimoku}
-    <!-- Ichimoku Specific UI - Single Unified Card -->
+    <!-- Ichimoku Specific UI - Multi-Group Unified Cards -->
     <div class="mt-3 sm:mt-5">
       <div class="border border-base-300 rounded-lg p-4 bg-base-50/50">
         <!-- Ichimoku Header -->
@@ -13842,67 +14255,103 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
         </div>
 
-        <!-- All Parameters in Single Section -->
-        <div class="space-y-5">
-          {#each fields as field, i}
-            <!-- Parameter Row -->
-            <div class="flex flex-col gap-3 p-3 bg-base-100/50 rounded-lg">
-              <!-- Parameter Info & Period -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="flex items-center gap-3">
-                  <div class="w-4 h-4 rounded-full border-2 border-white shadow-sm" style="background-color: {styles[i].color}"></div>
-                  <span class="text-sm font-medium text-base-content min-w-fit">{field.title}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-base-content/60 min-w-fit">Period:</span>
-                  <input 
-                    type="number" 
-                    class="input input-bordered input-sm w-20 text-center" 
-                    bind:value={params[i]}
-                    min="1"
-                    max="200"
-                    onchange={() => updateIchimokuIndicator()}
-                  />
-                </div>
-              </div>
-              
-              <!-- Styling Controls -->
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                <!-- Color Picker -->
-                <div class="flex items-center gap-2">
-                  <label class="text-xs text-base-content/60 min-w-fit">Color:</label>
+        <!-- Render each Ichimoku group with a unified grid -->
+        <div class="space-y-6">
+          {#each ichimokuGroups as group, groupIndex}
+            <div class="space-y-3">
+              <!-- Group header -->
+              <div class="flex items-center justify-between">
+                <span class="text-sm sm:text-base font-medium text-base-content/80">{group.name}</span>
+                {#if ichimokuGroups.length > 1}
                   <button 
-                    class="btn btn-sm btn-outline"
-                    onclick={showIchimokuColorPaletteHandler(i)}
+                    class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" 
+                    onclick={() => removeIchimokuGroup(groupIndex)}
+                    title="Remove Ichimoku"
                   >
-                    <div class="w-4 h-4 rounded border border-base-300" style="background-color: {styles[i].color}"></div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
-                </div>
-                
-                <!-- Thickness -->
-                <div class="flex items-center gap-2">
-                  <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
-                  <select class="select select-bordered select-xs flex-1 text-xs" bind:value={styles[i].thickness} onchange={() => updateIchimokuIndicator()}>
-                    <option value={1}>1px</option>
-                    <option value={2}>2px</option>
-                    <option value={3}>3px</option>
-                    <option value={4}>4px</option>
-                    <option value={5}>5px</option>
-                  </select>
-                </div>
-                
-                <!-- Line Style -->
-                <div class="flex items-center gap-2">
-                  <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
-                  <select class="select select-bordered select-xs flex-1 text-xs" bind:value={styles[i].lineStyle} onchange={() => updateIchimokuIndicator()}>
-                    <option value="solid">Solid</option>
-                    <option value="dashed">Dashed</option>
-                    <option value="dotted">Dotted</option>
-                  </select>
-                </div>
+                {/if}
               </div>
+
+              <!-- Header row (hidden on very small screens) -->
+              <div class="hidden sm:grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 text-xs text-base-content/60 px-1">
+                <div>Component</div>
+                <div>Period</div>
+                <div>Color</div>
+                <div>Thickness</div>
+                <div>Style</div>
+              </div>
+
+              <!-- Fields for this group -->
+              {#each fields as field, i}
+                <div class="grid grid-cols-1 sm:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-3 items-center px-1 py-2 border-b border-base-200 last:border-b-0">
+                  <!-- Component name + color dot -->
+                  <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded-full border border-base-300" style="background-color: {group.styles[i]?.color}"></div>
+                    <span class="text-sm font-medium text-base-content">{field.title}</span>
+                  </div>
+
+                  <!-- Period input -->
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-base-content/60 sm:hidden">Period</span>
+                    <input 
+                      type="number" 
+                      class="input input-bordered input-sm w-24 text-center" 
+                      bind:value={group.params[i]}
+                      min="1"
+                      max="200"
+                      onchange={() => updateIchimokuIndicatorGroup(groupIndex)}
+                    />
+                  </div>
+
+                  <!-- Color picker -->
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-base-content/60 sm:hidden">Color</span>
+                    <button 
+                      class="btn btn-sm btn-outline"
+                      onclick={showIchimokuColorPaletteHandler(i, groupIndex)}
+                    >
+                      <div class="w-5 h-5 rounded border border-base-300" style="background-color: {group.styles[i]?.color}"></div>
+                    </button>
+                  </div>
+
+                  <!-- Thickness selector -->
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-base-content/60 sm:hidden">Thickness</span>
+                    <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles[i].thickness} onchange={() => updateIchimokuIndicatorGroup(groupIndex)}>
+                      <option value={1}>1px</option>
+                      <option value={2}>2px</option>
+                      <option value={3}>3px</option>
+                      <option value={4}>4px</option>
+                      <option value={5}>5px</option>
+                    </select>
+                  </div>
+
+                  <!-- Line style selector -->
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-base-content/60 sm:hidden">Style</span>
+                    <select class="select select-bordered select-xs flex-1 text-xs" bind:value={group.styles[i].lineStyle} onchange={() => updateIchimokuIndicatorGroup(groupIndex)}>
+                      <option value="solid">Solid</option>
+                      <option value="dashed">Dashed</option>
+                      <option value="dotted">Dotted</option>
+                    </select>
+                  </div>
+                </div>
+              {/each}
             </div>
           {/each}
+        </div>
+
+        <!-- Add More Ichimoku Button -->
+        <div class="flex justify-center pt-4">
+          <button class="btn btn-xs btn-outline btn-primary gap-1" onclick={addIchimokuGroup} title="Add Ichimoku">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            <span class="text-xs sm:text-sm">Add Ichimoku</span>
+          </button>
         </div>
 
         <!-- Ichimoku Info Footer -->
@@ -14628,7 +15077,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             <div class="w-6 h-6 rounded border-2 border-base-300" style="background-color: {bollingerFillColor}; opacity: {bollingerFillOpacity / 100}"></div>
             <button 
               class="btn btn-sm btn-outline"
-              onclick={showBollingerFillColorPaletteHandler}
+              onclick={() => openBollingerPalette('fill', 0)}
             >
               <div class="w-4 h-4 rounded border border-base-300" style="background-color: {bollingerFillColor}; opacity: {bollingerFillOpacity / 100}"></div>
             </button>
@@ -14668,7 +15117,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               <div class="w-6 h-6 rounded border-2 border-base-300" style="background-color: {bollingerUpperColor}"></div>
               <button 
                 class="btn btn-sm btn-outline"
-                onclick={showBollingerUpperColorPaletteHandler}
+                onclick={() => openBollingerPalette('upper', 0)}
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {bollingerUpperColor}"></div>
               </button>
@@ -14682,7 +15131,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               <div class="w-6 h-6 rounded border-2 border-base-300" style="background-color: {bollingerMiddleColor}"></div>
               <button 
                 class="btn btn-sm btn-outline"
-                onclick={showBollingerMiddleColorPaletteHandler}
+                onclick={() => openBollingerPalette('middle', 0)}
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {bollingerMiddleColor}"></div>
               </button>
@@ -14696,7 +15145,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
               <div class="w-6 h-6 rounded border-2 border-base-300" style="background-color: {bollingerLowerColor}"></div>
               <button 
                 class="btn btn-sm btn-outline"
-                onclick={showBollingerLowerColorPaletteHandler}
+                onclick={() => openBollingerPalette('lower', 0)}
               >
                 <div class="w-4 h-4 rounded border border-base-300" style="background-color: {bollingerLowerColor}"></div>
               </button>
@@ -14732,6 +15181,141 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </div>
         </div>
       </div>
+
+      <!-- Add More BOLL Button -->
+      <div class="flex justify-center gap-2 pt-1">
+        <button 
+          class="btn btn-xs btn-outline btn-primary gap-1 text-xs" 
+          onclick={addMoreBollinger}
+          title="Add more BOLL"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          + Add More BOLL
+        </button>
+        {#if bollGroups.length > 1}
+          <button 
+            class="btn btn-xs btn-outline btn-error gap-1 text-xs" 
+            onclick={() => removeBollGroup(0)}
+            title="Remove BOLL 1"
+          >
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            Remove BOLL 1
+          </button>
+        {/if}
+      </div>
+
+      {#if bollGroups.length > 1}
+        <!-- Additional BOLL groups -->
+        {#each bollGroups.slice(1) as group, idx}
+          {@const groupIndex = idx + 1}
+          <div class="bg-base-50 border border-primary/20 rounded-md p-3 space-y-3 mt-3">
+            <div class="flex items-center justify-between">
+              <h4 class="text-sm font-semibold text-primary">BOLL {groupIndex + 1}</h4>
+              <button 
+                class="btn btn-xs btn-ghost text-error"
+                onclick={() => removeBollGroup(groupIndex)}
+                title={`Remove BOLL ${groupIndex + 1}`}
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="flex flex-col gap-1">
+                <label class="text-xs text-base-content/60">Period</label>
+                <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="1" max="200" bind:value={group.period} onchange={rebuildAllBollOnPane} />
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs text-base-content/60">Standard Deviation</label>
+                <input type="number" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" min="0.1" max="10" step="0.1" bind:value={group.stdDev} onchange={rebuildAllBollOnPane} />
+              </div>
+            </div>
+
+            <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3">
+              <h5 class="text-xs font-medium text-base-content/70">Fill Area</h5>
+              <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
+                <span class="text-xs text-base-content/70 flex-1">Fill Color</span>
+                <div class="flex items-center gap-2">
+                  <div class="w-6 h-6 rounded border-2 border-base-300" style={`background-color: ${group.styles.fillColor}; opacity: ${(group.styles.fillOpacity || 0) / 100}`}></div>
+                  <button class="btn btn-sm btn-outline" onclick={() => openBollingerPalette('fill', groupIndex)}>
+                    <div class="w-4 h-4 rounded border border-base-300" style={`background-color: ${group.styles.fillColor}; opacity: ${(group.styles.fillOpacity || 0) / 100}`}></div>
+                  </button>
+                </div>
+              </div>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs text-base-content/70">Opacity</label>
+                  <span class="text-xs font-medium text-primary">{group.styles.fillOpacity}%</span>
+                </div>
+                <input type="range" class="range range-primary range-xs" min="0" max="100" step="1" bind:value={group.styles.fillOpacity} onchange={rebuildAllBollOnPane} />
+              </div>
+            </div>
+
+            <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3">
+              <h5 class="text-xs font-medium text-base-content/70">Line Colors</h5>
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
+                  <span class="text-xs text-base-content/70 flex-1">Upper Band</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded border-2 border-base-300" style={`background-color: ${group.styles.upperColor}`}></div>
+                    <button class="btn btn-sm btn-outline" onclick={() => openBollingerPalette('upper', groupIndex)}>
+                      <div class="w-4 h-4 rounded border border-base-300" style={`background-color: ${group.styles.upperColor}`}></div>
+                    </button>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
+                  <span class="text-xs text-base-content/70 flex-1">Middle Line (SMA)</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded border-2 border-base-300" style={`background-color: ${group.styles.middleColor}`}></div>
+                    <button class="btn btn-sm btn-outline" onclick={() => openBollingerPalette('middle', groupIndex)}>
+                      <div class="w-4 h-4 rounded border border-base-300" style={`background-color: ${group.styles.middleColor}`}></div>
+                    </button>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between gap-2 px-2 py-1.5 rounded bg-base-100 border border-base-200">
+                  <span class="text-xs text-base-content/70 flex-1">Lower Band</span>
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded border-2 border-base-300" style={`background-color: ${group.styles.lowerColor}`}></div>
+                    <button class="btn btn-sm btn-outline" onclick={() => openBollingerPalette('lower', groupIndex)}>
+                      <div class="w-4 h-4 rounded border border-base-300" style={`background-color: ${group.styles.lowerColor}`}></div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-base-50 border border-base-200 rounded-md p-3 space-y-3">
+              <h5 class="text-xs font-medium text-base-content/70">Line Style</h5>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60 min-w-fit">Thickness:</label>
+                  <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={group.styles.thickness} onchange={rebuildAllBollOnPane}>
+                    <option value={1}>1px</option>
+                    <option value={2}>2px</option>
+                    <option value={3}>3px</option>
+                    <option value={4}>4px</option>
+                    <option value={5}>5px</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-xs text-base-content/60 min-w-fit">Style:</label>
+                  <select class="select select-bordered select-xs flex-1 min-w-0" bind:value={group.styles.lineStyle} onchange={rebuildAllBollOnPane}>
+                    <option value="solid">Solid</option>
+                    <option value="dashed">Dashed</option>
+                    <option value="dotted">Dotted</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        {/each}
+      {/if}
     </div>
   {:else if !fields.length}
     <div class="flex justify-center items-center min-h-[120px]">
@@ -14821,6 +15405,61 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
 <!-- Color Palettes for all indicators -->
 <ColorPalette 
+  bind:show={showBollingerUpperColorPalette}
+  selectedColor={bollGroups[bollColorPaletteGroupIndex]?.styles?.upperColor || '#f23645'}
+  position={bollingerUpperColorPalettePosition}
+  on:colorChange={(e) => {
+    if (bollGroups[bollColorPaletteGroupIndex]) {
+      bollGroups[bollColorPaletteGroupIndex].styles.upperColor = e.detail.color;
+      rebuildAllBollOnPane();
+    } else {
+      bollingerUpperColor = e.detail.color;
+    }
+  }}
+/>
+
+<ColorPalette 
+  bind:show={showBollingerMiddleColorPalette}
+  selectedColor={bollGroups[bollColorPaletteGroupIndex]?.styles?.middleColor || '#2962ff'}
+  position={bollingerMiddleColorPalettePosition}
+  on:colorChange={(e) => {
+    if (bollGroups[bollColorPaletteGroupIndex]) {
+      bollGroups[bollColorPaletteGroupIndex].styles.middleColor = e.detail.color;
+      rebuildAllBollOnPane();
+    } else {
+      bollingerMiddleColor = e.detail.color;
+    }
+  }}
+/>
+
+<ColorPalette 
+  bind:show={showBollingerLowerColorPalette}
+  selectedColor={bollGroups[bollColorPaletteGroupIndex]?.styles?.lowerColor || '#089981'}
+  position={bollingerLowerColorPalettePosition}
+  on:colorChange={(e) => {
+    if (bollGroups[bollColorPaletteGroupIndex]) {
+      bollGroups[bollColorPaletteGroupIndex].styles.lowerColor = e.detail.color;
+      rebuildAllBollOnPane();
+    } else {
+      bollingerLowerColor = e.detail.color;
+    }
+  }}
+/>
+
+<ColorPalette 
+  bind:show={showBollingerFillColorPalette}
+  selectedColor={bollGroups[bollColorPaletteGroupIndex]?.styles?.fillColor || '#2196F3'}
+  position={bollingerFillColorPalettePosition}
+  on:colorChange={(e) => {
+    if (bollGroups[bollColorPaletteGroupIndex]) {
+      bollGroups[bollColorPaletteGroupIndex].styles.fillColor = e.detail.color;
+      rebuildAllBollOnPane();
+    } else {
+      bollingerFillColor = e.detail.color;
+    }
+  }}
+/>
+<ColorPalette 
   bind:show={showMacdColorPalette}
   selectedColor={macdGroups[macdColorPaletteGroupIndex]?.styles?.[macdColorPaletteLineType]?.color || '#2563eb'}
   position={macdColorPalettePosition}
@@ -14841,7 +15480,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (superTrendGroups.length > superTrendColorPaletteIndex && superTrendGroups[superTrendColorPaletteIndex].styles[superTrendColorPaletteType]) {
       superTrendGroups[superTrendColorPaletteIndex].styles[superTrendColorPaletteType].color = e.detail.color;
-      updateSuperTrendIndicator(superTrendColorPaletteIndex);
+      rebuildAllSuperTrendOnPane();
     }
   }}
 />
@@ -15068,10 +15707,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
 <ColorPalette 
   bind:show={showZigzagColorPalette}
-  selectedColor={zigzagColor}
+  selectedColor={zigzagGroups[zigzagColorPaletteIndex]?.styles.color || '#2962FF'}
   position={zigzagColorPalettePosition}
   on:colorChange={(e) => {
-    zigzagColor = e.detail.color;
+    if (zigzagGroups.length > zigzagColorPaletteIndex) {
+      zigzagGroups[zigzagColorPaletteIndex].styles.color = e.detail.color;
+      rebuildAllZigzagOnPane();
+    }
   }}
 />
 
@@ -15115,12 +15757,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
 <ColorPalette 
   bind:show={showIchimokuColorPalette}
-  selectedColor={styles[ichimokuColorPaletteIndex]?.color || '#2563eb'}
+  selectedColor={ichimokuGroups[ichimokuColorPaletteGroupIndex]?.styles[ichimokuColorPaletteIndex]?.color || '#2563eb'}
   position={ichimokuColorPalettePosition}
   on:colorChange={(e) => {
-    if (styles.length > ichimokuColorPaletteIndex) {
-      styles[ichimokuColorPaletteIndex].color = e.detail.color;
-      updateIchimokuIndicator();
+    const g = ichimokuGroups[ichimokuColorPaletteGroupIndex];
+    if (g && g.styles && g.styles.length > ichimokuColorPaletteIndex) {
+      g.styles[ichimokuColorPaletteIndex].color = e.detail.color;
+      updateIchimokuIndicatorGroup(ichimokuColorPaletteGroupIndex);
     }
   }}
 />

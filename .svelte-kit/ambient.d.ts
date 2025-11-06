@@ -27,13 +27,11 @@
  */
 declare module '$env/static/private' {
 	export const NVM_INC: string;
-	export const TRAE_AI_SHELL_ID: string;
 	export const TERM_PROGRAM: string;
 	export const NODE: string;
 	export const INIT_CWD: string;
 	export const NVM_CD_FLAGS: string;
 	export const TERM: string;
-	export const SAFE_RM_ALLOWED_PATH: string;
 	export const SHELL: string;
 	export const npm_config_metrics_registry: string;
 	export const TMPDIR: string;
@@ -54,9 +52,6 @@ declare module '$env/static/private' {
 	export const VSCODE_PROFILE_INITIALIZED: string;
 	export const __CF_USER_TEXT_ENCODING: string;
 	export const npm_execpath: string;
-	export const FILESYSTEM_CASE_SENSITIVE: string;
-	export const PAGER: string;
-	export const SAFE_RM_DENIED_PATH: string;
 	export const PATH: string;
 	export const npm_package_json: string;
 	export const _: string;
@@ -88,7 +83,6 @@ declare module '$env/static/private' {
 	export const npm_config_user_agent: string;
 	export const VSCODE_GIT_ASKPASS_NODE: string;
 	export const GIT_ASKPASS: string;
-	export const GIT_PAGER: string;
 	export const npm_node_execpath: string;
 	export const npm_config_prefix: string;
 	export const COLORTERM: string;
@@ -125,13 +119,11 @@ declare module '$env/static/public' {
 declare module '$env/dynamic/private' {
 	export const env: {
 		NVM_INC: string;
-		TRAE_AI_SHELL_ID: string;
 		TERM_PROGRAM: string;
 		NODE: string;
 		INIT_CWD: string;
 		NVM_CD_FLAGS: string;
 		TERM: string;
-		SAFE_RM_ALLOWED_PATH: string;
 		SHELL: string;
 		npm_config_metrics_registry: string;
 		TMPDIR: string;
@@ -152,9 +144,6 @@ declare module '$env/dynamic/private' {
 		VSCODE_PROFILE_INITIALIZED: string;
 		__CF_USER_TEXT_ENCODING: string;
 		npm_execpath: string;
-		FILESYSTEM_CASE_SENSITIVE: string;
-		PAGER: string;
-		SAFE_RM_DENIED_PATH: string;
 		PATH: string;
 		npm_package_json: string;
 		_: string;
@@ -186,7 +175,6 @@ declare module '$env/dynamic/private' {
 		npm_config_user_agent: string;
 		VSCODE_GIT_ASKPASS_NODE: string;
 		GIT_ASKPASS: string;
-		GIT_PAGER: string;
 		npm_node_execpath: string;
 		npm_config_prefix: string;
 		COLORTERM: string;

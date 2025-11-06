@@ -410,6 +410,10 @@ export const IndFieldsMap: Record<string, Record<string, unknown>[]> = {
     { title: 'Period', precision: 0, min: 1, default: 14 },
     { title: 'Line Color', type: 'color', styleKey: 'lines[0].color', default: '#2563eb' },
     { title: 'Line Thickness', precision: 0, min: 1, max: 5, styleKey: 'lines[0].size', default: 1 }
+  ],
+  ZIGZAG: [
+    { title: 'Deviation %', precision: 1, min: 1, max: 50, default: 5 },
+    { title: 'Depth', precision: 0, min: 1, max: 50, default: 5 }
   ]
 }
 
