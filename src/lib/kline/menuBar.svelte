@@ -28,6 +28,9 @@ import ModalChartType from './modalChartType.svelte';
   import SaveButton from './saveSystem/SaveButton.svelte';
   import SaveModal from './saveSystem/SaveModal.svelte';
   import ChartSavePopup from './saveSystem/ChartSavePopup.svelte';
+  import LoadChartPopup from './saveSystem/LoadChartPopup.svelte';
+  import SaveAsSelectModal from './saveSystem/SaveAsSelectModal.svelte';
+  import Toast from '$lib/components/Toast.svelte';
   // Props
   let {customLoad = false, mainContainer = $bindable(), sidebarHost = $bindable()} = $props();
 
@@ -180,12 +183,17 @@ let showTimezoneModal = $state(false);
   
   // Save system state
   let showSaveModal = $state(false);
+  let showSaveAsSelectModal = $state(false);
   let showChartSavePopup = $state(false);
   let chartSavePopupPosition = $state({ x: 0, y: 0 });
+  let showChartLoadPopup = $state(false);
+  let chartLoadPopupPosition = $state({ x: 0, y: 0 });
   let savedLayouts = $state([]);
   let activeSaveId = $state(null);
   let isLoading = $state(false);
   let hasUnsavedChanges = $state(false);
+  let toastVisible = $state(false);
+  let toastMessage = $state('');
 
   // iOS fullscreen cleanup function
   let iosFullscreenCleanup: (() => void) | null = $state(null);
@@ -1152,6 +1160,13 @@ let showTimezoneModal = $state(false);
         if (!result.success) {
           console.error('Quick save failed:', result.error);
         }
+        if (result.success) {
+          // Close popup and show confirmation toast
+          showChartSavePopup = false;
+          toastMessage = 'Saved to current layout';
+          toastVisible = true;
+          setTimeout(() => { toastVisible = false; }, 2000);
+        }
       } else {
         // No active save, show save as dialog
         // Close the ChartSavePopup first
@@ -1165,8 +1180,8 @@ let showTimezoneModal = $state(false);
   function handleSaveAs() {
     // Close the ChartSavePopup first
     showChartSavePopup = false;
-    // Then show the SaveModal
-    showSaveModal = true;
+    // Instead of name input, open selection modal to overwrite an existing layout
+    showSaveAsSelectModal = true;
   }
 
   function handleNewLayout() {
@@ -1219,11 +1234,56 @@ let showTimezoneModal = $state(false);
     showSaveModal = false;
   }
 
+  async function handleSaveAsSelectSave(event: CustomEvent<{ layoutId: string }>) {
+    const { layoutId } = event.detail;
+    if (typeof window !== 'undefined' && (window as any).saveManager) {
+      const saveManager = (window as any).saveManager;
+      const result = await saveManager.saveTo(layoutId);
+      if (result.success) {
+        showSaveAsSelectModal = false;
+      } else {
+        console.error('Save to existing failed:', result.error);
+      }
+    }
+  }
+
+  function handleSaveAsSelectBack() {
+    // Go back to the Save popup
+    showSaveAsSelectModal = false;
+    handleShowPopup();
+  }
+
+  function handleSaveAsSelectCancel() {
+    showSaveAsSelectModal = false;
+  }
+
   function handleShowPopup() {
     console.log('🎯 Save button clicked, showing popup...');
     console.log('📊 Current savedLayouts:', savedLayouts);
     console.log('🎯 Current activeSaveId:', activeSaveId);
     console.log('💾 SaveManager available:', !!(window as any).saveManager);
+
+    // If user has no saved layouts yet, open New Layout modal directly
+    try {
+      if (typeof window !== 'undefined' && (window as any).saveManager) {
+        const sm = (window as any).saveManager;
+        const st = sm.getState();
+        if (!st || !Array.isArray(st.savedLayouts) || st.savedLayouts.length === 0) {
+          showChartSavePopup = false;
+          showSaveModal = true;
+          return;
+        }
+      } else if (!savedLayouts || savedLayouts.length === 0) {
+        showChartSavePopup = false;
+        showSaveModal = true;
+        return;
+      }
+    } catch (e) {
+      // Fallback to modal on error
+      showChartSavePopup = false;
+      showSaveModal = true;
+      return;
+    }
     
     // Calculate popup position in the center of the chart
     if (mainContainer) {
@@ -1244,6 +1304,27 @@ let showTimezoneModal = $state(false);
       }
     }
     showChartSavePopup = true;
+  }
+
+  function handleShowLoadPopup() {
+    // Center the popup in the chart
+    if (mainContainer) {
+      const chartContainer = mainContainer.querySelector('.chart-container');
+      if (chartContainer) {
+        const rect = chartContainer.getBoundingClientRect();
+        chartLoadPopupPosition = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      } else {
+        const rect = mainContainer.getBoundingClientRect();
+        chartLoadPopupPosition = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      }
+    }
+    showChartLoadPopup = true;
   }
 
 </script>
@@ -1284,8 +1365,18 @@ let showTimezoneModal = $state(false);
   {savedLayouts}
   {isLoading}
   mode="save"
+  showExisting={false}
   on:save={handleSaveModalSave}
   on:cancel={handleSaveModalCancel}
+/>
+
+<SaveAsSelectModal 
+  bind:show={showSaveAsSelectModal}
+  {savedLayouts}
+  {isLoading}
+  on:saveTo={handleSaveAsSelectSave}
+  on:back={handleSaveAsSelectBack}
+  on:cancel={handleSaveAsSelectCancel}
 />
 
 <ChartSavePopup
@@ -1295,13 +1386,25 @@ let showTimezoneModal = $state(false);
   {isLoading}
   {hasUnsavedChanges}
   position={chartSavePopupPosition}
+  showLayouts={false}
   on:save={handleSave}
   on:saveAs={handleSaveAs}
   on:quickSave={handleSave}
-  on:load={handleLoad}
-  on:delete={handleDelete}
   on:newLayout={handleNewLayout}
 />
+
+<LoadChartPopup
+  bind:show={showChartLoadPopup}
+  {savedLayouts}
+  {activeSaveId}
+  position={chartLoadPopupPosition}
+  {isLoading}
+  on:load={handleLoad}
+  on:delete={handleDelete}
+/>
+
+<!-- Success toast for save actions -->
+<Toast bind:visible={toastVisible} message={toastMessage} duration={2000} />
 
 <div bind:this={periodBarRef} class="menu-container">
   <!-- Left side scrollable content -->
@@ -1422,6 +1525,18 @@ let showTimezoneModal = $state(false);
       on:newLayout={handleNewLayout}
       on:showPopup={handleShowPopup}
     />
+    <!-- Load Chart Button -->
+    <button
+      class="btn btn-secondary btn-sm min-w-[100px] transition-all duration-200"
+      onclick={handleShowLoadPopup}
+      title="Load Chart Layout"
+      type="button"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 8l-3-3m3 3l3-3" />
+      </svg>
+      Load
+    </button>
     {@render MenuButton(() => showTimezoneModal = true, "timezone", "")}
     {@render MenuButton(() => showChartSettingModal = true, "setting", "")}
     {@render MenuButton(clickScreenShot, "screenShot", "", 20)}
