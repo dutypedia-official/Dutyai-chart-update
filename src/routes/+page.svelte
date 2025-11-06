@@ -12,8 +12,23 @@
   const ctx = writable<ChartCtx>(new ChartCtx());
   const save = persisted('chart', new ChartSave());
 
-  // Handle URL parameter for symbol selection
+  // Handle URL parameters for symbol selection and theme
   onMount(() => {
+    // Handle theme parameter
+    const themeParam = $page.url.searchParams.get('theme');
+    if (themeParam && (themeParam === 'dark' || themeParam === 'light')) {
+      console.log('🎨 Theme parameter found in URL:', themeParam);
+      
+      // Update theme in save store
+      save.update(s => {
+        s.theme = themeParam;
+        return s;
+      });
+      
+      console.log('✅ Theme set from URL parameter:', themeParam);
+    }
+    
+    // Handle symbol parameter
     const symbolParam = $page.url.searchParams.get('symbol');
     if (symbolParam) {
       console.log('🔗 Symbol parameter found in URL:', symbolParam);

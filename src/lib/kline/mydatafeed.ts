@@ -125,7 +125,9 @@ export default class MyDatafeed implements Datafeed {
 
       // Build URL with skip parameter and increased limit for faster loading
       const limit = 200; // Fetch more data per request for better performance
-      let url = `https://stocknow.com.bd/api/v1/instruments/${symbol.ticker}/history?data2=true&resolution=${stockNowResolution}&skip=${skip}&limit=${limit}`;
+      // Ensure symbol is properly encoded for URL
+      const encodedSymbol = encodeURIComponent(symbol.ticker);
+      let url = `https://stocknow.com.bd/api/v1/instruments/${encodedSymbol}/history?data2=true&resolution=${stockNowResolution}&skip=${skip}&limit=${limit}`;
 
       console.log(`🌐 Fetching historical data from: ${url}`);
 
@@ -133,14 +135,23 @@ export default class MyDatafeed implements Datafeed {
       if (!response.ok) {
         // Handle 500 errors gracefully with retry mechanism
         if (response.status === 500 && retryCount > 0) {
-          console.warn(`⚠️ API returned 500 error for ${symbol.ticker}, retrying (${retryCount} attempts left)...`);
+          console.warn(
+            `⚠️ API returned 500 error for ${symbol.ticker}, retrying (${retryCount} attempts left)...`
+          );
           // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.loadMoreHistoricalData(symbol, period, earliestTimestamp, retryCount - 1);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          return this.loadMoreHistoricalData(
+            symbol,
+            period,
+            earliestTimestamp,
+            retryCount - 1
+          );
         }
         // Handle 500 errors gracefully - don't throw, just return empty data
         if (response.status === 500) {
-          console.warn(`⚠️ API returned 500 error for ${symbol.ticker}, returning empty data`);
+          console.warn(
+            `⚠️ API returned 500 error for ${symbol.ticker}, returning empty data`
+          );
           return { data: [], lays: [] };
         }
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -176,8 +187,11 @@ export default class MyDatafeed implements Datafeed {
       // Log API data before transformation
       console.log(`API data for ${symbol}:`, apiData);
       console.log(`API data type:`, typeof apiData);
-      console.log(`API data length:`, Array.isArray(apiData) ? apiData.length : 'Not an array');
-      
+      console.log(
+        `API data length:`,
+        Array.isArray(apiData) ? apiData.length : "Not an array"
+      );
+
       // Transform the API data using the utility function
       const klineData = transformApiDataToKLineData(apiData);
 
@@ -331,7 +345,9 @@ export default class MyDatafeed implements Datafeed {
 
       // Build URL - don't use skip parameter for now as it's causing issues
       // Instead, we'll fetch the latest data and handle historical loading differently
-      let url = `https://stocknow.com.bd/api/v1/instruments/${symbol}/history?data2=true&resolution=${stockNowResolution}`;
+      // Ensure symbol is properly encoded for URL
+      const encodedSymbol = encodeURIComponent(symbol);
+      let url = `https://stocknow.com.bd/api/v1/instruments/${encodedSymbol}/history?data2=true&resolution=${stockNowResolution}`;
 
       console.log(`Fetching data from: ${url}`);
 
@@ -339,14 +355,24 @@ export default class MyDatafeed implements Datafeed {
       if (!response.ok) {
         // Handle 500 errors gracefully with retry mechanism
         if (response.status === 500 && retryCount > 0) {
-          console.warn(`⚠️ API returned 500 error for ${symbol}, retrying (${retryCount} attempts left)...`);
+          console.warn(
+            `⚠️ API returned 500 error for ${symbol}, retrying (${retryCount} attempts left)...`
+          );
           // Wait a bit before retrying
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return this.getStockNowData(symbol, resolution, from, to, retryCount - 1);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          return this.getStockNowData(
+            symbol,
+            resolution,
+            from,
+            to,
+            retryCount - 1
+          );
         }
         // Handle 500 errors gracefully - don't throw, just return empty data
         if (response.status === 500) {
-          console.warn(`⚠️ API returned 500 error for ${symbol}, returning empty data`);
+          console.warn(
+            `⚠️ API returned 500 error for ${symbol}, returning empty data`
+          );
           return { data: [], lays: [] };
         }
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -393,40 +419,26 @@ export default class MyDatafeed implements Datafeed {
 
   async getSymbols(): Promise<SymbolInfo[]> {
     console.log("🚀 getSymbols() method called");
-    
-    // Fallback symbols in case API fails
-    const fallbackSymbols = [
-      {
-        ticker: "GP",
-        name: "Grameen Phone Limited",
-        shortName: "GP",
-        market: "stock",
-        exchange: "DSEBD",
-        priceCurrency: "BDT",
-        type: "stock",
-        logo: "",
-      },
-      {
-        ticker: "ROBI",
-        name: "Robi Axiata Limited",
-        shortName: "ROBI",
-        market: "stock",
-        exchange: "DSEBD",
-        priceCurrency: "BDT",
-        type: "stock",
-        logo: "",
-      },
-      {
-        ticker: "KPCL",
-        name: "Karnaphuli Power Company Limited",
-        shortName: "KPCL",
-        market: "stock",
-        exchange: "DSEBD",
-        priceCurrency: "BDT",
-        type: "stock",
-        logo: "",
-      },
-      {
+
+    try {
+      console.log("🌐 Fetching symbols from API...");
+      const response = await fetch(
+        "https://heart.dutyai.app/finance/get/stock/list"
+      );
+
+      if (!response.ok) {
+        console.warn(`⚠️ API request failed with status: ${response.status}`);
+        return [];
+      }
+
+      let apiData = await response.json();
+
+      if (!Array.isArray(apiData)) {
+        console.warn("⚠️ API response is not an array, using fallback symbols");
+        return [];
+      }
+
+      apiData.push({
         ticker: "DSEX",
         name: "Dhaka Stock Exchange",
         shortName: "DSEX",
@@ -435,61 +447,37 @@ export default class MyDatafeed implements Datafeed {
         priceCurrency: "BDT",
         type: "stock",
         logo: "",
-      },
-      {
-        ticker: "HAMI",
-        name: "Heidelberg Materials Bangladesh Limited",
-        shortName: "HAMI",
-        market: "stock",
-        exchange: "DSEBD",
-        priceCurrency: "BDT",
-        type: "stock",
-        logo: "",
-      },
-    ];
-
-    try {
-      console.log("🌐 Fetching symbols from API...");
-      const response = await fetch("https://heart.dutyai.app/finance/get/stock/list");
-      
-      if (!response.ok) {
-        console.warn(`⚠️ API request failed with status: ${response.status}`);
-        return fallbackSymbols;
-      }
-
-      const apiData = await response.json();
-      
-      if (!Array.isArray(apiData)) {
-        console.warn("⚠️ API response is not an array, using fallback symbols");
-        return fallbackSymbols;
-      }
+      });
 
       console.log(`📊 Received ${apiData.length} symbols from API`);
 
       // Transform API data to SymbolInfo format
       const symbols: SymbolInfo[] = apiData.map((item: any) => ({
-        ticker: item.symbol || "",
-        name: item.fullName || item.symbol || "",
-        shortName: item.symbol || "",
+        ticker: item.symbol || item.ticker || "",
+        name: item.fullName || item.name || item.symbol || item.ticker || "",
+        shortName: item.symbol || item.ticker || "",
         market: "stock",
-        exchange: item.country === "BD" ? "DSEBD" : "UNKNOWN",
-        priceCurrency: "BDT",
+        exchange: item.country === "BD" || item.exchange === "DSEBD" ? "DSEBD" : "UNKNOWN",
+        priceCurrency: item.priceCurrency || "BDT",
         type: "stock",
-        logo: "",
+        logo: item.logo || "",
       }));
 
       // Filter out any symbols with empty tickers
-      const validSymbols = symbols.filter(symbol => symbol.ticker && symbol.ticker.trim() !== "");
-      
-      console.log(`✅ Successfully processed ${validSymbols.length} valid symbols`);
+      const validSymbols = symbols.filter(
+        (symbol) => symbol.ticker && symbol.ticker.trim() !== ""
+      );
+
+      console.log(
+        `✅ Successfully processed ${validSymbols.length} valid symbols`
+      );
       console.log("📋 Sample symbols:", validSymbols.slice(0, 5));
-      
-      return validSymbols.length > 0 ? validSymbols : fallbackSymbols;
-      
+
+      return validSymbols.length > 0 ? validSymbols : [];
     } catch (error) {
       console.error("❌ Error fetching symbols from API:", error);
       console.log("🔄 Falling back to hardcoded symbols");
-      return fallbackSymbols;
+      return [];
     }
   }
 
@@ -508,23 +496,23 @@ export default class MyDatafeed implements Datafeed {
     if (this._prevSymbol?.ticker === symbol.ticker) return;
     this._prevSymbol = symbol;
     this.unsubscribe();
-    
+
     // For demo purposes, we'll simulate real-time data updates
     // since we don't have a proper WebSocket endpoint for stock data
     console.log(`Subscribing to real-time updates for ${symbol.ticker}`);
-    
+
     // Simulate real-time updates with interval
     const intervalId = setInterval(() => {
       // Get current price from cache or use a random value
-      const currentPrice = this.currentPriceCache.get(symbol.ticker) || 
-                          Math.random() * 100 + 10; // Random price between 10-110
-      
+      const currentPrice =
+        this.currentPriceCache.get(symbol.ticker) || Math.random() * 100 + 10; // Random price between 10-110
+
       const priceChange = (Math.random() - 0.5) * 2; // Random price change ±1
       const newPrice = currentPrice + priceChange;
-      
+
       // Update current price cache
       this.currentPriceCache.set(symbol.ticker, newPrice);
-      
+
       // Create the expected format with bars array and secs
       const timestamp = Date.now();
       const bar = [
@@ -533,16 +521,16 @@ export default class MyDatafeed implements Datafeed {
         Math.max(currentPrice, newPrice) + Math.random() * 0.5,
         Math.min(currentPrice, newPrice) - Math.random() * 0.5,
         newPrice,
-        Math.random() * 1000 // Random volume
+        Math.random() * 1000, // Random volume
       ];
-      
+
       // Call the callback with the expected format
       callback({
         bars: [bar],
-        secs: 1 // 1 second interval
+        secs: 1, // 1 second interval
       });
     }, 2000); // Update every 2 seconds
-    
+
     // Store the interval ID for cleanup
     this.listens[symbol.ticker] = intervalId;
   }
@@ -552,14 +540,14 @@ export default class MyDatafeed implements Datafeed {
       this._ws.close();
       this._ws = undefined;
     }
-    
+
     // Clear all intervals for real-time updates
     Object.values(this.listens).forEach((intervalId) => {
-      if (typeof intervalId === 'number') {
+      if (typeof intervalId === "number") {
         clearInterval(intervalId);
       }
     });
-    
+
     this.listens = {};
   }
 
