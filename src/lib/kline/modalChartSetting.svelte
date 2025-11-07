@@ -51,6 +51,8 @@
       }
       
       // Restore saved colors immediately
+      // Force using saved styles (do not preserve current DOM preview colors)
+      try { (window as any).__forceApplySavedCanvasColors = true; } catch (_) {}
       if ($ctx.applyCanvasColors) {
         $ctx.applyCanvasColors();
       }
@@ -1354,6 +1356,15 @@
       // Mark as confirmed so cancel won't be called
       wasConfirmed = true;
       
+      // Force next canvas color application to use saved styles (do not preserve previous DOM preview)
+      try {
+        (window as any).__forceApplySavedCanvasColors = true;
+      } catch (_) {}
+      // Apply immediately so gradient remains after closing
+      if ($ctx.applyCanvasColors) {
+        $ctx.applyCanvasColors();
+      }
+
       show = false;
     } else if (from === 'reset') {
       console.log('🔄 RESET CLICKED - Using theme manager');

@@ -7,6 +7,7 @@
   import type { ChartSave, ChartCtx } from '../chart';
   import type { ChartRuntimeContracts, SymbolKey, Drawing } from './types';
   import type { DrawingManager } from '../drawingManager';
+  import { markClean } from '$lib/stores/unsavedChanges';
 
   // Get chart context
   const save = getContext('save') as Writable<ChartSave>;
@@ -125,6 +126,16 @@
       // Set runtime contracts
       saveManager.setRuntimeContracts(runtime);
 
+      // Wire save events to clear unsaved changes flag on successful save/load
+      saveManager.setEventHandlers({
+        onSaved: () => {
+          try { markClean(); } catch {}
+        },
+        onLoaded: () => {
+          try { markClean(); } catch {}
+        }
+      });
+
       // Make save manager globally available for UI components
       if (typeof window !== 'undefined') {
         (window as any).saveManager = saveManager;
@@ -135,6 +146,8 @@
       // Adding a small delay to ensure chart is fully loaded before restoration
       setTimeout(async () => {
         await restoreActiveSavedData();
+        // After auto-restore, baseline is clean
+        try { markClean(); } catch {}
       }, 500);
 
       console.log('✅ Save system initialized successfully');

@@ -10,6 +10,7 @@
   export let isLoading = false;
   export let hasUnsavedChanges = false;
   export let position = { x: 0, y: 0 };
+  export let showLayouts: boolean = true;
 
   // State
   let popupRef: HTMLDivElement;
@@ -194,7 +195,6 @@
       <div class="space-y-2">
         <button
           class="w-full flex items-center gap-3 px-4 py-3 text-sm bg-primary text-primary-content hover:bg-primary/90 rounded-md transition-colors duration-150"
-          class:btn-warning={hasUnsavedChanges}
           on:click={handleSave}
           disabled={isLoading}
         >
@@ -205,7 +205,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
             </svg>
           {/if}
-          {hasActiveSave ? 'Quick Save' : 'Save New Layout'}
+          {hasActiveSave ? 'Save to Current Layout' : 'Save New Layout'}
         </button>
         
         <button
@@ -246,52 +246,54 @@
       </div>
     {/if}
 
-    <!-- Saved Layouts List -->
-    <div class="max-h-48 overflow-y-auto">
-      {#if savedLayouts.length === 0}
-        <div class="p-6 text-center text-base-content/60 text-sm">
-          No saved layouts yet
-        </div>
-      {:else}
-        <div class="p-4">
-          <div class="text-xs font-medium text-base-content/70 px-2 py-2">
-            Saved Layouts ({savedLayouts.length})
+    {#if showLayouts}
+      <!-- Saved Layouts List -->
+      <div class="max-h-48 overflow-y-auto">
+        {#if savedLayouts.length === 0}
+          <div class="p-6 text-center text-base-content/60 text-sm">
+            No saved layouts yet
           </div>
-          <div class="space-y-1">
-            {#each savedLayouts as layout}
-              <div
-                class="group flex items-center justify-between px-3 py-2 hover:bg-base-200 rounded-md transition-colors duration-150 cursor-pointer {layout.id === activeSaveId ? 'bg-primary/10' : ''}"
-                on:click={() => handleLoad(layout.id)}
-              >
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="text-sm font-medium text-base-content truncate">
-                      {layout.name}
-                    </span>
-                    {#if layout.id === activeSaveId}
-                      <div class="w-1.5 h-1.5 bg-primary rounded-full"></div>
-                    {/if}
-                  </div>
-                  <div class="text-xs text-base-content/60">
-                    {formatDate(new Date(layout.updatedAt).getTime())}
-                  </div>
-                </div>
-                
-                <button
-                  class="opacity-0 group-hover:opacity-100 p-1 hover:bg-error/20 rounded transition-all duration-150"
-                  on:click={(e) => handleDelete(e, layout.id)}
-                  title="Delete layout"
+        {:else}
+          <div class="p-4">
+            <div class="text-xs font-medium text-base-content/70 px-2 py-2">
+              Saved Layouts ({savedLayouts.length})
+            </div>
+            <div class="space-y-1">
+              {#each savedLayouts as layout}
+                <div
+                  class="group flex items-center justify-between px-3 py-2 hover:bg-base-200 rounded-md transition-colors duration-150 cursor-pointer {layout.id === activeSaveId ? 'bg-primary/10' : ''}"
+                  on:click={() => handleLoad(layout.id)}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            {/each}
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm font-medium text-base-content truncate">
+                        {layout.name}
+                      </span>
+                      {#if layout.id === activeSaveId}
+                        <div class="w-1.5 h-1.5 bg-primary rounded-full"></div>
+                      {/if}
+                    </div>
+                    <div class="text-xs text-base-content/60">
+                      {formatDate(new Date(layout.updatedAt).getTime())}
+                    </div>
+                  </div>
+                  
+                  <button
+                    class="opacity-0 group-hover:opacity-100 p-1 hover:bg-error/20 rounded transition-all duration-150"
+                    on:click={(e) => handleDelete(e, layout.id)}
+                    title="Delete layout"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-error" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              {/each}
+            </div>
           </div>
-        </div>
-      {/if}
-    </div>
+        {/if}
+      </div>
+    {/if}
   </div>
 
 

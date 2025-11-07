@@ -10,7 +10,7 @@
   import figures from './figures';
   import indicators from './indicators';
   import MyDatafeed from './mydatafeed';
-  import {onMount} from 'svelte';
+  import {onMount, onDestroy} from 'svelte';
   import {adjustFromTo, makeFormatDate, setTimezone} from '../dateutil';
   import type {SymbolInfo, Period, BarArr} from './types';
   import DrawBar from './drawBar.svelte';
@@ -38,6 +38,8 @@
   import SaveSystemIntegration from './saveSystem/SaveSystemIntegration.svelte';
   import { initializeDrawingManager, type DrawingManager } from './drawingManager';
   import { normalizeSymbolKey } from './saveSystem/chartStateCollector';
+  import UnsavedChangesModal from '$lib/UnsavedChangesModal.svelte';
+  import { hasUnsavedChanges, unsavedChanges } from '$lib/stores/unsavedChanges';
   setTimezone('UTC')
 
   const datafeed = new MyDatafeed()
@@ -96,6 +98,7 @@
   let historicalLoadError = $state<string | null>(null);
   // Track if user is pinned to the right edge (latest bars)
   let isPinnedToRight = true;
+  let showUnsavedModal = $state(false);
   
   // Render system integration
   const renderIntegration = getChartRenderIntegration();
@@ -118,16 +121,51 @@
   
   // Helper function to generate gradient CSS
   function generateGradientCSS(gradient: any): string {
-    if (!gradient || !gradient.colors || gradient.colors.length === 0) {
-      return '';
+    if (!gradient) return '';
+    
+    // Support two formats:
+    // 1) { angle, colors: [{ color, position }] }
+    // 2) { type, direction, stops: [{ color, position, opacity }] }
+    if (Array.isArray(gradient.colors) && gradient.colors.length > 0) {
+      const angle = gradient.angle || gradient.direction || 0;
+      const colorStops = gradient.colors
+        .map((c: any) => `${c.color} ${c.position}%`)
+        .join(', ');
+      return `linear-gradient(${angle}deg, ${colorStops})`;
     }
     
-    const angle = gradient.angle || 0;
-    const colorStops = gradient.colors
-      .map((c: any) => `${c.color} ${c.position}%`)
-      .join(', ');
+    if (Array.isArray(gradient.stops) && gradient.stops.length > 0) {
+      const type = gradient.type === 'radial' ? 'radial' : 'linear';
+      const angle = gradient.direction ?? gradient.angle ?? 0;
+      const sortedStops = [...gradient.stops].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+      const stopStrings = sortedStops.map((stop: any) => {
+        const color = (stop.color || '').trim();
+        const pos = stop.position ?? 0;
+        const op = (stop.opacity ?? 100) / 100;
+        if (color.startsWith('#')) {
+          const r = parseInt(color.slice(1, 3), 16);
+          const g = parseInt(color.slice(3, 5), 16);
+          const b = parseInt(color.slice(5, 7), 16);
+          return `rgba(${r}, ${g}, ${b}, ${op}) ${pos}%`;
+        }
+        if (color.startsWith('rgb(') || color.startsWith('rgba(')) {
+          // Append opacity to rgb if needed
+          const m = color.match(/rgba?\(([^)]+)\)/i);
+          if (m) {
+            const parts = m[1].split(',').map((v: string) => v.trim());
+            const [r, g, b] = parts;
+            return `rgba(${r}, ${g}, ${b}, ${op}) ${pos}%`;
+          }
+        }
+        return `${color} ${pos}%`;
+      });
+      if (type === 'radial') {
+        return `radial-gradient(circle, ${stopStrings.join(', ')})`;
+      }
+      return `linear-gradient(${angle}deg, ${stopStrings.join(', ')})`;
+    }
     
-    return `linear-gradient(${angle}deg, ${colorStops})`;
+    return '';
   }
 
   // Helper function to apply saved canvas colors (background and grid)
@@ -147,13 +185,38 @@
       const bgType = styles.backgroundType || 'solid';
       const chartContainer = document.querySelector('.kline-main');
       const chartWidget = document.querySelector('.kline-widget');
-      
-      // CRITICAL FIX: Apply background color even if user hasn't set custom colors
-      // Use saved color if available, otherwise use default theme color
-      if (bgType === 'solid') {
+
+      // Preserve any live preview background already set on DOM (via settings modal),
+      // unless a theme reset/save-confirm forces saved styles OR a gradient is saved (gradients should always win)
+      let existingBgCSS = '';
+      const hasSavedGradient = (bgType === 'gradient' && !!styles.backgroundGradient);
+      if (!(window as any).__forceApplyThemeDefaults && !(window as any).__forceApplySavedCanvasColors && !hasSavedGradient) {
+        const readExistingBg = (el: Element | null) => {
+          if (!el) return '';
+          const he = el as HTMLElement;
+          const computed = window.getComputedStyle(he);
+          const varBg = (computed.getPropertyValue('--chart-background-color') || '').trim();
+          const inlineBg = (he.style.background || he.style.backgroundColor || '').trim();
+          return varBg || inlineBg || '';
+        };
+        existingBgCSS = readExistingBg(chartContainer) || readExistingBg(chartWidget);
+      }
+
+      if (!(window as any).__forceApplyThemeDefaults && !(window as any).__forceApplySavedCanvasColors && !hasSavedGradient && existingBgCSS) {
+        // Reapply the existing live preview background to both containers
+        [chartContainer, chartWidget].forEach(el => {
+          if (el) {
+            (el as HTMLElement).style.background = existingBgCSS;
+            (el as HTMLElement).style.backgroundColor = existingBgCSS;
+            (el as HTMLElement).style.setProperty('--chart-background-color', existingBgCSS);
+          }
+        });
+        console.log('🎨 Preserved live preview background:', existingBgCSS);
+      } else if (bgType === 'solid') {
+        // Use saved color if available, otherwise use default theme color
         const bgColor = styles.backgroundColor || ($save.theme === 'dark' ? '#070211' : '#ffffff');
         const bgOpacity = (styles.backgroundOpacity ?? 100) / 100;
-        
+
         // Convert to rgba if needed
         let bgCSS = bgColor;
         if (bgOpacity !== 1 && bgColor.startsWith('#')) {
@@ -162,7 +225,7 @@
           const b = parseInt(bgColor.slice(5, 7), 16);
           bgCSS = `rgba(${r}, ${g}, ${b}, ${bgOpacity})`;
         }
-        
+
         [chartContainer, chartWidget].forEach(el => {
           if (el) {
             (el as HTMLElement).style.background = bgCSS;
@@ -170,13 +233,13 @@
             (el as HTMLElement).style.setProperty('--chart-background-color', bgCSS);
           }
         });
-        
+
         console.log('🎨 Applied saved background color:', bgCSS);
       } else if (bgType === 'gradient' && styles.backgroundGradient) {
         // Apply gradient background
         const bgGradient = styles.backgroundGradient;
         const gradientCSS = bgGradient.css || generateGradientCSS(bgGradient);
-        
+
         [chartContainer, chartWidget].forEach(el => {
           if (el) {
             (el as HTMLElement).style.background = gradientCSS;
@@ -184,18 +247,32 @@
             (el as HTMLElement).style.setProperty('--chart-background-color', gradientCSS);
           }
         });
-        
+
         console.log('🎨 Applied saved gradient background:', gradientCSS);
       }
       
       // Apply grid color or gradient
       const gridType = styles.gridType || 'solid';
       
-      // CRITICAL FIX: Apply grid color even if user hasn't set custom colors
-      // Use saved color if available, otherwise use default theme color
+      // IMPORTANT: Preserve any live preview grid color already applied via $chart.setStyles
+      // unless we are forcing theme defaults or a save-confirm wants saved styles.
       if ($chart && gridType === 'solid') {
-        const gridColor = styles.grid?.horizontal?.color || ($save.theme === 'dark' ? '#081115' : '#F3F3F3');
-        const currentStyles = $chart.getStyles() ?? {};
+        const currentStyles = $chart.getStyles?.() ?? {};
+        const previewGridColor = ((window as any).__forceApplyThemeDefaults || (window as any).__forceApplySavedCanvasColors)
+          ? undefined
+          : (_.get(currentStyles, 'grid.horizontal.color') || _.get(currentStyles, 'grid.vertical.color'));
+        const savedGridColor = styles.grid?.horizontal?.color || styles.grid?.vertical?.color;
+        const defaultGrid = ($save.theme === 'dark' ? '#081115' : '#F3F3F3');
+        const gridOpacityPct = typeof styles.gridOpacity === 'number' ? styles.gridOpacity : 100;
+        const gridAlpha = Math.max(0, Math.min(100, gridOpacityPct)) / 100;
+        let gridColor = previewGridColor || savedGridColor || defaultGrid;
+        // If using saved hex and opacity < 1, convert to rgba
+        if (!previewGridColor && typeof gridColor === 'string' && gridColor.startsWith('#') && gridAlpha !== 1) {
+          const r = parseInt(gridColor.slice(1, 3), 16);
+          const g = parseInt(gridColor.slice(3, 5), 16);
+          const b = parseInt(gridColor.slice(5, 7), 16);
+          gridColor = `rgba(${r}, ${g}, ${b}, ${gridAlpha})`;
+        }
         const newStyles = _.cloneDeep(currentStyles);
         
         _.set(newStyles, 'grid.horizontal.color', gridColor);
@@ -208,17 +285,22 @@
           $chart.setStyles(processLineChartStyles(newStyles as unknown as Record<string, unknown>));
         }
         
-        console.log('🎨 Applied saved grid color:', gridColor);
+        console.log('🎨 Applied grid color (preserving preview when available):', gridColor);
       } else if ($chart && gridType === 'gradient' && styles.gridGradient) {
-        // Apply gradient grid
+        // Apply gradient grid (note: grids don't truly support gradients; this uses blended/constructed CSS)
+        const currentStyles = $chart.getStyles?.() ?? {};
+        const existingColor = ((window as any).__forceApplyThemeDefaults || (window as any).__forceApplySavedCanvasColors)
+          ? undefined
+          : (_.get(currentStyles, 'grid.horizontal.color') || _.get(currentStyles, 'grid.vertical.color'));
         const gridGradient = styles.gridGradient;
         const gradientCSS = gridGradient.css || generateGradientCSS(gridGradient);
         
-        const currentStyles = $chart.getStyles() ?? {};
+        // If an existing grid color is already set (e.g., from a live preview), preserve it
+        const appliedColor = existingColor || gradientCSS;
         const newStyles = _.cloneDeep(currentStyles);
         
-        _.set(newStyles, 'grid.horizontal.color', gradientCSS);
-        _.set(newStyles, 'grid.vertical.color', gradientCSS);
+        _.set(newStyles, 'grid.horizontal.color', appliedColor);
+        _.set(newStyles, 'grid.vertical.color', appliedColor);
         
         // Use original setStyles to avoid triggering the wrapper
         if (originalSetStyles) {
@@ -227,13 +309,20 @@
           $chart.setStyles(processLineChartStyles(newStyles as unknown as Record<string, unknown>));
         }
         
-        console.log('🎨 Applied saved gradient grid:', gradientCSS);
+        console.log('🎨 Applied gradient grid (preserving preview when available):', appliedColor);
       }
     } catch (error) {
       console.error('Error applying canvas colors:', error);
     } finally {
       // Always reset flag
       isApplyingCanvasColors = false;
+      // Consume force flags after one cycle
+      if ((window as any).__forceApplyThemeDefaults) {
+        (window as any).__forceApplyThemeDefaults = false;
+      }
+      if ((window as any).__forceApplySavedCanvasColors) {
+        (window as any).__forceApplySavedCanvasColors = false;
+      }
     }
   }
   
@@ -433,6 +522,68 @@
       applyCanvasColors();
     }, 200);
     
+    // Restore saved indicators on refresh so they remain visible and selected
+    try {
+      const restoreIndicatorsFromSave = () => {
+        if (!$chart) return;
+        const chartObj = $chart;
+        let existing: Array<{ name: string; paneId?: string }>=[];
+        try {
+          existing = (chartObj.getIndicators?.() ?? []) as Array<{ name: string; paneId?: string }>;
+        } catch (_) {
+          existing = [];
+        }
+
+        const entries = Object.entries($save.saveInds || {});
+        for (const [, ind] of entries) {
+          const name = ind?.name;
+          if (!name) continue;
+
+          const paneId = ind?.pane_id || '';
+          const alreadyExists = existing.some(e => e.name === name && (!paneId || e.paneId === paneId));
+          if (alreadyExists) continue;
+
+          // Convert saved line styles (if any) to klinecharts styles
+          let styles: any | undefined = undefined;
+          if (Array.isArray(ind.styles) && ind.styles.length > 0) {
+            const convert = (style: string | undefined) => {
+              if (style === 'dashed' || style === 'dotted') {
+                return { style: kc.LineType.Dashed, dashedValue: style === 'dotted' ? [2, 2] : [4, 4] };
+              }
+              return { style: kc.LineType.Solid, dashedValue: [2, 2] };
+            };
+            styles = {
+              lines: ind.styles.map((s: any) => {
+                const lt = convert(s?.lineStyle);
+                return {
+                  color: s?.color,
+                  size: s?.thickness ?? 1,
+                  style: lt.style,
+                  dashedValue: lt.dashedValue
+                };
+              })
+            };
+          }
+
+          const isMain = paneId === 'candle_pane';
+          try {
+            chartObj.createIndicator({
+              name,
+              calcParams: ind?.params,
+              styles
+            }, isMain, paneId ? { id: paneId } : undefined);
+          } catch (err) {
+            console.warn('⚠️ Failed to restore indicator:', name, err);
+          }
+        }
+      };
+
+      // Run after initial style application to avoid flicker
+      setTimeout(restoreIndicatorsFromSave, 150);
+    } catch (e) {
+      console.warn('⚠️ Indicator restore failed:', e);
+    }
+
     $ctx.initDone += 1
     
     // Load initial data with a delay to ensure chart is fully initialized
@@ -456,6 +607,33 @@
     
     // Focus the chart widget to enable keyboard events
     chartRef?.focus();
+
+    // Intercept refresh keys when there are unsaved changes (F5, Cmd/Ctrl+R)
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!hasUnsavedChanges()) return;
+      const isRefreshKey = e.key === 'F5' || ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R'));
+      if (isRefreshKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        showUnsavedModal = true;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+
+    // Fallback: native browser prompt when clicking the browser reload button
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    // Cleanup listeners on destroy
+    onDestroy(() => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    });
     
     // Enhanced separator interaction functionality
     setTimeout(() => {
@@ -1480,6 +1658,15 @@
     bind:visible={showToast}
     message={toastMessage}
     duration={2000}
+  />
+  
+  <!-- Unsaved Changes Warning Modal -->
+  <UnsavedChangesModal 
+    show={showUnsavedModal}
+    title={'Unsaved changes'}
+    message={'You made changes but did not save. Refresh will discard them.'}
+    on:cancel={() => { showUnsavedModal = false; }}
+    on:confirm={() => { showUnsavedModal = false; location.reload(); }}
   />
   
   <!-- Save System Integration -->

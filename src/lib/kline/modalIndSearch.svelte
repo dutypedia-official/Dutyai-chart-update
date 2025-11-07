@@ -12,6 +12,7 @@
   import KlineIcon from './icon.svelte';
   import { undoRedoManager } from './undoRedoManager';
   import { getChartRenderIntegration } from './core';
+  import { markDirty } from '$lib/stores/unsavedChanges';
   
   let { show = $bindable() } = $props();
 
@@ -1398,6 +1399,8 @@
       s.saveInds[saveKey] = ind;
       return s
     })
+    // Mark unsaved changes
+    markDirty();
     
     // Record indicator addition for undo/redo
     undoRedoManager.recordAddIndicator(name, pane_id, calcParams || [], saveKey)
@@ -1489,6 +1492,8 @@
       console.log('🧹 After cleanup saveInds keys:', Object.keys(s.saveInds))
       return s
     })
+    // Mark unsaved changes
+    markDirty();
     
     // selectedIndicators will automatically update via derived store when save.saveInds changes
     

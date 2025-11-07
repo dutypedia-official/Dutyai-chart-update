@@ -9,6 +9,7 @@
   export let savedLayouts: SavedLayoutMeta[] = [];
   export let isLoading = false;
   export let mode: 'save' | 'saveAs' = 'save'; // save = new save, saveAs = save existing with new name
+  export let showExisting: boolean = false; // control showing saved list inside save modal
 
   // State
   let layoutName = '';
@@ -150,8 +151,8 @@
       {/if}
     </div>
 
-    <!-- Existing Layouts Info -->
-    {#if savedLayouts.length > 0}
+    <!-- Existing Layouts Info (optional) -->
+    {#if showExisting && savedLayouts.length > 0}
       <div class="space-y-2">
         <h4 class="text-sm font-medium text-base-content/70">Existing Layouts ({savedLayouts.length})</h4>
         <div class="max-h-32 overflow-y-auto space-y-1 p-3 bg-base-200/30 rounded-lg border border-base-300/50">

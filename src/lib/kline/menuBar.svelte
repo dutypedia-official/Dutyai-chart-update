@@ -181,6 +181,10 @@ let showTimezoneModal = $state(false);
   let showName = $state('');
   let isRotated = $state(false);
   
+  // Theme switch confirmation state
+  let showThemeConfirm = $state(false);
+  let pendingNewTheme: 'dark' | 'light' | null = $state(null);
+  
   // Save system state
   let showSaveModal = $state(false);
   let showSaveAsSelectModal = $state(false);
@@ -460,115 +464,176 @@ let showTimezoneModal = $state(false);
     showName = $save.symbol.shortName || $save.symbol.ticker;
   })
 
-  function toggleTheme() {
-    const newTheme = $save.theme === 'dark' ? 'light' : 'dark';
-    
-    // CRITICAL: Clear custom background and grid colors from localStorage
-    // This ensures theme colors take precedence over any saved custom colors
-    try {
-      const savedChart = localStorage.getItem('chart');
-      if (savedChart) {
-        const chartData = JSON.parse(savedChart);
-        if (chartData.styles) {
-          // Clear custom background colors
-          delete chartData.styles.backgroundColor;
-          delete chartData.styles.backgroundOpacity;
-          delete chartData.styles.backgroundType;
-          delete chartData.styles.backgroundGradient;
-          
-          // Clear custom grid colors
-          if (chartData.styles.grid) {
-            delete chartData.styles.grid.horizontal;
-            delete chartData.styles.grid.vertical;
-          }
-          delete chartData.styles.gridColor;
-          delete chartData.styles.gridOpacity;
-          delete chartData.styles.gridType;
-          delete chartData.styles.gridGradient;
-          
-          // Save back to localStorage
-          localStorage.setItem('chart', JSON.stringify(chartData));
-          console.log('🧹 Cleared custom background and grid colors from localStorage');
+  // Determine if user actually customized canvas/grid relative to current theme defaults
+  function hasCanvasOrGridCustomizations(): boolean {
+    const s: any = $save.styles || {};
+    const themeStyles: any = getThemeStyles($save.theme);
+
+    // If top-level override keys exist, treat as customized
+    if (s.backgroundColor || s.backgroundGradient || s.backgroundType || (s.backgroundOpacity !== undefined)) return true;
+    if (s.gridGradient || s.gridType || (s.gridOpacity !== undefined)) return true;
+
+    const normalize = (c: any): string => {
+      if (!c || typeof c !== 'string') return '';
+      const color = c.trim().toLowerCase();
+      if (color.startsWith('rgba(')) {
+        const m = color.match(/rgba\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+        if (m) {
+          const r = Number(m[1]).toString(16).padStart(2, '0');
+          const g = Number(m[2]).toString(16).padStart(2, '0');
+          const b = Number(m[3]).toString(16).padStart(2, '0');
+          return `#${r}${g}${b}`;
         }
       }
-    } catch (error) {
-      console.error('Failed to clear custom colors from localStorage:', error);
+      return color;
+    };
+
+    // Compare pane background against theme default
+    const paneBg = normalize(_.get(s, 'pane.backgroundColor'));
+    const candlePaneBg = normalize(_.get(s, 'candle.pane.backgroundColor'));
+    const themePaneBg = normalize(_.get(themeStyles, 'pane.backgroundColor'));
+    if (paneBg && themePaneBg && paneBg !== themePaneBg) return true;
+    if (candlePaneBg && themePaneBg && candlePaneBg !== themePaneBg) return true;
+
+    // Compare grid colors against theme default
+    const gridH = normalize(_.get(s, 'grid.horizontal.color'));
+    const gridV = normalize(_.get(s, 'grid.vertical.color'));
+    const themeGridH = normalize(_.get(themeStyles, 'grid.horizontal.color'));
+    const themeGridV = normalize(_.get(themeStyles, 'grid.vertical.color'));
+    if (gridH && themeGridH && gridH !== themeGridH) return true;
+    if (gridV && themeGridV && gridV !== themeGridV) return true;
+
+    return false;
+  }
+
+  function applyThemeSwitch(newTheme: 'dark' | 'light', resetTemplate: boolean) {
+    // Update DOM theme attribute for CSS variables (UI theme)
+    const mainContainer = document.querySelector('.kline-main');
+    if (mainContainer) {
+      mainContainer.setAttribute('data-theme', newTheme);
     }
-    
-    // Apply theme immediately for real-time preview
-    if ($chart) {
-      const themeStyles = getThemeStyles(newTheme);
-      const currentSavedStyles = JSON.parse(JSON.stringify($save.styles || {}));
-      
-      // Reset background and grid colors to theme defaults
-      // This ensures user's custom colors are overridden with theme colors
-      // Type assertion for themeStyles to fix TypeScript errors
-      const typedThemeStyles = themeStyles as {
-        pane: { backgroundColor: string };
-        candle: { pane: { backgroundColor: string } };
-        grid: { horizontal: { color: string }; vertical: { color: string } };
-      };
-      
-      const resetStyles = {
-        ...currentSavedStyles,
-        pane: {
-          ...currentSavedStyles.pane,
-          backgroundColor: typedThemeStyles.pane.backgroundColor
-        },
-        candle: {
-          ...currentSavedStyles.candle,
+
+    if (resetTemplate) {
+      // Clear custom background and grid colors from localStorage
+      try {
+        const savedChart = localStorage.getItem('chart');
+        if (savedChart) {
+          const chartData = JSON.parse(savedChart);
+          if (chartData.styles) {
+            delete chartData.styles.backgroundColor;
+            delete chartData.styles.backgroundOpacity;
+            delete chartData.styles.backgroundType;
+            delete chartData.styles.backgroundGradient;
+            if (chartData.styles.grid) {
+              delete chartData.styles.grid.horizontal;
+              delete chartData.styles.grid.vertical;
+            }
+            delete chartData.styles.gridColor;
+            delete chartData.styles.gridOpacity;
+            delete chartData.styles.gridType;
+            delete chartData.styles.gridGradient;
+            localStorage.setItem('chart', JSON.stringify(chartData));
+            console.log('🧹 Cleared custom background and grid colors from localStorage');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to clear custom colors from localStorage:', error);
+      }
+
+      if ($chart) {
+        // Force next canvas color application to use theme defaults (do not preserve preview)
+        (window as any).__forceApplyThemeDefaults = true;
+        const themeStyles = getThemeStyles(newTheme);
+        const currentSavedStyles = JSON.parse(JSON.stringify($save.styles || {}));
+        const typedThemeStyles = themeStyles as {
+          pane: { backgroundColor: string };
+          candle: { pane: { backgroundColor: string } };
+          grid: { horizontal: { color: string }; vertical: { color: string } };
+        };
+
+        const resetStyles = {
+          ...currentSavedStyles,
           pane: {
-            ...currentSavedStyles.candle?.pane,
-            backgroundColor: typedThemeStyles.candle.pane.backgroundColor
-          }
-        },
-        grid: {
-          ...currentSavedStyles.grid,
-          horizontal: {
-            ...currentSavedStyles.grid?.horizontal,
-            color: typedThemeStyles.grid.horizontal.color
+            ...currentSavedStyles.pane,
+            backgroundColor: typedThemeStyles.pane.backgroundColor
           },
-          vertical: {
-            ...currentSavedStyles.grid?.vertical,
-            color: typedThemeStyles.grid.vertical.color
+          candle: {
+            ...currentSavedStyles.candle,
+            pane: {
+              ...currentSavedStyles.candle?.pane,
+              backgroundColor: typedThemeStyles.candle.pane.backgroundColor
+            }
+          },
+          grid: {
+            ...currentSavedStyles.grid,
+            horizontal: {
+              ...currentSavedStyles.grid?.horizontal,
+              color: typedThemeStyles.grid.horizontal.color
+            },
+            vertical: {
+              ...currentSavedStyles.grid?.vertical,
+              color: typedThemeStyles.grid.vertical.color
+            }
           }
+        };
+
+        const preservedChartType = currentSavedStyles?.candle?.type;
+        const mergedStyles = _.merge({}, themeStyles, resetStyles);
+        // Remove top-level custom canvas/grid keys so modal/init won't re-apply old values
+        delete (mergedStyles as any).backgroundColor;
+        delete (mergedStyles as any).backgroundOpacity;
+        delete (mergedStyles as any).backgroundType;
+        delete (mergedStyles as any).backgroundGradient;
+        delete (mergedStyles as any).gridColor;
+        delete (mergedStyles as any).gridOpacity;
+        delete (mergedStyles as any).gridType;
+        delete (mergedStyles as any).gridGradient;
+        if (preservedChartType && mergedStyles.candle) {
+          mergedStyles.candle.type = preservedChartType;
         }
-      };
-      
-      // Preserve chart type and other custom settings
-      const preservedChartType = currentSavedStyles?.candle?.type;
-      const mergedStyles = _.merge({}, themeStyles, resetStyles);
-      
-      if (preservedChartType && mergedStyles.candle) {
-        mergedStyles.candle.type = preservedChartType;
+        $chart.setStyles(processLineChartStyles(mergedStyles));
+        $save.styles = mergedStyles;
       }
-      
-      // Apply styles immediately
-      $chart.setStyles(processLineChartStyles(mergedStyles));
-      
-      // Update saved styles to reflect the reset colors
-      $save.styles = mergedStyles;
-      
-      // Update DOM theme attribute for CSS variables
-      const mainContainer = document.querySelector('.kline-main');
-      if (mainContainer) {
-        mainContainer.setAttribute('data-theme', newTheme);
+
+      try {
+        const themeManager = new TransactionalThemeManager('chart-settings', chart, newTheme);
+        themeManager.resetToThemeDefaults(newTheme);
+        themeManager.destroy();
+        console.log('🔄 Reset TransactionalThemeManager for theme toggle');
+      } catch (error) {
+        console.error('Failed to reset TransactionalThemeManager:', error);
       }
     }
-    
-    // CRITICAL: Reset TransactionalThemeManager to prevent interference
-    // This ensures the theme manager doesn't override theme colors with custom colors
-    try {
-      const themeManager = new TransactionalThemeManager('chart-settings', chart, newTheme);
-      themeManager.resetToThemeDefaults(newTheme);
-      themeManager.destroy(); // Clean up the temporary instance
-      console.log('🔄 Reset TransactionalThemeManager for theme toggle');
-    } catch (error) {
-      console.error('Failed to reset TransactionalThemeManager:', error);
-    }
-    
-    // Update the theme value (this will trigger the theme subscription)
+
+    // Update the theme store (triggers chart theme subscription)
     $save.theme = newTheme;
+  }
+
+  function toggleTheme() {
+    const newTheme: 'dark' | 'light' = $save.theme === 'dark' ? 'light' : 'dark';
+    // If user customized canvas/grid colors, ask whether to switch the chart template too
+    if (hasCanvasOrGridCustomizations()) {
+      pendingNewTheme = newTheme;
+      showThemeConfirm = true;
+      return;
+    }
+    // No customizations: switch and reset to defaults
+    applyThemeSwitch(newTheme, true);
+  }
+
+  function confirmThemeTemplateSwitch() {
+    if (!pendingNewTheme) return;
+    applyThemeSwitch(pendingNewTheme, true);
+    showThemeConfirm = false;
+    pendingNewTheme = null;
+  }
+
+  function cancelThemeTemplateSwitch() {
+    if (!pendingNewTheme) return;
+    // Switch only UI theme, preserve chart template colors
+    applyThemeSwitch(pendingNewTheme, false);
+    showThemeConfirm = false;
+    pendingNewTheme = null;
   }
 
   function clickLoadData() {
@@ -1582,6 +1647,23 @@ let showTimezoneModal = $state(false);
     </div>
   </div>
 </div>
+
+{#if showThemeConfirm}
+  <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
+    <div class="bg-base-100 rounded-lg shadow-xl p-6 w-full max-w-md">
+      <div class="text-base-content text-lg font-semibold mb-2">Switch chart template theme?</div>
+      <div class="text-base-content/80 text-sm mb-5">
+        {`You're changing the user interface to the ${pendingNewTheme === 'light' ? 'Light' : 'Dark'} theme.`}
+        <br/>
+        Would you like to switch the chart template's theme too?
+      </div>
+      <div class="flex justify-end gap-2">
+        <button class="btn btn-sm" onclick={cancelThemeTemplateSwitch} type="button">No</button>
+        <button class="btn btn-sm btn-primary" onclick={confirmThemeTemplateSwitch} type="button">Yes</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Debug Overlay for iOS Testing -->
 {#if showDebugOverlay && isIOS()}

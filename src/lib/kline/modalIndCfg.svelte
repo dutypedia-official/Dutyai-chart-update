@@ -15419,10 +15419,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={bollingerUpperColorPalettePosition}
   on:colorChange={(e) => {
     if (bollGroups[bollColorPaletteGroupIndex]) {
-      bollGroups[bollColorPaletteGroupIndex].styles.upperColor = e.detail.color;
+      bollGroups[bollColorPaletteGroupIndex].styles.upperColor = (e.detail.rgba || e.detail.color);
       rebuildAllBollOnPane();
     } else {
-      bollingerUpperColor = e.detail.color;
+      bollingerUpperColor = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15433,10 +15433,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={bollingerMiddleColorPalettePosition}
   on:colorChange={(e) => {
     if (bollGroups[bollColorPaletteGroupIndex]) {
-      bollGroups[bollColorPaletteGroupIndex].styles.middleColor = e.detail.color;
+      bollGroups[bollColorPaletteGroupIndex].styles.middleColor = (e.detail.rgba || e.detail.color);
       rebuildAllBollOnPane();
     } else {
-      bollingerMiddleColor = e.detail.color;
+      bollingerMiddleColor = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15447,10 +15447,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={bollingerLowerColorPalettePosition}
   on:colorChange={(e) => {
     if (bollGroups[bollColorPaletteGroupIndex]) {
-      bollGroups[bollColorPaletteGroupIndex].styles.lowerColor = e.detail.color;
+      bollGroups[bollColorPaletteGroupIndex].styles.lowerColor = (e.detail.rgba || e.detail.color);
       rebuildAllBollOnPane();
     } else {
-      bollingerLowerColor = e.detail.color;
+      bollingerLowerColor = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15461,10 +15461,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={bollingerFillColorPalettePosition}
   on:colorChange={(e) => {
     if (bollGroups[bollColorPaletteGroupIndex]) {
-      bollGroups[bollColorPaletteGroupIndex].styles.fillColor = e.detail.color;
+      bollGroups[bollColorPaletteGroupIndex].styles.fillColor = (e.detail.rgba || e.detail.color);
       rebuildAllBollOnPane();
     } else {
-      bollingerFillColor = e.detail.color;
+      bollingerFillColor = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15475,7 +15475,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (macdGroups.length > macdColorPaletteGroupIndex) {
       // Update the color in the group
-      macdGroups[macdColorPaletteGroupIndex].styles[macdColorPaletteLineType].color = e.detail.color;
+      macdGroups[macdColorPaletteGroupIndex].styles[macdColorPaletteLineType].color = (e.detail.rgba || e.detail.color);
       // Apply changes to chart in real-time
       updateMacdColor(macdColorPaletteGroupIndex, macdColorPaletteLineType);
     }
@@ -15488,7 +15488,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={superTrendColorPalettePosition}
   on:colorChange={(e) => {
     if (superTrendGroups.length > superTrendColorPaletteIndex && superTrendGroups[superTrendColorPaletteIndex].styles[superTrendColorPaletteType]) {
-      superTrendGroups[superTrendColorPaletteIndex].styles[superTrendColorPaletteType].color = e.detail.color;
+      superTrendGroups[superTrendColorPaletteIndex].styles[superTrendColorPaletteType].color = (e.detail.rgba || e.detail.color);
       rebuildAllSuperTrendOnPane();
     }
   }}
@@ -15500,7 +15500,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={cciColorPalettePosition}
   on:colorChange={(e) => {
     if (cciGroups.length > cciColorPaletteIndex) {
-      cciGroups[cciColorPaletteIndex].color = e.detail.color;
+      cciGroups[cciColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       // Apply changes to chart in real-time
       applyCci();
     }
@@ -15515,7 +15515,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={dmiColorPalettePosition}
   on:colorChange={(e) => {
     if (dmiGroups.length > 0) {
-      dmiGroups[0].styles.diPlus.color = e.detail.color;
+      dmiGroups[0].styles.diPlus.color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15526,7 +15526,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={emvColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > 0) {
-      styles[0].color = e.detail.color;
+      styles[0].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15537,7 +15537,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={mtmColorPalettePosition}
   on:colorChange={(e) => {
     if (mtmGroups[mtmColorPaletteIndex]) {
-      mtmGroups[mtmColorPaletteIndex].color = e.detail.color;
+      mtmGroups[mtmColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       // Apply changes to chart in real-time
       applyMtm();
     }
@@ -15550,7 +15550,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={kdjColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > 0) {
-      styles[0].color = e.detail.color;
+      styles[0].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15561,7 +15561,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={trixColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > 0) {
-      styles[0].color = e.detail.color;
+      styles[0].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15579,11 +15579,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     if (volGroups.length > volColorPaletteIndex) {
       if (volColorPaletteType === 'histogram') {
-        volGroups[volColorPaletteIndex].styles.histogram.upColor = e.detail.color;
+        volGroups[volColorPaletteIndex].styles.histogram.upColor = (e.detail.rgba || e.detail.color);
       } else if (volColorPaletteType === 'histogram-down') {
-        volGroups[volColorPaletteIndex].styles.histogram.downColor = e.detail.color;
+        volGroups[volColorPaletteIndex].styles.histogram.downColor = (e.detail.rgba || e.detail.color);
       } else if (volColorPaletteType === 'ema') {
-        volGroups[volColorPaletteIndex].styles.ema.color = e.detail.color;
+        volGroups[volColorPaletteIndex].styles.ema.color = (e.detail.rgba || e.detail.color);
       }
       updateVolIndicator(volColorPaletteIndex);
     }
@@ -15597,7 +15597,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={wrColorPalettePosition}
   on:colorChange={(e) => {
     if (wrGroups.length > wrColorPaletteGroupIndex && wrGroups[wrColorPaletteGroupIndex].styles.wr) {
-      wrGroups[wrColorPaletteGroupIndex].styles.wr.color = e.detail.color;
+      wrGroups[wrColorPaletteGroupIndex].styles.wr.color = (e.detail.rgba || e.detail.color);
       updateWrIndicator(wrColorPaletteGroupIndex);
     }
   }}
@@ -15610,7 +15610,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={wrOverboughtColorPalettePosition}
   on:colorChange={(e) => {
     if (wrGroups.length > wrColorPaletteGroupIndex && wrGroups[wrColorPaletteGroupIndex].styles.overbought) {
-      wrGroups[wrColorPaletteGroupIndex].styles.overbought.color = e.detail.color;
+      wrGroups[wrColorPaletteGroupIndex].styles.overbought.color = (e.detail.rgba || e.detail.color);
       updateWrIndicator(wrColorPaletteGroupIndex);
     }
   }}
@@ -15622,7 +15622,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={wrOversoldColorPalettePosition}
   on:colorChange={(e) => {
     if (wrGroups.length > wrColorPaletteGroupIndex && wrGroups[wrColorPaletteGroupIndex].styles.oversold) {
-      wrGroups[wrColorPaletteGroupIndex].styles.oversold.color = e.detail.color;
+      wrGroups[wrColorPaletteGroupIndex].styles.oversold.color = (e.detail.rgba || e.detail.color);
       updateWrIndicator(wrColorPaletteGroupIndex);
     }
   }}
@@ -15634,7 +15634,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={wrMiddleLineColorPalettePosition}
   on:colorChange={(e) => {
     if (wrGroups.length > wrColorPaletteGroupIndex && wrGroups[wrColorPaletteGroupIndex].styles.middleLine) {
-      wrGroups[wrColorPaletteGroupIndex].styles.middleLine.color = e.detail.color;
+      wrGroups[wrColorPaletteGroupIndex].styles.middleLine.color = (e.detail.rgba || e.detail.color);
       updateWrIndicator(wrColorPaletteGroupIndex);
     }
   }}
@@ -15646,7 +15646,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={vrColorPalettePosition}
   on:colorChange={(e) => {
     if (vrGroups.length > vrColorPaletteGroupIndex && vrGroups[vrColorPaletteGroupIndex].styles[vrColorPaletteLineType]) {
-      vrGroups[vrColorPaletteGroupIndex].styles[vrColorPaletteLineType].color = e.detail.color;
+      vrGroups[vrColorPaletteGroupIndex].styles[vrColorPaletteLineType].color = (e.detail.rgba || e.detail.color);
       updateVrIndicator(vrColorPaletteGroupIndex);
     }
   }}
@@ -15658,7 +15658,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={rocColorPalettePosition}
   on:colorChange={(e) => {
     if (rocGroups.length > rocColorPaletteIndex) {
-      rocGroups[rocColorPaletteIndex].styles.roc.color = e.detail.color;
+      rocGroups[rocColorPaletteIndex].styles.roc.color = (e.detail.rgba || e.detail.color);
       updateRocIndicator(rocColorPaletteIndex);
     }
   }}
@@ -15676,11 +15676,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (psyGroups.length > groupIndex) {
       if (psyColorPaletteIndex % 2 === 0) {
         // PSY line (even index)
-        psyGroups[groupIndex].styles.psy.color = e.detail.color;
+        psyGroups[groupIndex].styles.psy.color = (e.detail.rgba || e.detail.color);
         console.log('🎨 Updated PSY color to:', e.detail.color);
       } else {
         // MAPSY line (odd index)
-        psyGroups[groupIndex].styles.mapsy.color = e.detail.color;
+        psyGroups[groupIndex].styles.mapsy.color = (e.detail.rgba || e.detail.color);
         console.log('🎨 Updated MAPSY color to:', e.detail.color);
       }
       // Update the indicator immediately with new color
@@ -15701,11 +15701,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (obvGroups.length > groupIndex) {
       if (obvColorPaletteIndex % 2 === 0) {
         // OBV line (even index)
-        obvGroups[groupIndex].styles.obv.color = e.detail.color;
+        obvGroups[groupIndex].styles.obv.color = (e.detail.rgba || e.detail.color);
         console.log('🎨 Updated OBV color to:', e.detail.color);
       } else {
         // MAOBV line (odd index)
-        obvGroups[groupIndex].styles.maobv.color = e.detail.color;
+        obvGroups[groupIndex].styles.maobv.color = (e.detail.rgba || e.detail.color);
         console.log('🎨 Updated MAOBV color to:', e.detail.color);
       }
       // Apply changes to chart in real-time
@@ -15720,7 +15720,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={zigzagColorPalettePosition}
   on:colorChange={(e) => {
     if (zigzagGroups.length > zigzagColorPaletteIndex) {
-      zigzagGroups[zigzagColorPaletteIndex].styles.color = e.detail.color;
+      zigzagGroups[zigzagColorPaletteIndex].styles.color = (e.detail.rgba || e.detail.color);
       rebuildAllZigzagOnPane();
     }
   }}
@@ -15732,7 +15732,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={pvtColorPalettePosition}
   on:colorChange={(e) => {
     if (pvtGroups.length > pvtColorPaletteIndex) {
-      pvtGroups[pvtColorPaletteIndex].color = e.detail.color;
+      pvtGroups[pvtColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       console.log('🎨 Updated PVT color to:', e.detail.color);
       // Immediately update the chart with new color
       updatePvtIndicator(pvtColorPaletteIndex);
@@ -15746,7 +15746,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={sarColorPalettePosition}
   on:colorChange={(e) => {
     if (sarGroups.length > sarColorPaletteIndex) {
-      sarGroups[sarColorPaletteIndex].color = e.detail.color;
+      sarGroups[sarColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15757,7 +15757,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={biasColorPalettePosition}
   on:colorChange={(e) => {
     if (biasGroups.length > biasColorPaletteIndex) {
-      biasGroups[biasColorPaletteIndex].color = e.detail.color;
+      biasGroups[biasColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       // Apply changes to chart in real-time
       applyBias();
     }
@@ -15771,7 +15771,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   on:colorChange={(e) => {
     const g = ichimokuGroups[ichimokuColorPaletteGroupIndex];
     if (g && g.styles && g.styles.length > ichimokuColorPaletteIndex) {
-      g.styles[ichimokuColorPaletteIndex].color = e.detail.color;
+      g.styles[ichimokuColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       updateIchimokuIndicatorGroup(ichimokuColorPaletteGroupIndex);
     }
   }}
@@ -15783,7 +15783,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={customMomentumColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > 0) {
-      styles[0].color = e.detail.color;
+      styles[0].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15800,10 +15800,10 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (aoGroups[groupIndex]) {
       if (aoColorPaletteIndex % 2 === 0) {
         // Increasing color
-        aoGroups[groupIndex].styles.increasing.color = e.detail.color;
+        aoGroups[groupIndex].styles.increasing.color = (e.detail.rgba || e.detail.color);
       } else {
         // Decreasing color
-        aoGroups[groupIndex].styles.decreasing.color = e.detail.color;
+        aoGroups[groupIndex].styles.decreasing.color = (e.detail.rgba || e.detail.color);
       }
       // Apply changes to chart in real-time
       applyAo();
@@ -15818,7 +15818,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={dmiColorPalettePosition}
   on:colorChange={(e) => {
     if (dmiGroups.length > dmiColorPaletteIndex && (dmiGroups[dmiColorPaletteIndex].styles as any)[dmiColorPaletteType]) {
-      (dmiGroups[dmiColorPaletteIndex].styles as any)[dmiColorPaletteType].color = e.detail.color;
+      (dmiGroups[dmiColorPaletteIndex].styles as any)[dmiColorPaletteType].color = (e.detail.rgba || e.detail.color);
       // Apply changes to chart in real-time
       applyDmi();
     }
@@ -15831,7 +15831,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={volIncreasingColorPalettePosition}
   on:colorChange={(e) => {
     if (aoGroups.length > 0) {
-      aoGroups[0].styles.increasing.color = e.detail.color;
+      aoGroups[0].styles.increasing.color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15842,7 +15842,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={volDecreasingColorPalettePosition}
   on:colorChange={(e) => {
     if (aoGroups.length > 0) {
-      aoGroups[0].styles.decreasing.color = e.detail.color;
+      aoGroups[0].styles.decreasing.color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15853,7 +15853,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={biasLine1ColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > 0) {
-      styles[0].color = e.detail.color;
+      styles[0].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15864,7 +15864,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={biasLine2ColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > 1) {
-      styles[1].color = e.detail.color;
+      styles[1].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15875,7 +15875,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={biasLine3ColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > 2) {
-      styles[2].color = e.detail.color;
+      styles[2].color = (e.detail.rgba || e.detail.color);
     }
   }}
 />
@@ -15886,7 +15886,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   selectedColor={bollingerFillColor}
   position={bollingerFillColorPalettePosition}
   on:colorChange={(e) => {
-    bollingerFillColor = e.detail.color;
+    bollingerFillColor = (e.detail.rgba || e.detail.color);
   }}
 />
 
@@ -15895,7 +15895,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   selectedColor={bollingerUpperColor}
   position={bollingerUpperColorPalettePosition}
   on:colorChange={(e) => {
-    bollingerUpperColor = e.detail.color;
+    bollingerUpperColor = (e.detail.rgba || e.detail.color);
   }}
 />
 
@@ -15904,7 +15904,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   selectedColor={bollingerMiddleColor}
   position={bollingerMiddleColorPalettePosition}
   on:colorChange={(e) => {
-    bollingerMiddleColor = e.detail.color;
+    bollingerMiddleColor = (e.detail.rgba || e.detail.color);
   }}
 />
 
@@ -15913,7 +15913,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   selectedColor={bollingerLowerColor}
   position={bollingerLowerColorPalettePosition}
   on:colorChange={(e) => {
-    bollingerLowerColor = e.detail.color;
+    bollingerLowerColor = (e.detail.rgba || e.detail.color);
   }}
 />
 
@@ -15924,7 +15924,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={emaColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > emaColorPaletteIndex) {
-      styles[emaColorPaletteIndex].color = e.detail.color;
+      styles[emaColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       updateEmaIndicator();
     }
   }}
@@ -15936,7 +15936,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={smaColorPalettePosition}
   on:colorChange={(e) => {
     if (smaGroups.length > smaColorPaletteIndex) {
-      smaGroups[smaColorPaletteIndex].color = e.detail.color;
+      smaGroups[smaColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       updateSmaIndicator(smaColorPaletteIndex);
     }
   }}
@@ -15949,7 +15949,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={maColorPalettePosition}
   on:colorChange={(e) => {
     if (styles.length > maColorPaletteIndex) {
-      styles[maColorPaletteIndex].color = e.detail.color;
+      styles[maColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       updateMaIndicator();
     }
   }}
@@ -15962,7 +15962,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={bbiColorPalettePosition}
   on:colorChange={(e) => {
     if (bbiGroups.length > bbiColorPaletteIndex) {
-      bbiGroups[bbiColorPaletteIndex].color = e.detail.color;
+      bbiGroups[bbiColorPaletteIndex].color = (e.detail.rgba || e.detail.color);
       updateBbiIndicator(bbiColorPaletteIndex);
     }
   }}
@@ -15998,17 +15998,17 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     });
     
     if (group) {
-      switch (lineIndex) {
+    switch (lineIndex) {
         case 0:
-          group.styles.k.color = e.detail.color;
+        group.styles.k.color = (e.detail.rgba || e.detail.color);
           console.log('🎨 Updated K color to:', e.detail.color);
           break;
         case 1:
-          group.styles.d.color = e.detail.color;
+        group.styles.d.color = (e.detail.rgba || e.detail.color);
           console.log('🎨 Updated D color to:', e.detail.color);
           break;
         case 2:
-          group.styles.j.color = e.detail.color;
+        group.styles.j.color = (e.detail.rgba || e.detail.color);
           console.log('🎨 Updated J color to:', e.detail.color);
           break;
       }
@@ -16042,19 +16042,19 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     
     switch (crColorPaletteType) {
       case 'cr':
-        group.styles.cr.color = e.detail.color;
+        group.styles.cr.color = (e.detail.rgba || e.detail.color);
         break;
       case 'ma1':
-        group.styles.ma1.color = e.detail.color;
+        group.styles.ma1.color = (e.detail.rgba || e.detail.color);
         break;
       case 'ma2':
-        group.styles.ma2.color = e.detail.color;
+        group.styles.ma2.color = (e.detail.rgba || e.detail.color);
         break;
       case 'ma3':
-        group.styles.ma3.color = e.detail.color;
+        group.styles.ma3.color = (e.detail.rgba || e.detail.color);
         break;
       case 'ma4':
-        group.styles.ma4.color = e.detail.color;
+        group.styles.ma4.color = (e.detail.rgba || e.detail.color);
         break;
     }
     
@@ -16069,7 +16069,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={rsiColorPalettePosition}
   on:colorChange={(e) => {
     if (rsiGroups.length > rsiColorPaletteIndex) {
-      rsiGroups[rsiColorPaletteIndex].styles.rsi.color = e.detail.color;
+      rsiGroups[rsiColorPaletteIndex].styles.rsi.color = (e.detail.rgba || e.detail.color);
       updateRsiIndicator(rsiColorPaletteIndex);
     }
   }}
@@ -16082,7 +16082,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={rsiOverboughtColorPalettePosition}
   on:colorChange={(e) => {
     if (rsiGroups.length > rsiColorPaletteGroupIndex) {
-      rsiGroups[rsiColorPaletteGroupIndex].styles.overboughtColor = e.detail.color;
+      rsiGroups[rsiColorPaletteGroupIndex].styles.overboughtColor = (e.detail.rgba || e.detail.color);
       updateRsiIndicator(rsiColorPaletteGroupIndex);
     }
   }}
@@ -16095,7 +16095,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={rsiOversoldColorPalettePosition}
   on:colorChange={(e) => {
     if (rsiGroups.length > rsiColorPaletteGroupIndex) {
-      rsiGroups[rsiColorPaletteGroupIndex].styles.oversoldColor = e.detail.color;
+      rsiGroups[rsiColorPaletteGroupIndex].styles.oversoldColor = (e.detail.rgba || e.detail.color);
       updateRsiIndicator(rsiColorPaletteGroupIndex);
     }
   }}
@@ -16108,7 +16108,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={rsiMiddleLineColorPalettePosition}
   on:colorChange={(e) => {
     if (rsiGroups.length > rsiColorPaletteGroupIndex) {
-      rsiGroups[rsiColorPaletteGroupIndex].styles.middleLineColor = e.detail.color;
+      rsiGroups[rsiColorPaletteGroupIndex].styles.middleLineColor = (e.detail.rgba || e.detail.color);
       updateRsiIndicator(rsiColorPaletteGroupIndex);
     }
   }}
@@ -16121,7 +16121,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={stochasticColorPalettePosition}
   on:colorChange={(e) => {
     if (stochasticGroups.length > stochasticColorPaletteIndex) {
-      stochasticGroups[stochasticColorPaletteIndex].styles.kLine.color = e.detail.color;
+      stochasticGroups[stochasticColorPaletteIndex].styles.kLine.color = (e.detail.rgba || e.detail.color);
       updateStochasticIndicator(stochasticColorPaletteIndex);
     }
   }}
@@ -16134,7 +16134,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={stochasticColorPalettePosition}
   on:colorChange={(e) => {
     if (stochasticGroups.length > stochasticColorPaletteIndex) {
-      stochasticGroups[stochasticColorPaletteIndex].styles.dLine.color = e.detail.color;
+      stochasticGroups[stochasticColorPaletteIndex].styles.dLine.color = (e.detail.rgba || e.detail.color);
       updateStochasticIndicator(stochasticColorPaletteIndex);
     }
   }}
@@ -16147,7 +16147,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={stochasticColorPalettePosition}
   on:colorChange={(e) => {
     if (stochasticGroups.length > stochasticColorPaletteIndex) {
-      stochasticGroups[stochasticColorPaletteIndex].styles.overboughtColor = e.detail.color;
+      stochasticGroups[stochasticColorPaletteIndex].styles.overboughtColor = (e.detail.rgba || e.detail.color);
       updateStochasticIndicator(stochasticColorPaletteIndex);
     }
   }}
@@ -16160,7 +16160,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={stochasticColorPalettePosition}
   on:colorChange={(e) => {
     if (stochasticGroups.length > stochasticColorPaletteIndex) {
-      stochasticGroups[stochasticColorPaletteIndex].styles.oversoldColor = e.detail.color;
+      stochasticGroups[stochasticColorPaletteIndex].styles.oversoldColor = (e.detail.rgba || e.detail.color);
       updateStochasticIndicator(stochasticColorPaletteIndex);
     }
   }}
@@ -16173,7 +16173,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   position={stochasticColorPalettePosition}
   on:colorChange={(e) => {
     if (stochasticGroups.length > stochasticColorPaletteIndex) {
-      stochasticGroups[stochasticColorPaletteIndex].styles.midLineColor = e.detail.color;
+      stochasticGroups[stochasticColorPaletteIndex].styles.midLineColor = (e.detail.rgba || e.detail.color);
       updateStochasticIndicator(stochasticColorPaletteIndex);
     }
   }}

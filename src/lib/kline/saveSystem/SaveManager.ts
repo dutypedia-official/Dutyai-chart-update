@@ -360,6 +360,67 @@ export class SaveManager {
   }
 
   /**
+   * Save current chart state into an existing layout by ID
+   */
+  async saveTo(layoutId: string): Promise<SaveResult> {
+    try {
+      this.updateState({ isLoading: true, lastError: null });
+
+      // Get existing layout
+      const existingLayout = await this.storage.getSavedLayout(layoutId);
+      if (!existingLayout) {
+        return { success: false, error: 'Selected layout not found' };
+      }
+
+      // Collect current state
+      const currentState = await this.collectCurrentState();
+      if (!currentState) {
+        return { success: false, error: 'Failed to collect chart state' };
+      }
+
+      // Update layout with current state
+      const updates = {
+        timezone: currentState.global.timezone,
+        interval: currentState.global.interval,
+        chartType: currentState.global.chartType,
+        theme: currentState.global.theme,
+        panes: currentState.global.panes,
+        indicators: currentState.global.indicators,
+        styles: currentState.global.styles,
+        options: currentState.global.options,
+        drawingsBySymbol: {
+          ...existingLayout.drawingsBySymbol,
+          [currentState.symbol]: currentState.drawings
+        }
+      };
+
+      const layout = await this.storage.updateSavedLayout(layoutId, updates);
+
+      // Keep the active save as the overwritten layout for continuity
+      await this.storage.setActiveSaveId(layoutId);
+
+      // Refresh state
+      const savedLayouts = await this.storage.listSavedLayouts();
+      this.updateState({
+        activeSaveId: layoutId,
+        savedLayouts,
+        isLoading: false
+      });
+
+      // Notify event handlers
+      this.events.onSaved?.(layout);
+
+      return { success: true, layout };
+    } catch (error) {
+      console.error('Save to existing failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Save failed';
+      this.updateState({ isLoading: false, lastError: errorMessage });
+      this.events.onError?.(errorMessage);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
    * Save as new layout
    */
   async saveAs(name: string): Promise<SaveResult> {
