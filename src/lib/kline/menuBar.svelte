@@ -202,14 +202,9 @@ let showTimezoneModal = $state(false);
   // iOS fullscreen cleanup function
   let iosFullscreenCleanup: (() => void) | null = $state(null);
   
-  // Visual debugging for iOS (when console is not accessible)
-  let debugLogs: string[] = $state([]);
-  let showDebugOverlay = $state(false);
-  
-  // Visual debug function for iOS
+  // Visual debug function (console only)
   function debugLog(message: string) {
-    console.log(message); // Still log to console if available
-    debugLogs = [...debugLogs.slice(-20), `${new Date().toLocaleTimeString()}: ${message}`]; // Keep last 20 logs
+    console.log(message);
   }
 
   let fileRef = $state<HTMLInputElement>()
@@ -1609,13 +1604,7 @@ let showTimezoneModal = $state(false);
        debugLog('🖱️ Fullscreen button clicked!');
        toggleFullscreen();
      }, fullScreen ? "exitFullScreen" : "fullScreen", "", 18)}
-     <!-- Debug toggle button for iOS testing -->
-     {#if isIOS()}
-       {@render MenuButton(() => {
-         showDebugOverlay = !showDebugOverlay;
-         debugLog('🐛 Debug overlay toggled: ' + showDebugOverlay);
-       }, "setting", "Debug", 16, showDebugOverlay)}
-     {/if}
+     
      {@render MenuButton(toggleTheme, "theme", "", 22)}
     <!-- Rotate button - only visible on mobile/tablet -->
     <div class="rotate-button-wrapper">
@@ -1666,26 +1655,7 @@ let showTimezoneModal = $state(false);
 {/if}
 
 <!-- Debug Overlay for iOS Testing -->
-{#if showDebugOverlay && isIOS()}
-  <div class="debug-overlay">
-    <div class="debug-header">
-      <h3>iOS Debug Console</h3>
-      <button onclick={() => {
-        debugLogs = [];
-        debugLog('🧹 Debug logs cleared');
-      }}>Clear</button>
-      <button onclick={() => showDebugOverlay = false}>×</button>
-    </div>
-    <div class="debug-logs">
-      {#each debugLogs as log}
-        <div class="debug-log-item">{log}</div>
-      {/each}
-      {#if debugLogs.length === 0}
-        <div class="debug-log-item">No logs yet. Click fullscreen button to start debugging.</div>
-      {/if}
-    </div>
-  </div>
-{/if}
+ 
 
 <style>
 /* Main Container */
@@ -2306,78 +2276,7 @@ let showTimezoneModal = $state(false);
   }
 }
 
-/* Debug Overlay Styles for iOS Testing */
-.debug-overlay {
-  position: fixed;
-  top: 60px;
-  right: 10px;
-  width: 300px;
-  max-height: 400px;
-  background: rgba(0, 0, 0, 0.9);
-  color: white;
-  border: 1px solid #333;
-  border-radius: 8px;
-  z-index: 10000;
-  font-family: monospace;
-  font-size: 12px;
-  overflow: hidden;
-}
-
-.debug-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: #333;
-  border-bottom: 1px solid #555;
-}
-
-.debug-header h3 {
-  margin: 0;
-  font-size: 14px;
-  color: #00ff00;
-}
-
-.debug-header button {
-  background: #555;
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.debug-header button:hover {
-  background: #666;
-}
-
-.debug-logs {
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 8px;
-}
-
-.debug-log-item {
-  padding: 4px 0;
-  border-bottom: 1px solid #333;
-  word-wrap: break-word;
-  line-height: 1.4;
-}
-
-.debug-log-item:last-child {
-  border-bottom: none;
-}
-
-/* Mobile responsive debug overlay */
-@media (max-width: 768px) {
-  .debug-overlay {
-    width: calc(100vw - 20px);
-    right: 10px;
-    left: 10px;
-    max-height: 300px;
-  }
-}
+ 
 
 /* Smooth transitions for theme changes */
 * {
