@@ -72,6 +72,27 @@
       
       checkAndSetSymbol();
     }
+    
+    // Handle userId parameter
+    const userIdParam = $page.url.searchParams.get('userId');
+    if (userIdParam) {
+      console.log('👤 User ID parameter found in URL:', userIdParam);
+      
+      try {
+        // Save userId to localStorage
+        localStorage.setItem('userId', userIdParam);
+        console.log('✅ User ID saved to localStorage:', userIdParam);
+        
+        // Remove userId parameter from URL without reloading the page
+        const url = new URL(window.location.href);
+        url.searchParams.delete('userId');
+        window.history.replaceState({}, '', url.toString());
+        console.log('🔗 User ID parameter removed from URL');
+        
+      } catch (error) {
+        console.error('❌ Failed to save user ID to localStorage:', error);
+      }
+    }
   });
 </script>
 

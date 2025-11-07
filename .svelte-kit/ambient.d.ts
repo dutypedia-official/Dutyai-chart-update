@@ -26,10 +26,12 @@
  * ```
  */
 declare module '$env/static/private' {
+	export const TRAE_AI_SHELL_ID: string;
 	export const TERM_PROGRAM: string;
 	export const NODE: string;
 	export const INIT_CWD: string;
 	export const TERM: string;
+	export const SAFE_RM_ALLOWED_PATH: string;
 	export const SHELL: string;
 	export const HOMEBREW_REPOSITORY: string;
 	export const TMPDIR: string;
@@ -53,8 +55,10 @@ declare module '$env/static/private' {
 	export const HOMEBREW_NO_AUTO_UPDATE: string;
 	export const __CF_USER_TEXT_ENCODING: string;
 	export const npm_execpath: string;
+	export const FILESYSTEM_CASE_SENSITIVE: string;
 	export const PAGER: string;
 	export const LSCOLORS: string;
+	export const SAFE_RM_DENIED_PATH: string;
 	export const PATH: string;
 	export const npm_package_json: string;
 	export const _: string;
@@ -90,6 +94,7 @@ declare module '$env/static/private' {
 	export const GIT_ASKPASS: string;
 	export const INFOPATH: string;
 	export const HOMEBREW_CELLAR: string;
+	export const GIT_PAGER: string;
 	export const npm_node_execpath: string;
 	export const npm_config_prefix: string;
 	export const COLORTERM: string;
@@ -125,10 +130,12 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		TRAE_AI_SHELL_ID: string;
 		TERM_PROGRAM: string;
 		NODE: string;
 		INIT_CWD: string;
 		TERM: string;
+		SAFE_RM_ALLOWED_PATH: string;
 		SHELL: string;
 		HOMEBREW_REPOSITORY: string;
 		TMPDIR: string;
@@ -152,8 +159,10 @@ declare module '$env/dynamic/private' {
 		HOMEBREW_NO_AUTO_UPDATE: string;
 		__CF_USER_TEXT_ENCODING: string;
 		npm_execpath: string;
+		FILESYSTEM_CASE_SENSITIVE: string;
 		PAGER: string;
 		LSCOLORS: string;
+		SAFE_RM_DENIED_PATH: string;
 		PATH: string;
 		npm_package_json: string;
 		_: string;
@@ -189,6 +198,7 @@ declare module '$env/dynamic/private' {
 		GIT_ASKPASS: string;
 		INFOPATH: string;
 		HOMEBREW_CELLAR: string;
+		GIT_PAGER: string;
 		npm_node_execpath: string;
 		npm_config_prefix: string;
 		COLORTERM: string;

@@ -2,7 +2,7 @@
   import { getContext, onMount, onDestroy } from 'svelte';
   import { derived, type Writable } from 'svelte/store';
   import { SaveManager } from './SaveManager';
-  import { LocalStorageProvider } from './storage';
+  import { ApiStorageProvider } from './ApiStorageProvider';
   import { collectGlobalState, applyGlobalState, getCurrentSymbol, normalizeSymbolKey } from './chartStateCollector';
   import type { ChartSave, ChartCtx } from '../chart';
   import type { ChartRuntimeContracts, SymbolKey, Drawing } from './types';
@@ -16,7 +16,7 @@
   const drawingManagerContext = getContext('drawingManager') as { get: () => DrawingManager | null };
 
   // Initialize save system
-  const storage = new LocalStorageProvider();
+  const storage = new ApiStorageProvider();
   const saveManager = new SaveManager(storage);
 
   // Symbol change tracking
