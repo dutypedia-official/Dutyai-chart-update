@@ -38,6 +38,7 @@
   import SaveSystemIntegration from './saveSystem/SaveSystemIntegration.svelte';
   import { initializeDrawingManager, type DrawingManager } from './drawingManager';
   import { normalizeSymbolKey } from './saveSystem/chartStateCollector';
+  import { OverlayCreationManager } from '$lib/overlayCreation';
   import UnsavedChangesModal from '$lib/UnsavedChangesModal.svelte';
   import { hasUnsavedChanges, unsavedChanges } from '$lib/stores/unsavedChanges';
   setTimezone('UTC')
@@ -462,6 +463,10 @@
        const currentSymbolKey = normalizeSymbolKey($save.symbol);
        drawingManager.setCurrentSymbol(currentSymbolKey);
        creationManager.setCurrentSymbolKey(currentSymbolKey);
+       // Expose for symbol-sync updates
+       if (typeof window !== 'undefined') {
+         (window as any).overlayCreationManager = creationManager;
+       }
        
        console.log('✅ DrawingManager initialized for symbol:', currentSymbolKey);
      }
@@ -1053,6 +1058,17 @@
       const newSymbolKey = normalizeSymbolKey($save.symbol);
       drawingManager.setCurrentSymbol(newSymbolKey);
       console.log('🔄 DrawingManager updated to symbol:', newSymbolKey);
+      // Ensure overlays for current symbol are rendered immediately
+      drawingManager.renderCurrentSymbolDrawings();
+    }
+    // Keep OverlayCreationManager in sync so new drawings get correct symbolKey
+    try {
+      // creationManager is scoped inside init block; retrieve via window if exposed
+      const overlayCreation = (window as any).overlayCreationManager as OverlayCreationManager | undefined;
+      if (overlayCreation) {
+        overlayCreation.setCurrentSymbolKey(normalizeSymbolKey($save.symbol));
+      }
+    } catch {
     }
     
     if ($ctx.loadingKLine || customLoad) return
