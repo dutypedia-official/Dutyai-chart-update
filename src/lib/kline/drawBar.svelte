@@ -1327,6 +1327,64 @@ onDestroy(() => {
     window.removeEventListener('resize', handleWindowResize)
   }
 })
+
+// Public API for external overlay event forwarding (from DrawingManager)
+export function externalSelectOverlay(overlay: any) {
+  try {
+    // Simulate onSelected handler logic
+    selectDraw = overlay.id
+    selectedOverlay = overlay
+    // Update context menu styles
+    if (overlay.styles?.line) {
+      const lineStyles = overlay.styles.line
+      contextMenuStyles.thickness = lineStyles.size || 2
+      contextMenuStyles.color = lineStyles.color || '#1677FF'
+      contextMenuStyles.style = lineStyles.style === LineType.Dashed ? 'dashed' : 'solid'
+    }
+    // Position floating panel
+    if (overlay.points && overlay.points.length > 0) {
+      const firstPoint = overlay.points[0]
+      const paneId = (overlay as any).paneId || 'candle_pane'
+      const coords = $chart?.convertToPixel(firstPoint, { paneId })
+      if (coords && typeof coords === 'object' && 'x' in coords && 'y' in coords && coords.x !== undefined && coords.y !== undefined) {
+        selectedOverlayCoords = { x: coords.x - 80, y: coords.y - 30 }
+        // Use saved position if available
+        if (savedContextMenuPosition) {
+          contextMenuPosition = { ...savedContextMenuPosition }
+        } else {
+          contextMenuPosition = { x: coords.x - 80, y: coords.y - 30 }
+        }
+        showContextMenu = true
+        showDeleteButton = false
+      }
+    }
+  } catch (e) {
+    console.warn('externalSelectOverlay failed:', e)
+  }
+}
+
+export function externalSyncOverlay(overlay: any) {
+  try {
+    editOverlay(overlay)
+  } catch (e) {
+    console.warn('externalSyncOverlay failed:', e)
+  }
+}
+
+export function externalRemoved(overlayId: string) {
+  try {
+    if (selectDraw === overlayId) {
+      selectDraw = ''
+      showDeleteButton = false
+      showContextMenu = false
+      showMoreOptions = false
+      selectedOverlayCoords = null
+      selectedOverlay = null
+    }
+  } catch (e) {
+    console.warn('externalRemoved failed:', e)
+  }
+}
 </script>
 
 {#snippet DrawButton(onClick: () => void, icon: string, itemKey: string = '', subItems: {key: string, text: string}[] = [])}

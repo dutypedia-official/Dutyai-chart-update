@@ -346,6 +346,7 @@ export class DrawingManager {
       // Convert Drawing to KLineChart overlay format
       const overlayData = {
         id: drawing.id,
+        groupId: 'drawing_tools',
         name: drawing.type,
         points: drawing.points.map(point => ({
           timestamp: point.time,
@@ -356,6 +357,33 @@ export class DrawingManager {
         styles: drawing.styles,
         lock: drawing.locked,
         visible: drawing.visible,
+        onSelected: (event: any) => {
+          try {
+            const drawBarRef = (typeof window !== 'undefined') ? (window as any).drawBarRef : null;
+            if (drawBarRef?.externalSelectOverlay) {
+              drawBarRef.externalSelectOverlay(event.overlay);
+            }
+          } catch {}
+          return true;
+        },
+        onPressedMoveEnd: (event: any) => {
+          try {
+            const drawBarRef = (typeof window !== 'undefined') ? (window as any).drawBarRef : null;
+            if (drawBarRef?.externalSyncOverlay) {
+              drawBarRef.externalSyncOverlay(event.overlay);
+            }
+          } catch {}
+          return true;
+        },
+        onRemoved: (event: any) => {
+          try {
+            const drawBarRef = (typeof window !== 'undefined') ? (window as any).drawBarRef : null;
+            if (drawBarRef?.externalRemoved) {
+              drawBarRef.externalRemoved(event.overlay.id);
+            }
+          } catch {}
+          return true;
+        },
         // Include any additional properties
         ...Object.fromEntries(
           Object.entries(drawing).filter(([k]) => 

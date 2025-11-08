@@ -611,6 +611,12 @@
     
     // Focus the chart widget to enable keyboard events
     chartRef?.focus();
+    // Expose draw bar instance globally for overlay event forwarding
+    try {
+      if (typeof window !== 'undefined') {
+        (window as any).drawBarRef = drawBarRef;
+      }
+    } catch {}
 
     // Intercept refresh keys when there are unsaved changes (F5, Cmd/Ctrl+R)
     const onKeyDown = (e: KeyboardEvent) => {
