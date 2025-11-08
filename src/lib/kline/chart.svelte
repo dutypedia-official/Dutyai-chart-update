@@ -38,7 +38,6 @@
   import SaveSystemIntegration from './saveSystem/SaveSystemIntegration.svelte';
   import { initializeDrawingManager, type DrawingManager } from './drawingManager';
   import { normalizeSymbolKey } from './saveSystem/chartStateCollector';
-  import { OverlayCreationManager } from '$lib/overlayCreation';
   import UnsavedChangesModal from '$lib/UnsavedChangesModal.svelte';
   import { hasUnsavedChanges, unsavedChanges } from '$lib/stores/unsavedChanges';
   setTimezone('UTC')
