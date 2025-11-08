@@ -1415,8 +1415,42 @@
       candleBorderBearColor = '#ef5350';
       candleWickBullColor = '#26a69a';
       candleWickBearColor = '#ef5350';
+      // Persist default candle colors and apply to chart immediately
+      try {
+        // Update saved styles
+        save.update(s => {
+          if (!s.styles) s.styles = {};
+          if (!s.styles.candle) (s.styles as any).candle = {};
+          if (!(s.styles as any).candle.bar) (s.styles as any).candle.bar = {};
+          const bar = (s.styles as any).candle.bar as Record<string, any>;
+          bar.upColor = candleBodyBullColor;
+          bar.downColor = candleBodyBearColor;
+          bar.upBorderColor = candleBorderBullColor;
+          bar.downBorderColor = candleBorderBearColor;
+          bar.upWickColor = candleWickBullColor;
+          bar.downWickColor = candleWickBearColor;
+          return s;
+        });
+        // Apply to chart (preserve chart type)
+        if ($chart) {
+          const currentStyles = $chart.getStyles() ?? {};
+          const newStyles = _.cloneDeep(currentStyles);
+          if ($save.styles?.candle?.type) {
+            _.set(newStyles, 'candle.type', $save.styles.candle.type);
+          }
+          _.set(newStyles, 'candle.bar.upColor', candleBodyBullColor);
+          _.set(newStyles, 'candle.bar.downColor', candleBodyBearColor);
+          _.set(newStyles, 'candle.bar.upBorderColor', candleBorderBullColor);
+          _.set(newStyles, 'candle.bar.downBorderColor', candleBorderBearColor);
+          _.set(newStyles, 'candle.bar.upWickColor', candleWickBullColor);
+          _.set(newStyles, 'candle.bar.downWickColor', candleWickBearColor);
+          const processed = processLineChartStyles(newStyles as unknown as Record<string, unknown>);
+          $chart.setStyles(processed);
+        }
+      } catch (e) {
+        console.warn('Failed to apply default candle colors on reset:', e);
+      }
       
-
       
       // Reset other settings to default values
       resetOtherSettingsFromChart();
