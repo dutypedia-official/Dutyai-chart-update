@@ -495,6 +495,25 @@
     tempSettings.set('yAxisTickTextColor', actualYAxisColor);
     tempSettings.set('yAxisTickTextOpacity', savedYAxisTickTextOpacity);
     
+    // If the chart currently has live preview styles applied, prefer those for UI so it reflects current chart
+    try {
+      if ($chart && typeof $chart.getStyles === 'function') {
+        const liveStyles = $chart.getStyles() ?? {};
+        const liveXAxisColor = _.get(liveStyles, 'xAxis.tickText.color');
+        const liveYAxisColor = _.get(liveStyles, 'yAxis.tickText.color');
+        if (liveXAxisColor) {
+          const hex = extractHexFromRgba(liveXAxisColor);
+          tempSettings.set('xAxisTickTextColor', hex);
+        }
+        if (liveYAxisColor) {
+          const hex = extractHexFromRgba(liveYAxisColor);
+          tempSettings.set('yAxisTickTextColor', hex);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read live axis styles from chart:', e);
+    }
+    
     // Restore candle colors from saved values
     const savedCandleBodyBullColor = _.get($save.styles, 'candle.bar.upColor') || '#26a69a';
     const savedCandleBodyBearColor = _.get($save.styles, 'candle.bar.downColor') || '#ef5350';
