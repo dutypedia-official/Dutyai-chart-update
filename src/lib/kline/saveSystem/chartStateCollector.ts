@@ -298,16 +298,38 @@ export async function applyGlobalState(
       };
       s.theme = globalState.theme;
       
-      // Update chart type in styles
+      // Update styles (canvas/candle/grid colors etc.) from saved layout
+      // Ensure object exists
       if (!s.styles) s.styles = {};
+      // Shallow merge styles - saved layout styles take precedence
+      s.styles = { ...s.styles, ...(globalState.styles || {}) };
+      // Ensure chart type is preserved from layout
       if (!s.styles.candle) s.styles.candle = {};
       s.styles.candle.type = globalState.chartType;
+      
+      // Merge options if present
+      if (globalState.options && typeof globalState.options === 'object') {
+        s.options = { ...(s.options || {}), ...globalState.options };
+      }
       
       // Replace saveInds completely
       s.saveInds = newSaveInds;
       
       return s;
     });
+    
+    // Apply saved styles to the chart so colors take effect immediately
+    if (chart) {
+      try {
+        const currentSave = get(save);
+        if ((chart as any).setStyles && currentSave.styles) {
+          (chart as any).setStyles(currentSave.styles);
+          console.log('🎨 Applied saved styles to chart');
+        }
+      } catch (e) {
+        console.warn('Failed to apply saved styles to chart:', e);
+      }
+    }
     
     // Create indicators on the chart
     if (chart && globalState.indicators.length > 0) {
