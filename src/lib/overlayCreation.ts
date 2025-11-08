@@ -106,6 +106,8 @@ export class OverlayCreationManager {
 					type: name,
 					points,
 					styles,
+					// Preserve extendData such as emoji payloads
+					...(dataSpaceOverlay?.extendData ? { extendData: dataSpaceOverlay.extendData } : {}),
 					locked,
 					visible
 				};

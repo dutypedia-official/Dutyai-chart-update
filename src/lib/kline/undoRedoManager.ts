@@ -256,6 +256,7 @@ class UndoRedoManager {
                   type: ov?.name || 'unknown',
                   points,
                   styles: ov?.styles || {},
+                  ...(ov?.extendData ? { extendData: ov.extendData } : {}),
                   locked: Boolean(ov?.lock),
                   visible: ov?.visible !== false
                 };
@@ -345,6 +346,7 @@ class UndoRedoManager {
                   type: ov?.name || 'unknown',
                   points,
                   styles: ov?.styles || {},
+                  ...(ov?.extendData ? { extendData: ov.extendData } : {}),
                   locked: Boolean(ov?.lock),
                   visible: ov?.visible !== false
                 };

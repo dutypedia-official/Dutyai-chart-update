@@ -1133,6 +1133,8 @@ function editOverlay(overlay: any){
           price: point.value || point.p || 0
         })),
         styles: overlay.styles || {},
+        // Preserve extendData (e.g., emoji, size, others)
+        ...(overlay.extendData ? { extendData: overlay.extendData } : {}),
         locked: Boolean(overlay.lock),
         visible: overlay.visible !== false
       }
