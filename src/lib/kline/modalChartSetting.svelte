@@ -1432,11 +1432,29 @@
       candleBorderBearColor = '#ef5350';
       candleWickBullColor = '#26a69a';
       candleWickBearColor = '#ef5350';
-      // Persist default candle colors and apply to chart immediately
+      // Persist canvas/grid/candle defaults into $save.styles and apply to chart immediately
       try {
-        // Update saved styles
+        const defaults = getDefaultColors();
+        // 1) Update saved styles
         save.update(s => {
           if (!s.styles) s.styles = {};
+          // Canvas defaults
+          s.styles.backgroundType = 'solid';
+          s.styles.backgroundColor = defaults.backgroundColor;
+          s.styles.backgroundOpacity = defaults.backgroundOpacity;
+          delete s.styles.backgroundGradient;
+          
+          // Grid defaults
+          if (!s.styles.grid) s.styles.grid = {};
+          if (!s.styles.grid.horizontal) s.styles.grid.horizontal = {};
+          if (!s.styles.grid.vertical) s.styles.grid.vertical = {};
+          s.styles.gridType = 'solid';
+          s.styles.gridOpacity = defaults.gridOpacity;
+          s.styles.grid.horizontal.color = defaults.gridColor;
+          s.styles.grid.vertical.color = defaults.gridColor;
+          delete (s.styles as any).gridGradient;
+          
+          // Candle defaults
           if (!s.styles.candle) (s.styles as any).candle = {};
           if (!(s.styles as any).candle.bar) (s.styles as any).candle.bar = {};
           const bar = (s.styles as any).candle.bar as Record<string, any>;
@@ -1448,21 +1466,43 @@
           bar.downWickColor = candleWickBearColor;
           return s;
         });
-        // Apply to chart (preserve chart type)
+        
+        // 2) Apply to chart (preserve chart type)
         if ($chart) {
-          const currentStyles = $chart.getStyles() ?? {};
-          const newStyles = _.cloneDeep(currentStyles);
+          // Merge theme + saved styles so chart fully reflects reset values
+          const themeStyles = getThemeStyles($save.theme);
+          const mergedStyles = _.merge({}, themeStyles, $save.styles);
+          
+          // Preserve chart type from saved styles
           if ($save.styles?.candle?.type) {
-            _.set(newStyles, 'candle.type', $save.styles.candle.type);
+            _.set(mergedStyles, 'candle.type', $save.styles.candle.type);
           }
-          _.set(newStyles, 'candle.bar.upColor', candleBodyBullColor);
-          _.set(newStyles, 'candle.bar.downColor', candleBodyBearColor);
-          _.set(newStyles, 'candle.bar.upBorderColor', candleBorderBullColor);
-          _.set(newStyles, 'candle.bar.downBorderColor', candleBorderBearColor);
-          _.set(newStyles, 'candle.bar.upWickColor', candleWickBullColor);
-          _.set(newStyles, 'candle.bar.downWickColor', candleWickBearColor);
-          const processed = processLineChartStyles(newStyles as unknown as Record<string, unknown>);
+          
+          const processed = processLineChartStyles(mergedStyles as unknown as Record<string, unknown>);
           $chart.setStyles(processed);
+          
+          // Also clear any inline background overrides applied during live preview
+          try {
+            const chartContainer = document.querySelector('.kline-main');
+            const chartWidget = document.querySelector('.kline-widget');
+            [chartContainer, chartWidget].forEach(container => {
+              if (container) {
+                const el = container as HTMLElement;
+                el.style.removeProperty('background');
+                el.style.removeProperty('background-color');
+                el.style.removeProperty('background-image');
+                el.style.removeProperty('--chart-background-color');
+              }
+            });
+          } catch {}
+          
+          // Force next canvas color application to use saved styles
+          try {
+            (window as any).__forceApplySavedCanvasColors = true;
+          } catch {}
+          if ($ctx.applyCanvasColors) {
+            $ctx.applyCanvasColors();
+          }
         }
       } catch (e) {
         console.warn('Failed to apply default candle colors on reset:', e);
