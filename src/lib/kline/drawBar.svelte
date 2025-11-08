@@ -19,6 +19,7 @@ import EmojiPicker from './EmojiPicker.svelte';
 import FibonacciSettingsModal from '../components/FibonacciSettingsModal.svelte';
 import { normalizeSymbolKey } from './saveSystem/chartStateCollector';
 import type { Drawing } from './saveSystem/types';
+import { markDirty } from '$lib/stores/unsavedChanges';
 
 let popoverKey = $state('');
 let modeIcon = $state('weakMagnet')
@@ -526,10 +527,7 @@ export function addOverlay(data: any){
           drawingManager.removeDrawing(event.overlay.id)
           console.log('🗑️ Removed drawing from DrawingManager:', event.overlay.id)
           // Mark unsaved changes
-          try {
-            const { markDirty } = await import('$lib/stores/unsavedChanges');
-            markDirty();
-          } catch {}
+          markDirty();
         } catch (error) {
           console.error('Error removing drawing from DrawingManager:', error)
         }
@@ -1141,10 +1139,7 @@ function editOverlay(overlay: any){
       // Add/update in DrawingManager
       drawingManager.addDrawing(drawing)
       // Mark unsaved changes
-      try {
-        const { markDirty } = await import('$lib/stores/unsavedChanges');
-        markDirty();
-      } catch {}
+      markDirty();
     } catch (error) {
       console.error('Error syncing overlay to DrawingManager:', error)
     }
