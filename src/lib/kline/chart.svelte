@@ -627,6 +627,22 @@
     // Fallback: native browser prompt when clicking the browser reload button
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges()) {
+        // Proactively clear any unsaved drawing stores so they won't rehydrate after reload
+        try {
+          // 1) DrawingManager persisted store
+          const dmKey = ($save?.key || 'chart') + '_drawings';
+          localStorage.removeItem(dmKey);
+        } catch {}
+        try {
+          // 2) Legacy overlays persisted store used by drawBar
+          const overlaysKey = ($save?.key || 'chart') + '_overlays';
+          localStorage.removeItem(overlaysKey);
+        } catch {}
+        try {
+          // 3) Data-space overlays cache
+          localStorage.removeItem('dataSpaceOverlays');
+        } catch {}
+        
         e.preventDefault();
         e.returnValue = '';
       }
