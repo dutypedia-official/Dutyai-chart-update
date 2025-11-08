@@ -1268,6 +1268,8 @@
       // This ensures colors are immediately available for other operations
       save.update(s => {
         if (!s.styles) s.styles = {};
+        if (!s.styles.candle) s.styles.candle = {} as any;
+        if (!(s.styles as any).candle.bar) (s.styles as any).candle.bar = {};
         
         console.log('🎨 Saving settings - Background Type:', backgroundColorType);
         console.log('🎨 Saving settings - Grid Type:', gridColorType);
@@ -1339,6 +1341,28 @@
           } else {
             console.warn('⚠️ Invalid grid gradient data:', savedGridGradient);
           }
+        }
+        
+        // Persist candle colors into saved styles
+        try {
+          const bar = (s.styles as any).candle.bar as Record<string, any>;
+          // Body
+          if (candleBodyShow) {
+            bar.upColor = candleBodyBullColor;
+            bar.downColor = candleBodyBearColor;
+          }
+          // Border
+          if (candleBorderShow) {
+            bar.upBorderColor = candleBorderBullColor;
+            bar.downBorderColor = candleBorderBearColor;
+          }
+          // Wick
+          if (candleWickShow) {
+            bar.upWickColor = candleWickBullColor;
+            bar.downWickColor = candleWickBearColor;
+          }
+        } catch (e) {
+          console.warn('Failed to persist candle colors to $save.styles:', e);
         }
         
         // CRITICAL: Restore preserved chart type
