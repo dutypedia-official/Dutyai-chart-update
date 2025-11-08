@@ -1,6 +1,9 @@
 import { writable, get } from 'svelte/store';
 import type { Chart, Nullable } from 'klinecharts';
 import type { ChartSave } from './chart';
+import { getDrawingManager } from './drawingManager';
+import { normalizeSymbolKey } from './saveSystem/chartStateCollector';
+import type { Drawing } from './saveSystem/types';
 
 export interface UndoRedoAction {
   type: 'ADD_INDICATOR' | 'REMOVE_INDICATOR' | 'ADD_OVERLAY' | 'REMOVE_OVERLAY';
@@ -215,6 +218,11 @@ class UndoRedoManager {
               return ol;
             });
           }
+          // Also remove from DrawingManager
+          try {
+            const dm = getDrawingManager();
+            if (dm) dm.removeDrawing(action.data.overlayId);
+          } catch {}
           break;
 
         case 'REMOVE_OVERLAY':
@@ -228,6 +236,33 @@ class UndoRedoManager {
               return ol;
             });
           }
+          // Sync back into DrawingManager
+          try {
+            const dm = getDrawingManager();
+            if (dm) {
+              const save = get(this.saveStore) as ChartSave;
+              const symbolKey = normalizeSymbolKey(save.symbol);
+              const ov = action.data.overlayData;
+              const points = Array.isArray(ov?.points)
+                ? ov.points.map((p: any) => ({
+                    time: p?.timestamp ?? p?.t ?? 0,
+                    price: p?.value ?? p?.p ?? 0
+                  }))
+                : [];
+              if (points.length > 0) {
+                const drawing: Drawing = {
+                  id: action.data.overlayId,
+                  symbolKey,
+                  type: ov?.name || 'unknown',
+                  points,
+                  styles: ov?.styles || {},
+                  locked: Boolean(ov?.lock),
+                  visible: ov?.visible !== false
+                };
+                dm.addDrawing(drawing);
+              }
+            }
+          } catch {}
           break;
 
         default:
@@ -290,6 +325,33 @@ class UndoRedoManager {
               return ol;
             });
           }
+          // Also add to DrawingManager
+          try {
+            const dm = getDrawingManager();
+            if (dm) {
+              const save = get(this.saveStore) as ChartSave;
+              const symbolKey = normalizeSymbolKey(save.symbol);
+              const ov = action.data.overlayData;
+              const points = Array.isArray(ov?.points)
+                ? ov.points.map((p: any) => ({
+                    time: p?.timestamp ?? p?.t ?? 0,
+                    price: p?.value ?? p?.p ?? 0
+                  }))
+                : [];
+              if (points.length > 0) {
+                const drawing: Drawing = {
+                  id: action.data.overlayId,
+                  symbolKey,
+                  type: ov?.name || 'unknown',
+                  points,
+                  styles: ov?.styles || {},
+                  locked: Boolean(ov?.lock),
+                  visible: ov?.visible !== false
+                };
+                dm.addDrawing(drawing);
+              }
+            }
+          } catch {}
           break;
 
         case 'REMOVE_OVERLAY':
@@ -303,6 +365,11 @@ class UndoRedoManager {
               return ol;
             });
           }
+          // And remove from DrawingManager
+          try {
+            const dm = getDrawingManager();
+            if (dm) dm.removeDrawing(action.data.overlayId);
+          } catch {}
           break;
 
         default:

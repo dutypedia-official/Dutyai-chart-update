@@ -1,6 +1,8 @@
 import type { Chart } from 'klinecharts';
 import type { OverlayPoint, ScreenPoint, CoordinateContext } from './kline/overlays/overlayTypes';
 import { screenToData, dataToScreen } from './kline/overlays/coordinateUtils';
+import { getDrawingManager } from './kline/drawingManager';
+import type { Drawing } from './kline/saveSystem/types';
 
 /**
  * Data-space point interface for overlay creation
@@ -67,6 +69,51 @@ export class OverlayCreationManager {
 	constructor(chart: Chart) {
 		this.chart = chart;
 	}
+
+		/**
+		 * Convert a data-space overlay (timestamp/value) to Drawing format
+		 */
+		private toDrawing(overlayId: string, dataSpaceOverlay: any): Drawing | null {
+			try {
+				if (!this.currentSymbolKey) return null;
+				const points = Array.isArray(dataSpaceOverlay?.points)
+					? dataSpaceOverlay.points
+						.map((pt: any) => {
+							if (pt && typeof pt === 'object') {
+								if (typeof pt.timestamp === 'number' && typeof pt.value === 'number') {
+									return { time: pt.timestamp, price: pt.value };
+								}
+								if (typeof pt.t === 'number' && typeof pt.p === 'number') {
+									return { time: pt.t, price: pt.p };
+								}
+							}
+							return null;
+						})
+						.filter(Boolean)
+					: [];
+				
+				if (points.length === 0) return null;
+				
+				const name = (dataSpaceOverlay?.name || dataSpaceOverlay?.type || 'unknown') as string;
+				const styles = (dataSpaceOverlay?.styles || dataSpaceOverlay?.style || {}) as Record<string, any>;
+				const locked = Boolean((dataSpaceOverlay as any)?.lock);
+				const visible = (dataSpaceOverlay as any)?.visible !== false;
+				
+				const drawing: Drawing = {
+					id: overlayId,
+					symbolKey: this.currentSymbolKey,
+					type: name,
+					points,
+					styles,
+					locked,
+					visible
+				};
+				
+				return drawing;
+			} catch {
+				return null;
+			}
+		}
 
 	/**
 	 * Set the current symbol key for new overlays
@@ -208,8 +255,17 @@ export class OverlayCreationManager {
 			if (overlayId) {
 				const id = Array.isArray(overlayId) ? overlayId[0] : overlayId;
 				if (typeof id === 'string') {
-					// Store data-space overlay in local storage or state management
-					this.storeDataSpaceOverlay(id, dataSpaceOverlay);
+						// Store data-space overlay (legacy/local) and sync with DrawingManager (symbol-scoped)
+						this.storeDataSpaceOverlay(id, dataSpaceOverlay);
+						
+						// Sync to DrawingManager so symbol changes correctly show/hide drawings
+						const dm = getDrawingManager();
+						if (dm) {
+							const drawing = this.toDrawing(id, dataSpaceOverlay);
+							if (drawing) {
+								dm.addDrawing(drawing);
+							}
+						}
 				}
 				return id;
 			}
@@ -262,6 +318,12 @@ export class OverlayCreationManager {
 			const overlays = JSON.parse(stored);
 			delete overlays[overlayId];
 			localStorage.setItem('dataSpaceOverlays', JSON.stringify(overlays));
+
+				// Also remove from DrawingManager so it stops rendering on symbol change
+				const dm = getDrawingManager();
+				if (dm) {
+					dm.removeDrawing(overlayId);
+				}
 		} catch (error) {
 			console.error('Failed to remove data-space overlay:', error);
 		}
