@@ -1687,6 +1687,14 @@
         if (drawingManager && hasUnsavedChanges()) {
           // Remove persisted working drawings so they don't survive reload
           drawingManager.clearPersistedStorage();
+          // Also clear legacy/overlay stores that may rehydrate unsaved overlays
+          try {
+            const overlaysKey = ($save?.key || 'chart') + '_overlays';
+            localStorage.removeItem(overlaysKey);
+          } catch {}
+          try {
+            localStorage.removeItem('dataSpaceOverlays');
+          } catch {}
         }
       } catch {}
       location.reload(); 
