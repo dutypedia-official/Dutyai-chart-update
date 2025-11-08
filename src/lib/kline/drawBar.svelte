@@ -51,6 +51,8 @@ let isCloning = $state(false)
 let showMoreOptions = $state(false)
 
 let savedContextMenuPosition = $state<{x: number, y: number} | null>(null)
+// Timestamp to debounce chart background clicks right after overlay selection
+let lastOverlaySelectAt = 0
 
 // Color picker state
 let showColorPicker = $state(false)
@@ -901,6 +903,11 @@ function handleKeydown(event: KeyboardEvent) {
     event.preventDefault()
     handleRedo()
   }
+  // Delete selected overlay with Delete/Backspace
+  else if ((event.key === 'Delete' || event.key === 'Backspace') && selectDraw) {
+    event.preventDefault()
+    clickRemove()
+  }
   // Check for Ctrl+C (Copy)
   else if ((event.ctrlKey || event.metaKey) && event.key === 'c' && selectedOverlay) {
     event.preventDefault()
@@ -1288,6 +1295,16 @@ function updateFibonacciLevel(index: number, field: 'value' | 'visible' | 'color
 const clickChart = derived(ctx, ($ctx) => $ctx.clickChart);
 clickChart.subscribe(() => {
   popoverKey = ''
+  // Hide floating panel when clicking on chart background.
+  // Skip if just selected an overlay (to avoid immediate hide due to event bubbling).
+  if (Date.now() - lastOverlaySelectAt > 120) {
+    showContextMenu = false
+    showDeleteButton = false
+    showMoreOptions = false
+    selectedOverlayCoords = null
+    selectedOverlay = null
+    selectDraw = ''
+  }
 })
 
 // Removed persisted overlay rehydration to keep drawings ephemeral until saved
@@ -1333,6 +1350,7 @@ onDestroy(() => {
 // Public API for external overlay event forwarding (from DrawingManager)
 export function externalSelectOverlay(overlay: any) {
   try {
+    lastOverlaySelectAt = Date.now()
     // Simulate onSelected handler logic
     selectDraw = overlay.id
     selectedOverlay = overlay
