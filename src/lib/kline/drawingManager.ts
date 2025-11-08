@@ -42,6 +42,8 @@ export class DrawingManager {
   private chart: Chart;
   private persistenceKey: string;
   private currentSymbol: SymbolKey | null = null;
+  // Ephemeral mode: do not persist drawings unless saved via SaveManager
+  private readonly ephemeralMode: boolean = true;
   
   // In-memory index: drawings by symbol
   private drawingsBySymbol: Map<SymbolKey, Drawing[]> = new Map();
@@ -64,8 +66,10 @@ export class DrawingManager {
     this.onDrawingRemoved = options.onDrawingRemoved;
     this.onSymbolChanged = options.onSymbolChanged;
     
-    // Load persisted drawings
-    this.loadFromStorage();
+    // Ephemeral: skip loading from storage
+    if (!this.ephemeralMode) {
+      this.loadFromStorage();
+    }
     
     console.log('✅ DrawingManager initialized with key:', this.persistenceKey);
   }
@@ -461,6 +465,7 @@ export class DrawingManager {
    * Save drawings to localStorage
    */
   private saveToStorage(): void {
+    if (this.ephemeralMode) return;
     try {
       const store: DrawingStore = {
         drawingsBySymbol: Object.fromEntries(this.drawingsBySymbol),
@@ -489,6 +494,7 @@ export class DrawingManager {
    * Load drawings from localStorage
    */
   private loadFromStorage(): void {
+    if (this.ephemeralMode) return;
     try {
       const stored = localStorage.getItem(this.persistenceKey);
       if (!stored) {

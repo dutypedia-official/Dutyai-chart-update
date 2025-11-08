@@ -5,7 +5,7 @@ import { getContext, onMount, onDestroy } from 'svelte';
 import type { Chart } from 'klinecharts'
 import {ChartSave} from './chart';
 import type {Writable} from 'svelte/store';
-import {persisted} from 'svelte-persisted-store';
+import { writable } from 'svelte/store';
 import KlineIcon from './icon.svelte';
 import type {Nullable} from 'klinecharts';
 import * as m from '$lib/paraglide/messages.js'
@@ -300,7 +300,8 @@ const GROUP_ID = 'drawing_tools'
 const save = getContext('save') as Writable<ChartSave>
 const ctx = getContext('ctx') as Writable<ChartCtx>
 const chart = getContext('chart') as Writable<Nullable<Chart>>
-const overlays = persisted<Record<string, Record<string, unknown>>>($save.key + '_overlays', {})
+// Ephemeral in-memory overlays store (do not persist)
+const overlays = writable<Record<string, Record<string, unknown>>>({})
 const drawingManagerContext = getContext('drawingManager') as { get: () => any | null }
 
 // Undo/Redo state
@@ -1287,15 +1288,7 @@ clickChart.subscribe(() => {
   popoverKey = ''
 })
 
-const cloudIndLoaded = derived(ctx, ($ctx) => $ctx.cloudIndLoaded);
-cloudIndLoaded.subscribe(() => {
-  const currentPrefix = getOverlayKey('')
-  Object.entries($overlays).forEach(([key, v]) => {
-    if (key.startsWith(currentPrefix)) {
-      addOverlay(v)
-    }
-  })
-})
+// Removed persisted overlay rehydration to keep drawings ephemeral until saved
 
 // Global mouse and touch event listeners for drag functionality
 onMount(() => {

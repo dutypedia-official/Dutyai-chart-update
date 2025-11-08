@@ -253,12 +253,10 @@ export class OverlayCreationManager {
 			// Store the data-space version for persistence
 			const overlayId = this.chart.createOverlay(screenOverlay as any);
 			
-			if (overlayId) {
+      if (overlayId) {
 				const id = Array.isArray(overlayId) ? overlayId[0] : overlayId;
 				if (typeof id === 'string') {
-						// Store data-space overlay (legacy/local) and sync with DrawingManager (symbol-scoped)
-						this.storeDataSpaceOverlay(id, dataSpaceOverlay);
-						
+						// Sync with DrawingManager (symbol-scoped), skip localStorage persistence
 						// Sync to DrawingManager so symbol changes correctly show/hide drawings
 						const dm = getDrawingManager();
 						if (dm) {
@@ -284,14 +282,8 @@ export class OverlayCreationManager {
 	 * Stores data-space overlay for persistence
 	 */
 	private storeDataSpaceOverlay(overlayId: string, overlay: OverlayConfig): void {
-		try {
-			const stored = localStorage.getItem('dataSpaceOverlays');
-			const overlays = stored ? JSON.parse(stored) : {};
-			overlays[overlayId] = overlay;
-			localStorage.setItem('dataSpaceOverlays', JSON.stringify(overlays));
-		} catch (error) {
-			console.error('Failed to store data-space overlay:', error);
-		}
+		// No-op to disable localStorage persistence for overlays
+		return;
 	}
 
 	/**
@@ -315,22 +307,15 @@ export class OverlayCreationManager {
 	 */
 	removeStoredDataSpaceOverlay(overlayId: string): void {
 		try {
-			const stored = localStorage.getItem('dataSpaceOverlays');
-			if (!stored) return;
-			
-			const overlays = JSON.parse(stored);
-			delete overlays[overlayId];
-			localStorage.setItem('dataSpaceOverlays', JSON.stringify(overlays));
-
-				// Also remove from DrawingManager so it stops rendering on symbol change
-				const dm = getDrawingManager();
-				if (dm) {
-					dm.removeDrawing(overlayId);
-					// Mark unsaved since a drawing was removed
-					try { markDirty(); } catch {}
-				}
+			// Remove from DrawingManager so it stops rendering on symbol change
+			const dm = getDrawingManager();
+			if (dm) {
+				dm.removeDrawing(overlayId);
+				// Mark unsaved since a drawing was removed
+				try { markDirty(); } catch {}
+			}
 		} catch (error) {
-			console.error('Failed to remove data-space overlay:', error);
+			console.error('Failed to remove overlay from DrawingManager:', error);
 		}
 	}
 }
