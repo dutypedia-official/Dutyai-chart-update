@@ -62,6 +62,10 @@ let showEmojiPicker = $state(false)
 let emojiPickerPosition = $state({ x: 0, y: 0 })
 let colorPickerPosition = $state({ x: 0, y: 0 })
 
+// Scroll arrow state for vertical scrolling
+let showScrollArrow = $state(false)
+let drawbarContainerRef = $state<HTMLDivElement>()
+
 // Fibonacci settings state
 let showFibonacciSettings = $state(false)
 let fibonacciLevels = $state([
@@ -1332,6 +1336,68 @@ onMount(() => {
   }
 })
 
+// Check if drawbar container needs scroll arrow
+function checkScrollNeeded() {
+  if (!drawbarContainerRef) return
+  
+  const { scrollHeight, clientHeight, scrollTop } = drawbarContainerRef
+  const hasOverflow = scrollHeight > clientHeight
+  const isAtBottom = scrollTop + clientHeight >= scrollHeight - 5 // 5px threshold
+  
+  // Show arrow if there's overflow and not at the bottom
+  showScrollArrow = hasOverflow && !isAtBottom
+}
+
+// Auto-scroll the drawbar container
+function handleScrollArrowClick() {
+  if (!drawbarContainerRef) return
+  
+  const { scrollTop, clientHeight, scrollHeight } = drawbarContainerRef
+  const scrollAmount = clientHeight * 0.7 // Scroll 70% of visible height
+  const targetScroll = Math.min(scrollTop + scrollAmount, scrollHeight - clientHeight)
+  
+  drawbarContainerRef.scrollTo({
+    top: targetScroll,
+    behavior: 'smooth'
+  })
+}
+
+// Monitor scroll state for drawbar
+onMount(() => {
+  // Check scroll on mount
+  checkScrollNeeded()
+  
+  // Handle scroll events
+  const handleScroll = () => {
+    checkScrollNeeded()
+  }
+  
+  // Handle resize events
+  const handleResize = () => {
+    checkScrollNeeded()
+  }
+  
+  if (drawbarContainerRef) {
+    drawbarContainerRef.addEventListener('scroll', handleScroll)
+  }
+  
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleResize)
+  }
+  
+  // Also check after a short delay to ensure all elements are rendered
+  setTimeout(checkScrollNeeded, 500)
+  
+  return () => {
+    if (drawbarContainerRef) {
+      drawbarContainerRef.removeEventListener('scroll', handleScroll)
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', handleResize)
+    }
+  }
+})
+
 onDestroy(() => {
   if (typeof document !== 'undefined') {
     document.removeEventListener('mousemove', onMouseMove)
@@ -1464,7 +1530,8 @@ export function externalRemoved(overlayId: string) {
   <div class="w-full h-px bg-[var(--menu-btn-border)] mt-3 opacity-50"></div>
 {/snippet}
 
-<div class="drawbar-container w-[52px] h-full box-border border-r border-r-[var(--menu-border)] bg-[var(--menu-bg)] shadow-[var(--menu-shadow)] transition-all duration-300 ease-in-out overflow-y-auto scrollbar-hidden" onclick={(e) => e.stopPropagation()}>
+<div class="drawbar-wrapper">
+<div bind:this={drawbarContainerRef} class="drawbar-container w-[52px] h-full box-border border-r border-r-[var(--menu-border)] bg-[var(--menu-bg)] shadow-[var(--menu-shadow)] transition-all duration-300 ease-in-out overflow-y-auto scrollbar-hidden" onclick={(e) => e.stopPropagation()}>
   <!-- Premium Crosshair button at the top -->
   {@render DrawButton(resetToCrosshair, 'crosshair')}
   
@@ -1499,6 +1566,30 @@ export function externalRemoved(overlayId: string) {
   
   <!-- Premium remove button -->
   {@render DrawButton(clickRemove, 'remove')}
+</div>
+
+<!-- Minimal Scroll Arrow Indicator for Drawing Toolbar -->
+{#if showScrollArrow}
+  <button 
+    class="drawbar-scroll-arrow"
+    onclick={handleScrollArrowClick}
+    title="Scroll to see more tools"
+    aria-label="Scroll down"
+  >
+    <svg 
+      width="12" 
+      height="12" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      stroke-width="2.5" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"
+    >
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </button>
+{/if}
 </div>
 
 <!-- Premium submenu rendered outside overflow container -->
@@ -1759,6 +1850,12 @@ export function externalRemoved(overlayId: string) {
 />
 
 <style>
+  /* Drawbar Wrapper */
+  .drawbar-wrapper {
+    position: relative;
+    height: 100%;
+  }
+
   /* Premium DrawBar CSS Variables - Perfectly matching top menu bar */
   .drawbar-container {
     --menu-bg: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%);
@@ -2024,6 +2121,108 @@ export function externalRemoved(overlayId: string) {
     .drawbar-container {
       scroll-behavior: smooth;
       padding-bottom: 15px;
+    }
+  }
+
+  /* Minimal Scroll Arrow for Drawbar - Subtle Design */
+  .drawbar-scroll-arrow {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 999;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
+    opacity: 0.7;
+  }
+
+  .drawbar-scroll-arrow:hover {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.08);
+    background: rgba(59, 130, 246, 0.25);
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 3px 10px rgba(59, 130, 246, 0.25);
+  }
+
+  .drawbar-scroll-arrow:active {
+    transform: translateX(-50%) scale(0.95);
+  }
+
+  .drawbar-scroll-arrow svg {
+    color: #3b82f6;
+    filter: drop-shadow(0 1px 2px rgba(59, 130, 246, 0.3));
+  }
+
+  /* Dark theme - minimal purple tones */
+  :global([data-theme="dark"]) .drawbar-scroll-arrow {
+    background: rgba(138, 43, 226, 0.15);
+    border-color: rgba(138, 43, 226, 0.25);
+    box-shadow: 0 2px 6px rgba(138, 43, 226, 0.15);
+  }
+
+  :global([data-theme="dark"]) .drawbar-scroll-arrow:hover {
+    background: rgba(138, 43, 226, 0.25);
+    border-color: rgba(138, 43, 226, 0.4);
+    box-shadow: 0 3px 10px rgba(138, 43, 226, 0.25);
+  }
+
+  :global([data-theme="dark"]) .drawbar-scroll-arrow svg {
+    color: #9d6dcc;
+    filter: drop-shadow(0 1px 2px rgba(138, 43, 226, 0.3));
+  }
+
+  /* Light theme - minimal blue tones */
+  :global([data-theme="light"]) .drawbar-scroll-arrow {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+
+  :global([data-theme="light"]) .drawbar-scroll-arrow:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.35);
+  }
+
+  :global([data-theme="light"]) .drawbar-scroll-arrow svg {
+    color: #2563eb;
+  }
+
+  /* Mobile responsiveness - even more subtle */
+  @media (max-width: 768px) {
+    .drawbar-scroll-arrow {
+      width: 20px;
+      height: 20px;
+      bottom: 6px;
+      opacity: 0.65;
+    }
+    
+    .drawbar-scroll-arrow svg {
+      width: 10px;
+      height: 10px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .drawbar-scroll-arrow {
+      width: 18px;
+      height: 18px;
+      bottom: 4px;
+      opacity: 0.6;
+    }
+    
+    .drawbar-scroll-arrow svg {
+      width: 9px;
+      height: 9px;
     }
   }
 </style>

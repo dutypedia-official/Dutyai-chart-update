@@ -22,6 +22,7 @@ import ModalChartSetting from './modalChartSetting.svelte';
 import ModalScreenShot from './modalScreenShot.svelte';
 import ModalTimezone from './modalTimezone.svelte';
 import ModalChartType from './modalChartType.svelte';
+import ModalAI from './ModalAI.svelte';
   import { undoRedoManager } from './undoRedoManager';
   import { Search } from 'lucide-svelte';
   import { TransactionalThemeManager } from '$lib/stores/themeManager.js';
@@ -31,6 +32,7 @@ import ModalChartType from './modalChartType.svelte';
   import LoadChartPopup from './saveSystem/LoadChartPopup.svelte';
   import SaveAsSelectModal from './saveSystem/SaveAsSelectModal.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import { slide, fade } from 'svelte/transition';
   // Props
   let {customLoad = false, mainContainer = $bindable(), sidebarHost = $bindable()} = $props();
 
@@ -177,9 +179,12 @@ let showSettingModal = $state(false);
 let showChartSettingModal = $state(false);
 let showScreenShotModal = $state(false);
 let showTimezoneModal = $state(false);
+let showAIModal = $state(false);
   let screenShotUrl = $state('');
   let showName = $state('');
   let isRotated = $state(false);
+  let showAllTimeframesMobile = $state(false);
+  let isMobileView = $state(false);
   
   // Theme switch confirmation state
   let showThemeConfirm = $state(false);
@@ -353,6 +358,9 @@ let showTimezoneModal = $state(false);
     // Handle resize events
     const handleResize = () => {
       checkScrollNeeded();
+      if (typeof window !== 'undefined') {
+        isMobileView = window.innerWidth <= 768;
+      }
     };
     
     if (menuContainerRef) {
@@ -362,7 +370,12 @@ let showTimezoneModal = $state(false);
     window.addEventListener('resize', handleResize);
     
     // Also check after a short delay to ensure all elements are rendered
-    setTimeout(checkScrollNeeded, 500);
+    setTimeout(() => {
+      checkScrollNeeded();
+      if (typeof window !== 'undefined') {
+        isMobileView = window.innerWidth <= 768;
+      }
+    }, 500);
     
     return () => {
       clearInterval(interval);
@@ -398,6 +411,10 @@ let showTimezoneModal = $state(false);
 
   function handlePeriodClick(period: any) {
     $save.period = period;
+    // On mobile expanded view, auto-close after selection for better UX
+    if (showAllTimeframesMobile) {
+      showAllTimeframesMobile = false;
+    }
   }
 
   function handleChartTypeClick(chartType: any) {
@@ -1477,6 +1494,7 @@ let showTimezoneModal = $state(false);
 <ModalScreenShot bind:show={showScreenShotModal} bind:url={screenShotUrl} />
 <ModalTimezone bind:show={showTimezoneModal} />
 <ModalChartType bind:show={showChartTypeModal} />
+<ModalAI bind:show={showAIModal} />
 <SaveModal 
   bind:show={showSaveModal}
   {savedLayouts}
@@ -1563,7 +1581,9 @@ let showTimezoneModal = $state(false);
 
     <!-- Timeframe Section -->
     <div class="timeframe-section">
-      <div class="timeframe-group">
+      <!-- Desktop: show all timeframes as before -->
+      {#if !isMobileView}
+      <div class="timeframe-group desktop-only">
         {#each shortTermPeriods as period}
           <button 
             class="timeframe-btn {period.timeframe === $save.period?.timeframe ? 'timeframe-btn-active' : ''}"
@@ -1573,8 +1593,6 @@ let showTimezoneModal = $state(false);
             <div class="timeframe-glow"></div>
           </button>
         {/each}
-        
-        <!-- 4h button -->
         <button 
           class="timeframe-btn {$save.period?.timeframe === '4h' ? 'timeframe-btn-active' : ''}"
           onclick={() => handlePeriodClick(hourlyPeriods[0])}
@@ -1582,8 +1600,6 @@ let showTimezoneModal = $state(false);
           <span class="timeframe-text">4h</span>
           <div class="timeframe-glow"></div>
         </button>
-        
-        <!-- Daily, Weekly, Monthly buttons -->
         {#each longTermPeriods as period}
           <button 
             class="timeframe-btn {period.timeframe === $save.period?.timeframe ? 'timeframe-btn-active' : ''}"
@@ -1594,8 +1610,106 @@ let showTimezoneModal = $state(false);
           </button>
         {/each}
       </div>
+      {/if}
+
+      <!-- Mobile: show Daily + Weekly + more (...) -->
+      {#if isMobileView}
+      <div class="timeframe-group mobile-only">
+        <!-- Daily -->
+        {#if longTermPeriods.find(p => p.timeframe === '1d')}
+          <button 
+            class="timeframe-btn {$save.period?.timeframe === '1d' ? 'timeframe-btn-active' : ''}"
+            onclick={() => handlePeriodClick(longTermPeriods.find(p => p.timeframe === '1d'))}
+          >
+            <span class="timeframe-text">1d</span>
+            <div class="timeframe-glow"></div>
+          </button>
+        {/if}
+        <!-- Weekly -->
+        {#if longTermPeriods.find(p => p.timeframe === '1w')}
+          <button 
+            class="timeframe-btn {$save.period?.timeframe === '1w' ? 'timeframe-btn-active' : ''}"
+            onclick={() => handlePeriodClick(longTermPeriods.find(p => p.timeframe === '1w'))}
+          >
+            <span class="timeframe-text">1w</span>
+            <div class="timeframe-glow"></div>
+          </button>
+        {/if}
+        <!-- More (...) button -->
+        <button 
+          class="timeframe-btn timeframe-more-btn {showAllTimeframesMobile ? 'timeframe-btn-active' : ''}"
+          onclick={() => showAllTimeframesMobile = !showAllTimeframesMobile}
+          aria-expanded={showAllTimeframesMobile}
+          aria-label="More timeframes"
+          title="More"
+        >
+          <span class="timeframe-text">⋯</span>
+          <div class="timeframe-glow"></div>
+        </button>
+        {#if showAllTimeframesMobile}
+          <div class="timeframe-inline-expand" in:slide={{ duration: 180 }} out:fade={{ duration: 120 }}>
+            {#each shortTermPeriods as period}
+              <button 
+                class="timeframe-btn {period.timeframe === $save.period?.timeframe ? 'timeframe-btn-active' : ''}"
+                onclick={() => handlePeriodClick(period)}
+              >
+                <span class="timeframe-text">{period.timeframe}</span>
+                <div class="timeframe-glow"></div>
+              </button>
+            {/each}
+            <!-- 4h -->
+            <button 
+              class="timeframe-btn {$save.period?.timeframe === '4h' ? 'timeframe-btn-active' : ''}"
+              onclick={() => handlePeriodClick(hourlyPeriods[0])}
+            >
+              <span class="timeframe-text">4h</span>
+              <div class="timeframe-glow"></div>
+            </button>
+            <!-- Monthly (avoid duplicate 1d/1w shown before) -->
+            {#if longTermPeriods.find(p => p.timeframe === '1M')}
+              <button 
+                class="timeframe-btn {$save.period?.timeframe === '1M' ? 'timeframe-btn-active' : ''}"
+                onclick={() => handlePeriodClick(longTermPeriods.find(p => p.timeframe === '1M'))}
+              >
+                <span class="timeframe-text">1M</span>
+                <div class="timeframe-glow"></div>
+              </button>
+            {/if}
+          </div>
+        {/if}
+      </div>
+      {/if}
     </div>
 
+    <!-- AI Section -->
+    <div class="ai-section">
+      <button 
+        class="ai-btn group relative overflow-hidden" 
+        onclick={() => showAIModal = true}
+        aria-label="AI Features"
+        title="AI Powered Features (Coming Soon)"
+        type="button"
+      >
+        <div class="ai-btn-content">
+          <div class="ai-icon-wrapper">
+            <svg class="ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <span class="ai-text">AI</span>
+          <div class="ai-badge-mini">New</div>
+        </div>
+        <div class="ai-btn-glow"></div>
+        <div class="ai-particles">
+          <span class="particle"></span>
+          <span class="particle"></span>
+          <span class="particle"></span>
+        </div>
+      </button>
+    </div>
+    
     <!-- Chart Type Section -->
     <div class="chart-type-section">
       {@render MenuButton(() => showChartTypeModal = true, getCurrentChartType().icon, getCurrentChartType().name)}
@@ -2077,6 +2191,26 @@ let showTimezoneModal = $state(false);
   margin-left: 16px;
 }
 
+.desktop-only {
+  display: flex;
+}
+.mobile-only {
+  display: none;
+}
+
+.timeframe-expand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  background: var(--menu-btn-bg);
+  border: 1px solid var(--menu-btn-border);
+  border-radius: 12px;
+  padding: 6px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 .timeframe-group {
   display: flex;
   align-items: center;
@@ -2126,6 +2260,18 @@ let showTimezoneModal = $state(false);
   position: relative;
 }
 
+.timeframe-more-btn .timeframe-text {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.timeframe-inline-expand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+
 .timeframe-btn-active .timeframe-text {
   color: white;
 }
@@ -2152,6 +2298,235 @@ let showTimezoneModal = $state(false);
   display: flex;
   align-items: center;
   margin-left: 16px;
+}
+
+/* AI Section */
+.ai-section {
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}
+
+.ai-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  padding: 0 18px;
+  background: linear-gradient(135deg, rgba(138, 43, 226, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+  border: 1.5px solid rgba(138, 43, 226, 0.4);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.ai-btn:hover {
+  background: linear-gradient(135deg, rgba(138, 43, 226, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%);
+  border-color: rgba(138, 43, 226, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(138, 43, 226, 0.4);
+}
+
+.ai-btn-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 2;
+}
+
+.ai-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.ai-btn:hover .ai-icon-wrapper {
+  transform: scale(1.1) rotate(5deg);
+}
+
+.ai-icon {
+  width: 18px;
+  height: 18px;
+  color: rgba(138, 43, 226, 1);
+  filter: drop-shadow(0 2px 4px rgba(138, 43, 226, 0.4));
+  transition: all 0.3s ease;
+  animation: aiIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes aiIconPulse {
+  0%, 100% {
+    filter: drop-shadow(0 2px 4px rgba(138, 43, 226, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 3px 8px rgba(138, 43, 226, 0.6));
+  }
+}
+
+.ai-btn:hover .ai-icon {
+  color: rgba(168, 85, 247, 1);
+}
+
+.ai-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(138, 43, 226, 1);
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px rgba(138, 43, 226, 0.3);
+  transition: all 0.3s ease;
+}
+
+.ai-btn:hover .ai-text {
+  color: rgba(168, 85, 247, 1);
+  text-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+}
+
+.ai-badge-mini {
+  font-size: 9px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #8a2be2 0%, #9932cc 100%);
+  padding: 2px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(138, 43, 226, 0.4);
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 2px 6px rgba(138, 43, 226, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 3px 10px rgba(138, 43, 226, 0.6);
+  }
+}
+
+.ai-btn-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, rgba(138, 43, 226, 0.4) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.ai-btn:hover .ai-btn-glow {
+  opacity: 0.6;
+}
+
+.ai-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ai-particles .particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: rgba(138, 43, 226, 0.6);
+  border-radius: 50%;
+  animation: particleFloat 3s ease-in-out infinite;
+}
+
+.ai-particles .particle:nth-child(1) {
+  left: 20%;
+  animation-delay: 0s;
+}
+
+.ai-particles .particle:nth-child(2) {
+  left: 50%;
+  animation-delay: 1s;
+}
+
+.ai-particles .particle:nth-child(3) {
+  left: 80%;
+  animation-delay: 2s;
+}
+
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+}
+
+/* Light theme for AI button */
+:global([data-theme="light"]) .ai-btn {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+:global([data-theme="light"]) .ai-btn:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%);
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+}
+
+:global([data-theme="light"]) .ai-icon {
+  color: rgba(59, 130, 246, 1);
+  filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
+}
+
+:global([data-theme="light"]) .ai-btn:hover .ai-icon {
+  color: rgba(37, 99, 235, 1);
+}
+
+:global([data-theme="light"]) .ai-text {
+  color: rgba(59, 130, 246, 1);
+  text-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+
+:global([data-theme="light"]) .ai-btn:hover .ai-text {
+  color: rgba(37, 99, 235, 1);
+  text-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
+}
+
+:global([data-theme="light"]) .ai-badge-mini {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+:global([data-theme="light"]) .ai-btn-glow {
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+}
+
+:global([data-theme="light"]) .ai-particles .particle {
+  background: rgba(59, 130, 246, 0.5);
 }
 
 /* Undo/Redo Section */
@@ -2221,6 +2596,17 @@ let showTimezoneModal = $state(false);
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
+  .desktop-only {
+    display: none;
+  }
+  .mobile-only {
+    display: flex;
+  }
+  .timeframe-expand {
+    margin-left: 8px;
+    gap: 4px;
+    padding: 4px;
+  }
   .menu-container {
     height: 52px;
     padding: 0 12px;
@@ -2362,6 +2748,44 @@ let showTimezoneModal = $state(false);
   .rotate-button-wrapper .menu-btn {
     height: 32px;
     padding: 0 10px;
+  }
+}
+
+/* Mobile responsiveness for AI button */
+@media (max-width: 768px) {
+  .ai-btn {
+    height: 32px;
+    padding: 0 14px;
+  }
+  
+  .ai-icon {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .ai-text {
+    font-size: 13px;
+  }
+  
+  .ai-badge-mini {
+    font-size: 8px;
+    padding: 2px 5px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ai-btn {
+    height: 30px;
+    padding: 0 12px;
+  }
+  
+  .ai-icon {
+    width: 15px;
+    height: 15px;
+  }
+  
+  .ai-text {
+    font-size: 12px;
   }
 }
 
