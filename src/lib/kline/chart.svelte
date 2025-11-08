@@ -1681,7 +1681,16 @@
     title={'Unsaved changes'}
     message={'You made changes but did not save. Refresh will discard them.'}
     on:cancel={() => { showUnsavedModal = false; }}
-    on:confirm={() => { showUnsavedModal = false; location.reload(); }}
+    on:confirm={() => { 
+      showUnsavedModal = false; 
+      try { 
+        if (drawingManager && hasUnsavedChanges()) {
+          // Remove persisted working drawings so they don't survive reload
+          drawingManager.clearPersistedStorage();
+        }
+      } catch {}
+      location.reload(); 
+    }}
   />
   
   <!-- Save System Integration -->

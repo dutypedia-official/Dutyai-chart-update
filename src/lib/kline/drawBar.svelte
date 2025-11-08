@@ -525,6 +525,11 @@ export function addOverlay(data: any){
         try {
           drawingManager.removeDrawing(event.overlay.id)
           console.log('🗑️ Removed drawing from DrawingManager:', event.overlay.id)
+          // Mark unsaved changes
+          try {
+            const { markDirty } = await import('$lib/stores/unsavedChanges');
+            markDirty();
+          } catch {}
         } catch (error) {
           console.error('Error removing drawing from DrawingManager:', error)
         }
@@ -1135,6 +1140,11 @@ function editOverlay(overlay: any){
       
       // Add/update in DrawingManager
       drawingManager.addDrawing(drawing)
+      // Mark unsaved changes
+      try {
+        const { markDirty } = await import('$lib/stores/unsavedChanges');
+        markDirty();
+      } catch {}
     } catch (error) {
       console.error('Error syncing overlay to DrawingManager:', error)
     }

@@ -474,6 +474,18 @@ export class DrawingManager {
   }
 
   /**
+   * Clear persisted storage so unsaved drawings do not survive reload
+   */
+  public clearPersistedStorage(): void {
+    try {
+      localStorage.removeItem(this.persistenceKey);
+      console.log('🧹 Cleared persisted drawing storage for key:', this.persistenceKey);
+    } catch (error) {
+      console.warn('Failed to clear persisted drawing storage:', error);
+    }
+  }
+
+  /**
    * Load drawings from localStorage
    */
   private loadFromStorage(): void {

@@ -2,6 +2,7 @@ import type { Chart } from 'klinecharts';
 import type { OverlayPoint, ScreenPoint, CoordinateContext } from './kline/overlays/overlayTypes';
 import { screenToData, dataToScreen } from './kline/overlays/coordinateUtils';
 import { getDrawingManager } from './kline/drawingManager';
+import { markDirty } from './stores/unsavedChanges';
 import type { Drawing } from './kline/saveSystem/types';
 
 /**
@@ -264,6 +265,8 @@ export class OverlayCreationManager {
 							const drawing = this.toDrawing(id, dataSpaceOverlay);
 							if (drawing) {
 								dm.addDrawing(drawing);
+								// Mark unsaved since a new overlay was created
+								try { markDirty(); } catch {}
 							}
 						}
 				}
@@ -323,6 +326,8 @@ export class OverlayCreationManager {
 				const dm = getDrawingManager();
 				if (dm) {
 					dm.removeDrawing(overlayId);
+					// Mark unsaved since a drawing was removed
+					try { markDirty(); } catch {}
 				}
 		} catch (error) {
 			console.error('Failed to remove data-space overlay:', error);
