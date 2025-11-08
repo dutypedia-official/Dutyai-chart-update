@@ -582,8 +582,157 @@
         }
       };
 
-      // Run after initial style application to avoid flicker
-      setTimeout(restoreIndicatorsFromSave, 150);
+      // Decide restoration strategy based on active saved layout
+      let activeSaveId: string | null = null;
+      try {
+        activeSaveId = (typeof window !== 'undefined') ? localStorage.getItem('chart.activeSaveId') : null;
+      } catch {}
+      
+      // If there is NO active saved layout, restore ad-hoc indicators (from $save.saveInds)
+      if (!activeSaveId) {
+        // Run after initial style application to avoid flicker
+        setTimeout(restoreIndicatorsFromSave, 150);
+      } else {
+        console.log('ℹ️ Active layout detected, skipping ad-hoc indicator restore. Will let SaveSystem restore.');
+      }
+
+      // Helper to add default indicators (optionally forcing regardless of saved/existing)
+      const addDefaultIndicators = (force: boolean) => {
+        try {
+          if (!$chart) return;
+          const chartObj = $chart;
+          if (!force) {
+            const hasSaved = Object.keys($save.saveInds || {}).length > 0;
+            let existing: Array<{ name: string; paneId?: string }> = [];
+            try {
+              existing = (chartObj.getIndicators?.() ?? []) as Array<{ name: string; paneId?: string }>;
+            } catch {}
+            if (hasSaved || (existing && existing.length > 0)) {
+              return;
+            }
+          }
+          
+          const mainPaneId = 'candle_pane';
+          // SuperTrend
+          try {
+            const indId = chartObj.createIndicator({
+              name: 'SUPERTREND',
+              calcParams: [10, 3.0]
+            }, true, { id: mainPaneId });
+            if (indId) {
+              save.update(s => {
+                s.saveInds[`${mainPaneId}_SUPERTREND`] = {
+                  name: 'SUPERTREND',
+                  pane_id: mainPaneId,
+                  params: [10, 3.0]
+                };
+                return s;
+              });
+            }
+          } catch {}
+          
+          // EMA 200 (blue, thickness 2)
+          try {
+            const indId = chartObj.createIndicator({
+              name: 'EMA',
+              calcParams: [200],
+              styles: {
+                lines: [{
+                  color: '#2563eb',
+                  size: 2,
+                  style: kc.LineType.Solid,
+                  dashedValue: [2, 2]
+                }]
+              }
+            }, true, { id: mainPaneId });
+            if (indId) {
+              save.update(s => {
+                s.saveInds[`${mainPaneId}_EMA`] = {
+                  name: 'EMA',
+                  pane_id: mainPaneId,
+                  params: [200],
+                  styles: [{ color: '#2563eb', thickness: 2, lineStyle: 'solid' }]
+                };
+                return s;
+              });
+            }
+          } catch {}
+          
+          // Volume (sub-pane)
+          try {
+            const volPaneId = 'pane_VOL_default';
+            const indId = chartObj.createIndicator({
+              name: 'VOL',
+              calcParams: [20]
+            }, false, { id: volPaneId });
+            if (indId) {
+              save.update(s => {
+                s.saveInds[`${volPaneId}_VOL`] = {
+                  name: 'VOL',
+                  pane_id: volPaneId,
+                  params: [20]
+                };
+                return s;
+              });
+            }
+          } catch {}
+          
+          // MACD (bottom sub-pane)
+          try {
+            const macdPaneId = 'pane_MACD_default';
+            const indId = chartObj.createIndicator({
+              name: 'MACD',
+              calcParams: [12, 26, 9]
+            }, false, { id: macdPaneId, axis: { gap: { bottom: 2 } } as any });
+            if (indId) {
+              save.update(s => {
+                s.saveInds[`${macdPaneId}_MACD`] = {
+                  name: 'MACD',
+                  pane_id: macdPaneId,
+                  params: [12, 26, 9]
+                };
+                return s;
+              });
+            }
+          } catch {}
+          
+          console.log('✅ Default indicators applied', { force });
+        } catch (err) {
+          console.warn('⚠️ Failed to add default indicators:', err);
+        }
+      };
+      
+      // Detect browser reload navigation and force defaults
+      let isReload = false;
+      try {
+        const navEntries = (performance as any).getEntriesByType?.('navigation');
+        if (navEntries && navEntries.length > 0) {
+          isReload = navEntries[0].type === 'reload';
+        } else if ((performance as any).navigation) {
+          isReload = ((performance as any).navigation.type === 1);
+        }
+      } catch {}
+      
+      if (isReload) {
+        // On reload, if there is an active saved layout, do nothing here and let SaveSystem restore it.
+        if (activeSaveId) {
+          console.log('🔁 Reload with active layout detected; defaults suppressed.');
+        } else {
+          // No active layout => reset ad-hoc state and force defaults
+          save.update(s => {
+            s.saveInds = {};
+            return s;
+          });
+          setTimeout(() => addDefaultIndicators(true), 200);
+        }
+      } else {
+        // Normal path: only add defaults if nothing saved/existing and no active layout
+        if (!activeSaveId) {
+          setTimeout(() => addDefaultIndicators(false), 300);
+        } else {
+          console.log('ℹ️ Active layout present; skipping defaults on normal init.');
+        }
+      }
     } catch (e) {
       console.warn('⚠️ Indicator restore failed:', e);
     }

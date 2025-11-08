@@ -328,7 +328,9 @@ export const IndFieldsMap: Record<string, Record<string, unknown>[]> = {
     { title: param + '2', precision: 0, min: 1, default: 9 }
   ],
   EMA: [
-    { title: 'EMA', precision: 0, min: 1, styleKey: 'lines[0].color', default: 20 },
+    { title: 'Period', precision: 0, min: 1, default: 20 },
+    { title: 'Line Color', type: 'color', styleKey: 'lines[0].color', default: '#2563eb' },
+    { title: 'Line Thickness', precision: 0, min: 1, max: 5, styleKey: 'lines[0].size', default: 2 }
   ],
   ICHIMOKU: [
     { title: 'Tenkan Period', precision: 0, min: 1, default: 9 },

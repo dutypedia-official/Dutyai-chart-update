@@ -15,12 +15,12 @@ export const customMACD: IndicatorTemplate = {
     ],
     bars: [
       {
-        upColor: '#22c55e',
+        upColor: '#2563eb',
         downColor: '#ef4444',
-        noChangeColor: '#22c55e',
+        noChangeColor: '#2563eb',
         // explicitly ensure no borders are drawn by default engines
         borderSize: 0,
-        borderColor: '#22c55e'
+        borderColor: '#2563eb'
       }
     ]
   },
@@ -76,7 +76,7 @@ export const customMACD: IndicatorTemplate = {
     if (!indicator.result || indicator.result.length === 0) return false
 
     const styles = indicator.styles || {}
-    const upColor = styles?.bars?.[0]?.upColor || '#22c55e'
+    const upColor = styles?.bars?.[0]?.upColor || '#2563eb'
     const downColor = styles?.bars?.[0]?.downColor || '#ef4444'
     const noChangeColor = styles?.bars?.[0]?.noChangeColor || upColor
 
