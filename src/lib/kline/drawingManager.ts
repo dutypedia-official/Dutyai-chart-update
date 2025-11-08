@@ -292,6 +292,13 @@ export class DrawingManager {
   }
 
   /**
+   * Public: hide all rendered drawings from chart without altering stored data
+   */
+  public hideRenderedDrawings(): void {
+    this.clearRenderedDrawings();
+  }
+
+  /**
    * Render drawings for current symbol
    */
   private renderDrawingsForCurrentSymbol(): void {
@@ -308,6 +315,14 @@ export class DrawingManager {
         this.renderDrawing(drawing);
       }
     });
+  }
+
+  /**
+   * Public: force re-render of current symbol drawings
+   */
+  public renderCurrentSymbolDrawings(): void {
+    this.clearRenderedDrawings();
+    this.renderDrawingsForCurrentSymbol();
   }
 
   /**

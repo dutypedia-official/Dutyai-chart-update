@@ -77,15 +77,14 @@
         applyGlobalState: async (globalState) => await applyGlobalState(globalState, save, chartInstance),
         
         clearAllDrawings: () => {
-          // Use DrawingManager to clear drawings
+          // Only hide rendered drawings, do NOT delete stored symbol drawings
           if (!drawingManager) {
             console.warn('⚠️ DrawingManager not available, cannot clear drawings');
             return;
           }
           
-          const currentSymbol = getCurrentSymbol($save);
-          drawingManager.clearDrawingsForSymbol(currentSymbol);
-          console.log('🗑️ Cleared all drawings for current symbol via DrawingManager');
+          drawingManager.hideRenderedDrawings();
+          console.log('🗑️ Cleared rendered drawings from chart (data preserved)');
         },
         
         renderDrawings: (drawings: Drawing[]) => {
@@ -99,6 +98,8 @@
           console.log(`🎨 Rendering ${drawings.length} drawings for symbol:`, currentSymbol);
           
           // Load drawings into the drawing manager
+          // Ensure current symbol is set to guarantee rendering
+          drawingManager.setCurrentSymbol(currentSymbol);
           drawingManager.loadDrawingsForSymbol(currentSymbol, drawings);
         },
         
