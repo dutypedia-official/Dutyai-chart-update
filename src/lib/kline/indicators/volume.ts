@@ -12,29 +12,20 @@ export const volume: IndicatorTemplate = {
   shouldOhlc: false,
   shouldFormatBigNumber: true,
   visible: true,
-  zLevel: 0,
+  // Draw underneath candles when stacked on main pane
+  zLevel: -1,
   extendData: undefined,
-  figures: [
-    // Volume bars
-    {
-      key: 'volume',
-      title: 'Volume: ',
-      type: 'bar',
-      baseValue: 0
-    },
-    // EMA line
-    {
-      key: 'ema',
-      title: 'EMA: ',
-      type: 'line'
-    }
-  ],
+  // Empty figures so this indicator does NOT affect main pane y-axis scaling
+  figures: [],
   styles: {
     bars: [
       {
         upColor: '#26a69a', // Green for up volume
         downColor: '#ef5350', // Red for down volume
-        noChangeColor: '#26a69a'
+        noChangeColor: '#26a69a',
+        // Default 70% opacity for volume histogram bars
+        // Consumers may override with styles.bars[0].opacity
+        opacity: 0.7 as unknown as number
       }
     ],
     lines: [
@@ -94,28 +85,41 @@ export const volume: IndicatorTemplate = {
     const noChangeColor = indicator.styles?.bars?.[0]?.noChangeColor || '#26a69a';
     const emaColor = indicator.styles?.lines?.[0]?.color || '#8B5CF6';
     
-    // Debug logging
-    console.log('Volume indicator colors:', {
-      upColor,
-      downColor,
-      noChangeColor,
-      emaColor,
-      styles: indicator.styles
-    });
-    
     ctx.save();
-    
-    // Draw volume bars with proper colors based on price movement
+
+    // Determine visible max volume for relative scaling
+    let maxVol = 0;
     for (let i = from; i <= to && i < indicator.result.length; i++) {
+      const d = indicator.result[i] as any;
+      if (!d) continue;
+      if (d.volume != null && d.volume > maxVol) maxVol = d.volume;
+      if (d.ema != null && d.ema > maxVol) maxVol = Math.max(maxVol, d.ema);
+    }
+    if (maxVol <= 0) {
+      ctx.restore();
+      return true;
+    }
+
+    // Reserve a bottom band for volume (e.g., 22% of pane height)
+    const bandRatio = 0.22;
+    const bandHeight = Math.max(10, Math.floor(bounding.height * bandRatio));
+    const bandBottomY = bounding.top + bounding.height - 1;
+    const bandTopY = bandBottomY - bandHeight;
+    // Reduce effective drawing height by an additional 20% (total ~44% shorter from original)
+    const effectiveScale = 0.56;
+    const effectiveBandHeight = Math.max(1, Math.floor(bandHeight * effectiveScale));
+
+    // Draw volume bars scaled into the reserved band (does not affect price axis)
+    for (let i = from; i <= to && i < indicator.result.length && i < dataList.length; i++) {
       const data = indicator.result[i] as any;
-      if (!data || data.volume === undefined) continue;
+      if (!data || data.volume == null) continue;
       
       const currentCandle = dataList[i];
-      const previousCandle = i > 0 ? dataList[i - 1] : null;
+      const previousCandle = i > 0 && i - 1 < dataList.length ? dataList[i - 1] : null;
       
       // Determine bar color based on price movement
       let barColor = noChangeColor;
-      if (previousCandle) {
+      if (previousCandle && currentCandle && typeof currentCandle.close === 'number' && typeof previousCandle.close === 'number') {
         if (currentCandle.close > previousCandle.close) {
           barColor = upColor;
         } else if (currentCandle.close < previousCandle.close) {
@@ -124,92 +128,80 @@ export const volume: IndicatorTemplate = {
       }
       
       const x = xAxis.convertToPixel(i);
-      const volumeY = yAxis.convertToPixel(data.volume);
-      const baseY = yAxis.convertToPixel(0);
+      const valueRatio = Math.min(1, data.volume / maxVol);
+      const barHeight = Math.max(1, Math.floor(valueRatio * effectiveBandHeight));
+      const y = bandBottomY - barHeight;
       
       // Calculate bar width (similar to candlestick width)
       const barWidth = Math.max(1, (xAxis.convertToPixel(1) - xAxis.convertToPixel(0)) * 0.8);
       
-      // Draw volume bar
-      ctx.fillStyle = barColor;
-      ctx.fillRect(x - barWidth / 2, volumeY, barWidth, baseY - volumeY);
-    }
-    
-    // Draw EMA line with triangle fill
-    ctx.fillStyle = emaColor + '40'; // Add 40 for 25% opacity
-    ctx.strokeStyle = emaColor;
-    
-    // Get line style configuration from indicator styles
-    const lineStyle = indicator.styles?.lines?.[0]?.style || kc.LineType.Solid;
-    const lineSize = indicator.styles?.lines?.[0]?.size || 1;
-    const dashedValue = indicator.styles?.lines?.[0]?.dashedValue || [2, 2];
-    
-    ctx.lineWidth = lineSize;
-    
-    // Set line dash pattern based on style
-    if (lineStyle === kc.LineType.Dashed) {
-      ctx.setLineDash(dashedValue);
-    } else {
-      ctx.setLineDash([]);
-    }
-    
-    ctx.beginPath();
-    
-    let firstPoint = true;
-    let lastX = 0;
-    let lastY = 0;
-    
-    // Get the 0 line position
-    const zeroLineY = yAxis.convertToPixel(0);
-    
-    // Draw the EMA line with triangle fill
-    for (let i = from; i <= to && i < indicator.result.length; i++) {
-      const data = indicator.result[i] as any;
-      if (!data || data.ema === undefined) continue;
-      
-      const x = xAxis.convertToPixel(i);
-      const y = yAxis.convertToPixel(data.ema);
-      
-      if (firstPoint) {
-        ctx.moveTo(x, zeroLineY); // Start from 0 line
-        ctx.lineTo(x, y); // Go to EMA point
-        firstPoint = false;
-      } else {
-        ctx.lineTo(x, y); // Continue EMA line
-      }
-      
-      lastX = x;
-      lastY = y;
-    }
-    
-    // Close the triangle by going back to 0 line
-    if (!firstPoint) {
-      ctx.lineTo(lastX, zeroLineY); // Go to 0 line
-      ctx.closePath();
-      
-      // Fill the triangle area
-      ctx.fill();
-      
-      // Draw the EMA line on top
-      ctx.beginPath();
-      firstPoint = true;
-      
-      for (let i = from; i <= to && i < indicator.result.length; i++) {
-        const data = indicator.result[i] as any;
-        if (!data || data.ema === undefined) continue;
-        
-        const x = xAxis.convertToPixel(i);
-        const y = yAxis.convertToPixel(data.ema);
-        
-        if (firstPoint) {
-          ctx.moveTo(x, y);
-          firstPoint = false;
+      // Apply opacity: prefer explicit bars[0].opacity; else parse alpha from color (rgba); else default 0.7
+      const configuredOpacity = (indicator as any)?.styles?.bars?.[0]?.opacity;
+      let opacity = typeof configuredOpacity === 'number' ? configuredOpacity : undefined;
+      if (opacity == null) {
+        const m = (barColor || '').toString().match(/^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(?:\s*,\s*([0-9]*\.?[0-9]+))?\s*\)$/i);
+        if (m) {
+          const a = m[1] != null ? parseFloat(m[1]) : 1;
+          opacity = isNaN(a) ? 0.7 : a;
         } else {
-          ctx.lineTo(x, y);
+          opacity = 0.7;
         }
       }
-      
-      ctx.stroke();
+      ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+      ctx.fillStyle = barColor;
+      ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+    }
+    // Reset alpha for subsequent drawings
+    ctx.globalAlpha = 1;
+
+    // Draw EMA line within the same band (+ triangle fill if visible)
+    const emaVisible = (indicator as any)?.styles?.lines?.[0]?.visible !== false;
+    if (emaVisible) {
+      const lineStyle = indicator.styles?.lines?.[0]?.style || kc.LineType.Solid;
+      const lineSize = indicator.styles?.lines?.[0]?.size || 1;
+      const dashedValue = indicator.styles?.lines?.[0]?.dashedValue || [2, 2];
+      ctx.lineWidth = lineSize;
+      ctx.strokeStyle = emaColor;
+      if (lineStyle === kc.LineType.Dashed) {
+        ctx.setLineDash(dashedValue);
+      } else {
+        ctx.setLineDash([]);
+      }
+
+      // Collect points for fill and line
+      const pts: Array<{x:number,y:number}> = [];
+      for (let i = from; i <= to && i < indicator.result.length; i++) {
+        const data = indicator.result[i] as any;
+        if (!data || data.ema == null) continue;
+        const x = xAxis.convertToPixel(i);
+        const ratio = Math.min(1, data.ema / maxVol);
+        const y = bandBottomY - Math.floor(ratio * effectiveBandHeight);
+        pts.push({ x, y });
+      }
+
+      if (pts.length > 1) {
+        // Triangle fill under EMA within the band
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, bandBottomY);
+        for (const p of pts) ctx.lineTo(p.x, p.y);
+        ctx.lineTo(pts[pts.length - 1].x, bandBottomY);
+        ctx.closePath();
+        // 25% opacity fill
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = emaColor;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+
+        // Stroke EMA line on top
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.stroke();
+      }
     }
     
     ctx.restore();

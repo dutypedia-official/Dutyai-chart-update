@@ -480,11 +480,11 @@
     
     /* ===== LIGHT THEME ===== */
     :global([data-theme="light"]) .chart-card {
-      background: #ffffff;
-      border-color: rgba(0, 0, 0, 0.05);
+      background: linear-gradient(145deg, #ffffff 0%, #f9fbff 100%);
+      border-color: rgba(59, 130, 246, 0.15);
       box-shadow: 
-        0 1px 3px rgba(0, 0, 0, 0.03),
-        0 0px 1px rgba(0, 0, 0, 0.02);
+        0 2px 6px rgba(59, 130, 246, 0.08),
+        0 1px 2px rgba(0, 0, 0, 0.04);
     }
     
     :global([data-theme="light"]) .card-bg {
@@ -494,10 +494,10 @@
     
     :global([data-theme="light"]) .chart-card:hover {
       background: #ffffff;
-      border-color: rgba(100, 150, 220, 0.2);
+      border-color: rgba(59, 130, 246, 0.25);
       box-shadow: 
-        0 4px 12px rgba(0, 0, 0, 0.06),
-        0 2px 6px rgba(0, 0, 0, 0.04);
+        0 6px 14px rgba(59, 130, 246, 0.10),
+        0 3px 8px rgba(0, 0, 0, 0.05);
     }
     
     :global([data-theme="light"]) .chart-card.active {
@@ -513,8 +513,8 @@
     }
     
     :global([data-theme="light"]) .icon-container {
-      background: #f8f9fa;
-      border-color: rgba(0, 0, 0, 0.05);
+      background: #f3f6fb;
+      border-color: rgba(59, 130, 246, 0.15);
       box-shadow: 
         0 1px 3px rgba(0, 0, 0, 0.04),
         inset 0 0.5px 0 rgba(255, 255, 255, 1);
@@ -540,30 +540,30 @@
     }
     
     :global([data-theme="light"]) :global(.chart-icon) {
-      color: #5a6c84;
-      filter: drop-shadow(0 0.5px 1px rgba(0, 0, 0, 0.1));
+      color: #3b82f6;
+      filter: drop-shadow(0 0.5px 1px rgba(59, 130, 246, 0.15));
     }
     
     :global([data-theme="light"]) .chart-card:hover :global(.chart-icon) {
-      color: #4a5c74;
-      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+      color: #2563eb;
+      filter: drop-shadow(0 1px 2px rgba(37, 99, 235, 0.2));
     }
     
     :global([data-theme="light"]) .chart-card.active :global(.chart-icon) {
-      color: #4a90e2;
-      filter: drop-shadow(0 1px 3px rgba(74, 144, 226, 0.3));
+      color: #1d4ed8;
+      filter: drop-shadow(0 1px 3px rgba(29, 78, 216, 0.3));
     }
     
     :global([data-theme="light"]) .chart-name {
-      color: #6b7a94;
+      color: #334155;
     }
     
     :global([data-theme="light"]) .chart-card:hover .chart-name {
-      color: #5a6c84;
+      color: #1f2937;
     }
     
     :global([data-theme="light"]) .chart-card.active .chart-name {
-      color: #4a90e2;
+      color: #2563eb;
       font-weight: 600;
     }
     

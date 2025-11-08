@@ -24,7 +24,7 @@
   // Render system integration
   const renderIntegration = getChartRenderIntegration();
 
-  // Static indicator list - always the same (sorted alphabetically)
+  // Static indicator list - base data
   const staticIndicators = [
     // Main indicators (overlay on price chart) - sorted alphabetically
     { name: 'BBI', title: 'BBI (Bull and Bear Index)', is_main: false },
@@ -55,10 +55,13 @@
     { name: 'STOCH', title: 'STOCH (Stochastic Oscillator)', is_main: false },
 
     { name: 'TRIX', title: 'TRIX (Triple Exponential Moving Average)', is_main: false },
-    { name: 'VOL', title: 'VOL (Volume)', is_main: false },
+    { name: 'VOL', title: 'VOL (Volume)', is_main: true },
     { name: 'VR', title: 'VR (Volume Variation Rate)', is_main: false },
     { name: 'WR', title: 'WR (Williams Percentage Range)', is_main: false }
   ];
+
+  // Alphabetically sorted indicator list by name
+  const sortedIndicators = staticIndicators.slice().sort((a, b) => a.name.localeCompare(b.name));
 
   // Track selected indicators (those added to chart)
   // This will automatically sync with save.saveInds to show active indicators
@@ -131,14 +134,17 @@
   });
 
   let showInds = $derived.by(() => {
+    const base = sortedIndicators;
     if (keyword) {
       const keywordLow = keyword.toLowerCase();
-      return staticIndicators.filter(i => 
-        i.name.toLowerCase().includes(keywordLow) || 
-        i.title.toLowerCase().includes(keywordLow)
-      )
+      return base
+        .filter(i =>
+          i.name.toLowerCase().includes(keywordLow) ||
+          i.title.toLowerCase().includes(keywordLow)
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
-    return staticIndicators;
+    return base;
   })
 
   // Function to get specific icon for each indicator
@@ -1310,7 +1316,10 @@
     let styleOverrides: any = {};
     
     if (name === 'VOL') {
-      paneOptions = { axis: { gap: { bottom: 2 } }, ...paneOptions }
+      // Only apply sub-pane axis gap when NOT rendering on main pane
+      if (!paneOptions?.id || paneOptions.id !== 'candle_pane') {
+        paneOptions = { axis: { gap: { bottom: 2 } }, ...paneOptions }
+      }
       
       // Apply default volume groups styling when no params provided
       if (!params || params.length === 0) {

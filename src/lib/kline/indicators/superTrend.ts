@@ -189,14 +189,15 @@ export const superTrend: IndicatorTemplate = {
 
     ctx.save();
     
-    // Get custom styles from indicator
-    const lineStyle = indicator.styles?.lines?.[0] || { 
-      color: '#00FF00', 
-      size: 2, 
-      style: kc.LineType.Solid 
-    };
-    
-    const showLabels = (indicator.extendData as any)?.showLabels !== false;
+    // Get custom style data (colors, thickness, style per trend) from extendData
+    const extendData = indicator.extendData as any;
+    const showLabels = extendData?.showLabels !== false;
+    const uptrendColor = extendData?.uptrendColor || '#00FF00';
+    const downtrendColor = extendData?.downtrendColor || '#FF0000';
+    const uptrendThickness = extendData?.uptrendThickness ?? 2;
+    const downtrendThickness = extendData?.downtrendThickness ?? 2;
+    const uptrendLineStyle = extendData?.uptrendLineStyle || 'solid'; // 'solid' | 'dashed' | 'dotted'
+    const downtrendLineStyle = extendData?.downtrendLineStyle || 'solid';
     
     // Draw SuperTrend line with dynamic coloring
     let segments: Array<{start: number, end: number, trend: number}> = [];
@@ -217,26 +218,22 @@ export const superTrend: IndicatorTemplate = {
       }
     }
     
-    // Draw each segment with appropriate color
+    // Draw each segment with appropriate color and style
     segments.forEach(segment => {
-      // Get colors from extendData (set by modal configuration)
-      const extendData = indicator.extendData as any;
-      const uptrendColor = extendData?.uptrendColor || '#00FF00';
-      const downtrendColor = extendData?.downtrendColor || '#FF0000';
-      
-      const color = segment.trend === 1 ? uptrendColor : downtrendColor;
+      const isUp = segment.trend === 1;
+      const color = isUp ? uptrendColor : downtrendColor;
+      const lineWidth = isUp ? uptrendThickness : downtrendThickness;
+      const styleName = isUp ? uptrendLineStyle : downtrendLineStyle;
       
       ctx.strokeStyle = color;
-      ctx.lineWidth = lineStyle.size || 2;
+      ctx.lineWidth = Number(lineWidth) || 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       
       // Set line style
-      if (lineStyle.style === kc.LineType.Dashed) {
-        ctx.setLineDash([5, 5]);
-      } else {
-        ctx.setLineDash([]);
-      }
+      if (styleName === 'dashed') ctx.setLineDash([4, 4]);
+      else if (styleName === 'dotted') ctx.setLineDash([2, 6]);
+      else ctx.setLineDash([]);
       
       ctx.beginPath();
       let firstPoint = true;

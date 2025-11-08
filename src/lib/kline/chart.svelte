@@ -99,6 +99,30 @@
   // Track if user is pinned to the right edge (latest bars)
   let isPinnedToRight = true;
   let showUnsavedModal = $state(false);
+  // Cleanup reference for infinite scrolling poller
+  let infiniteScrollCleanup: (() => void) | null = null;
+  // Token to ensure only the latest async load applies (prevents stale data flashing)
+  let currentLoadToken = 0;
+  function nextLoadToken(): number {
+    currentLoadToken += 1;
+    return currentLoadToken;
+  }
+  // Keep a stable resize handler reference for proper removal
+  const onWindowResize = () => {
+    $chart?.resize()
+    
+    // Apply responsive theme styles on resize for mobile optimization
+    setTimeout(() => {
+      if ($chart) {
+        const responsiveStyles = getThemeStyles($save.theme)
+        _.merge(responsiveStyles, $state.snapshot($save.styles))
+        $chart.setStyles(processLineChartStyles(responsiveStyles))
+        
+        // Reapply canvas colors to maintain visual consistency
+        applyCanvasColors()
+      }
+    }, 100)
+  };
   
   // Render system integration
   const renderIntegration = getChartRenderIntegration();
@@ -482,21 +506,7 @@
     await loadSymbols();
     console.log('✅ loadSymbols completed from onMount');
     
-    window.addEventListener('resize', () => {
-      $chart?.resize()
-      
-      // Apply responsive theme styles on resize for mobile optimization
-      setTimeout(() => {
-        if ($chart) {
-          const responsiveStyles = getThemeStyles($save.theme)
-          _.merge(responsiveStyles, $state.snapshot($save.styles))
-          $chart.setStyles(processLineChartStyles(responsiveStyles))
-          
-          // Reapply canvas colors to maintain visual consistency
-          applyCanvasColors()
-        }
-      }, 100)
-    })
+    window.addEventListener('resize', onWindowResize)
     let chartObj = $chart!;
     
     // Set default chart view without excessive zoom
@@ -509,7 +519,12 @@
     // Implement infinite scrolling for historical data loading
     // Since setLoadMoreDataCallback is not available in klinecharts v9.x,
     // we'll implement scroll detection manually
-    setupInfiniteScrolling(chartObj);
+    // Ensure previous poller (if any) is cleaned before starting a new one
+    if (infiniteScrollCleanup) {
+      try { infiniteScrollCleanup(); } catch {}
+      infiniteScrollCleanup = null;
+    }
+    infiniteScrollCleanup = setupInfiniteScrolling(chartObj);
     const styles = getThemeStyles($save.theme)
     _.merge(styles, $state.snapshot($save.styles))
     $chart?.setStyles(processLineChartStyles(styles))
@@ -617,7 +632,25 @@
           try {
             const indId = chartObj.createIndicator({
               name: 'SUPERTREND',
-              calcParams: [10, 3.0]
+              calcParams: [10, 3.0],
+              // Base style; per-trend style is controlled via extendData in draw
+              styles: {
+                lines: [{
+                  color: '#00FF00',
+                  size: 1,
+                  style: kc.LineType.Dashed,
+                  dashedValue: [4, 4]
+                }]
+              },
+              extendData: {
+                showLabels: true,
+                uptrendColor: '#00FF00',    // lime
+                downtrendColor: '#FF0000',  // red
+                uptrendThickness: 1,
+                downtrendThickness: 1,
+                uptrendLineStyle: 'dashed',
+                downtrendLineStyle: 'dashed'
+              }
             }, true, { id: mainPaneId });
             if (indId) {
               save.update(s => {
@@ -631,65 +664,25 @@
             }
           } catch {}
           
-          // EMA 200 (blue, thickness 2)
+          // Volume on main pane (TradingView style) - no extra sub pane
           try {
-            const indId = chartObj.createIndicator({
-              name: 'EMA',
-              calcParams: [200],
-              styles: {
-                lines: [{
-                  color: '#2563eb',
-                  size: 2,
-                  style: kc.LineType.Solid,
-                  dashedValue: [2, 2]
-                }]
-              }
-            }, true, { id: mainPaneId });
-            if (indId) {
-              save.update(s => {
-                s.saveInds[`${mainPaneId}_EMA`] = {
-                  name: 'EMA',
-                  pane_id: mainPaneId,
-                  params: [200],
-                  styles: [{ color: '#2563eb', thickness: 2, lineStyle: 'solid' }]
-                };
-                return s;
-              });
-            }
-          } catch {}
-          
-          // Volume (sub-pane)
-          try {
-            const volPaneId = 'pane_VOL_default';
+            const volPaneId = 'candle_pane';
             const indId = chartObj.createIndicator({
               name: 'VOL',
-              calcParams: [20]
-            }, false, { id: volPaneId });
+              calcParams: [20],
+              // Set EMA line visibility off by default
+              styles: {
+                lines: [{
+                  visible: false
+                }]
+              }
+            }, true, { id: volPaneId });
             if (indId) {
               save.update(s => {
                 s.saveInds[`${volPaneId}_VOL`] = {
                   name: 'VOL',
                   pane_id: volPaneId,
                   params: [20]
-                };
-                return s;
-              });
-            }
-          } catch {}
-          
-          // MACD (bottom sub-pane)
-          try {
-            const macdPaneId = 'pane_MACD_default';
-            const indId = chartObj.createIndicator({
-              name: 'MACD',
-              calcParams: [12, 26, 9]
-            }, false, { id: macdPaneId, axis: { gap: { bottom: 2 } } as any });
-            if (indId) {
-              save.update(s => {
-                s.saveInds[`${macdPaneId}_MACD`] = {
-                  name: 'MACD',
-                  pane_id: macdPaneId,
-                  params: [12, 26, 9]
                 };
                 return s;
               });
@@ -808,6 +801,11 @@
     onDestroy(() => {
       window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
       window.removeEventListener('beforeunload', onBeforeUnload);
+      try { window.removeEventListener('resize', onWindowResize) } catch {}
+      if (infiniteScrollCleanup) {
+        try { infiniteScrollCleanup(); } catch {}
+        infiniteScrollCleanup = null;
+      }
     });
     
     // Enhanced separator interaction functionality
@@ -870,10 +868,13 @@
     const maxConsecutiveLoads = 5; // Allow more consecutive loads
     // Track visible bars to detect zoom vs pan
     let lastVisibleBars: number | null = null;
+    // Stop further requests once we reach the start of history
+    let reachedHistoricalStart = false;
     
     // Poll for scroll changes with optimized logic
     const checkScrollPosition = () => {
       try {
+        if (reachedHistoricalStart) return;
         const visibleRange = chartObj.getVisibleRange();
         
         if (!visibleRange || isLoadingHistorical) return;
@@ -1028,6 +1029,8 @@
           }
         } else {
           console.log('📭 No more historical data available');
+          // Prevent further polling for historical data
+          reachedHistoricalStart = true;
         }
       } catch (error) {
         console.error('❌ Error loading more historical data:', error);
@@ -1078,10 +1081,12 @@
   }
   
   async function loadKlineRange(symbol: SymbolInfo, period: Period, start_ms: number, stop_ms: number,
-                              loadMore: boolean = true) {
+                              loadMore: boolean = true, expectedToken: number = currentLoadToken) {
     const chartObj = $chart;
     if (!chartObj) return
-    $ctx.loadingKLine = true
+    if (expectedToken === currentLoadToken) {
+      $ctx.loadingKLine = true
+    }
     const strategy = $page.url.searchParams.get('strategy');
     console.log('loadKlineRange', {symbol, period, start_ms, stop_ms, strategy})
     const kdata = await datafeed.getHistoryKLineData({
@@ -1105,6 +1110,11 @@
       return kline;
     });
     
+    // Ignore stale responses if a newer load has started
+    if (expectedToken !== currentLoadToken) {
+      console.log('⏭️ Ignoring stale load result');
+      return;
+    }
     const hasMore = loadMore && klines.length > 0;
     chartObj.applyNewData(klines, hasMore);
     if(kdata.lays && kdata.lays.length > 0 && !!drawBarRef){
@@ -1112,7 +1122,9 @@
         drawBarRef!.addOverlay(o)
       })
     }
-    $ctx.loadingKLine = false
+    if (expectedToken === currentLoadToken) {
+      $ctx.loadingKLine = false
+    }
     // 触发K线加载完毕事件
     $ctx.klineLoaded += 1
     if (klines.length) {
@@ -1175,7 +1187,7 @@
     await loadKlineRange($save.symbol, $save.period, start_ms, stop_ms, false)
   }
 
-  function loadSymbolPeriod(){
+  function loadSymbolPeriod(expectedToken?: number){
     console.log('🔄 loadSymbolPeriod called');
     const s = $save.symbol
     const p = $save.period
@@ -1183,7 +1195,7 @@
     const curTime = new Date().getTime()
     const [from, to] = adjustFromTo(p, curTime, batchNum)
     console.log('🔄 Time range:', new Date(from), 'to', new Date(curTime));
-    loadKlineRange(s, p, from, curTime, !customLoad)
+    loadKlineRange(s, p, from, curTime, !customLoad, expectedToken ?? currentLoadToken)
   }
 
   // 监听周期变化 (Timeframe changes) - with flicker-free rendering
@@ -1202,14 +1214,17 @@
     // Update global period store for tooltip display
     currentPeriod.set($save.period);
     
-    if ($ctx.loadingKLine || customLoad || !$chart) return
+    if (customLoad || !$chart) return
     
     // Use render integration for flicker-free timeframe change
     renderIntegration.changeTimeframe({
       chart: $chart,
       period: $save.period,
       loadDataFn: async () => {
-        await loadSymbolPeriod();
+        const token = nextLoadToken();
+        // Clear chart data immediately to avoid stale view while loading new TF
+        try { $chart?.applyNewData([], false); } catch {}
+        await loadSymbolPeriod(token);
       }
     });
   })
@@ -1241,10 +1256,23 @@
     } catch {
     }
     
-    if ($ctx.loadingKLine || customLoad) return
+    if (customLoad) return
     console.log('📊 Proceeding with symbol change - unsubscribing and loading new data');
+    // Stop any streaming and clear caches to avoid stale data artifacts
     datafeed.unsubscribe()
-    loadSymbolPeriod()
+    try { datafeed.clearCache(); } catch {}
+    // Clear current chart data immediately for responsive visual feedback
+    try { $chart?.applyNewData([], false); } catch {}
+    // Restart infinite scroll poller for new symbol
+    if (infiniteScrollCleanup) {
+      try { infiniteScrollCleanup(); } catch {}
+      infiniteScrollCleanup = null;
+    }
+    if ($chart) {
+      infiniteScrollCleanup = setupInfiniteScrolling($chart);
+    }
+    const token = nextLoadToken();
+    loadSymbolPeriod(token)
   })
 
   // 监听主题变化

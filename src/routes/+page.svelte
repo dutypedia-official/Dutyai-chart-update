@@ -1,32 +1,57 @@
 <script lang="ts">
   import Chart from '$lib/kline/chart.svelte';
-  import { writable } from 'svelte/store';
+  import { writable, get } from 'svelte/store';
   import { persisted } from 'svelte-persisted-store';
   import { ChartCtx, ChartSave } from '$lib/kline/chart';
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import type { SymbolInfo } from '$lib/kline/types';
+  import { browser } from '$app/environment';
   
   console.log('📄 +page.svelte loaded');
   
   const ctx = writable<ChartCtx>(new ChartCtx());
   const save = persisted('chart', new ChartSave());
+  let mounted = false;
+  let currentTheme: 'dark' | 'light' = 'light';
+
+  function applyTheme(theme: 'dark' | 'light') {
+    if (!browser) return;
+    currentTheme = theme;
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
+    // Notify any listeners (e.g., chart internals/toolbars) that theme changed
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme } }));
+    console.log('🖌️ Applied theme to document:', theme);
+  }
 
   // Handle URL parameters for symbol selection and theme
   onMount(() => {
-    // Handle theme parameter
-    const themeParam = $page.url.searchParams.get('theme');
-    if (themeParam && (themeParam === 'dark' || themeParam === 'light')) {
-      console.log('🎨 Theme parameter found in URL:', themeParam);
-      
-      // Update theme in save store
-      save.update(s => {
-        s.theme = themeParam;
-        return s;
-      });
-      
-      console.log('✅ Theme set from URL parameter:', themeParam);
-    }
+    // Determine initial theme: URL param > saved > system preference
+    const urlTheme = $page.url.searchParams.get('theme');
+    const savedTheme = get(save)?.theme as 'dark' | 'light' | undefined;
+    const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme: 'dark' | 'light' =
+      (urlTheme === 'dark' || urlTheme === 'light')
+        ? urlTheme
+        : (savedTheme === 'dark' || savedTheme === 'light')
+          ? savedTheme
+          : (systemDark ? 'dark' : 'light');
+
+    // Persist and apply
+    save.update(s => {
+      s.theme = initialTheme;
+      return s;
+    });
+    applyTheme(initialTheme);
+
+    // React to later theme changes (e.g., menu toggle) and keep DOM in sync
+    const unsubscribe = save.subscribe(s => {
+      const next = (s.theme === 'dark' || s.theme === 'light') ? s.theme : (systemDark ? 'dark' : 'light');
+      if (next !== currentTheme) {
+        applyTheme(next);
+      }
+    });
     
     // Handle symbol parameter
     const symbolParam = $page.url.searchParams.get('symbol');
@@ -93,7 +118,17 @@
         console.error('❌ Failed to save user ID to localStorage:', error);
       }
     }
+
+    mounted = true;
+
+    return () => {
+      unsubscribe();
+    };
   });
 </script>
 
-<Chart {ctx} {save}></Chart>
+{#if mounted}
+  {#key currentTheme}
+    <Chart {ctx} {save}></Chart>
+  {/key}
+{/if}

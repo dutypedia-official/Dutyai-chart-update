@@ -21,7 +21,7 @@
     period: number; // EMA period (default: 20)
     styles: {
       histogram: {upColor: string, downColor: string, thickness: number, lineStyle: string};
-      ema: {color: string, thickness: number, lineStyle: string};
+      ema: {color: string, thickness: number, lineStyle: string, visible?: boolean};
     };
   }
   
@@ -38,6 +38,34 @@
   let pvtColor = $state('#FF6B35');
   let pvtThickness = $state(2);
   let pvtStyle = $state('solid');
+
+  // Helpers to compose rgba with specific opacity for histogram colors
+  function parseColorToRgb(color: string): { r: number; g: number; b: number } | null {
+    const c = (color || '').trim();
+    if (!c) return null;
+    if (/^#?[0-9A-Fa-f]{6}$/.test(c)) {
+      const h = c.startsWith('#') ? c.slice(1) : c;
+      return {
+        r: parseInt(h.slice(0, 2), 16),
+        g: parseInt(h.slice(2, 4), 16),
+        b: parseInt(h.slice(4, 6), 16)
+      };
+    }
+    const m = c.match(/^rgba?\(([^)]+)\)$/i);
+    if (m) {
+      const parts = m[1].split(',').map(v => parseFloat(v.trim()));
+      if (parts.length >= 3 && parts.every(n => !isNaN(n))) {
+        return { r: Math.round(parts[0]), g: Math.round(parts[1]), b: Math.round(parts[2]) };
+      }
+    }
+    return null;
+  }
+  function buildRgba(color: string, opacityPercent: number): string {
+    const rgb = parseColorToRgb(color);
+    if (!rgb) return color;
+    const a = Math.max(0, Math.min(100, opacityPercent)) / 100;
+    return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})`;
+  }
 
   // Bollinger Bands specific variables
   let bollingerFillColor = $state('#2196F3'); // Default blue color
@@ -3341,18 +3369,20 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       volGroups = volEntries.map(([saveKey, savedInd]) => {
         // Check if this indicator has saved Volume group data
         if ((savedInd as any).volGroups && (savedInd as any).volGroups.length > 0) {
-          return (savedInd as any).volGroups[0]; // Take first group from saved data
+          const g = (savedInd as any).volGroups[0]; // Take first group from saved data
+          return { ...g, paneId: 'candle_pane', styles: { ...g.styles, ema: { visible: (g.styles?.ema?.visible ?? false), ...g.styles.ema } } };
         } else if ((savedInd as any).volGroup) {
-          return (savedInd as any).volGroup; // Single Volume group
+          const g = (savedInd as any).volGroup; // Single Volume group
+          return { ...g, paneId: 'candle_pane', styles: { ...g.styles, ema: { visible: (g.styles?.ema?.visible ?? false), ...g.styles.ema } } };
         } else {
           // Create group from basic saved indicator data
           return {
             id: generateUUID(),
-            paneId: savedInd.pane_id,
+            paneId: 'candle_pane',
             period: (savedInd.params?.[0] as number) || 20, // Default 20-period EMA
             styles: {
               histogram: {upColor: '#26a69a', downColor: '#ef5350', thickness: 1, lineStyle: 'solid'}, // Green/Red
-              ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted'} // Purple
+              ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted', visible: false} // Purple
             }
           };
         }
@@ -3363,11 +3393,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       // Create default Volume group with current pane ID
       const defaultGroup = {
         id: generateUUID(),
-        paneId: $ctx.editPaneId, // Assign current pane ID to first Volume
+        paneId: 'candle_pane', // Force Volume to main pane
         period: 20, // Default 20-period EMA
         styles: {
           histogram: {upColor: '#26a69a', downColor: '#ef5350', thickness: 1, lineStyle: 'solid'}, // Green/Red
-          ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted'} // Purple
+          ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted', visible: false} // Purple
         }
       };
       
@@ -3475,9 +3505,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
   function addVolGroup() {
     if (!isVol) return;
+    // Enforce single Volume group on main pane
+    if (volGroups.length >= 1) {
+      console.log('ℹ️ Volume already added on main pane; skipping additional groups.');
+      return;
+    }
     
-    // Generate unique pane ID for new Volume group
-    const newPaneId = `pane_VOL_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Always use main pane for Volume
+    const newPaneId = 'candle_pane';
     
     const newGroup = {
       id: generateUUID(),
@@ -3485,13 +3520,13 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       period: 20, // Default 20-period EMA
       styles: {
         histogram: {upColor: '#26a69a', downColor: '#ef5350', thickness: 1, lineStyle: 'solid'}, // Green/Red
-        ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted'} // Purple with dotted style
+        ema: {color: '#8B5CF6', thickness: 1, lineStyle: 'dotted', visible: false} // Purple with dotted style
       }
     };
     
     volGroups.push(newGroup);
     
-    // Add to chart immediately with proper styling in a new sub-pane
+    // Add to chart immediately on main pane (stacked)
     if ($chart) {
       // Convert line style to klinecharts format
       let lineStyle = kc.LineType.Solid;
@@ -3518,10 +3553,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             color: newGroup.styles.ema.color,
             size: newGroup.styles.ema.thickness,
             style: lineStyle,
-            dashedValue: dashedValue
+            dashedValue: dashedValue,
+            visible: newGroup.styles.ema.visible !== false
           }]
         }
-      }, false, { id: newPaneId }); // false = create in sub-pane, not main pane
+      }, true, { id: newPaneId }); // true = stack on main pane
       
       // Save the indicator to the save system
       if (indicatorId) {
@@ -3538,7 +3574,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       }
     }
     
-    console.log('➕ Added new Volume group in new pane:', newGroup.id, newPaneId);
+    console.log('➕ Added Volume on main pane:', newGroup.id, newPaneId);
   }
 
   function removeVolGroup(groupIndex: number) {
@@ -3548,14 +3584,14 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     
     // Get the group to remove
     const groupToRemove = volGroups[groupIndex];
-    const paneIdToRemove = groupToRemove.paneId;
+    const paneIdToRemove = 'candle_pane';
     
     // Remove from groups array
     const oldLength = volGroups.length;
     volGroups.splice(groupIndex, 1);
     console.log(`📝 Removed group: ${oldLength} -> ${volGroups.length}`);
     
-    // Remove the specific Volume indicator from its pane
+    // Remove the specific Volume indicator from main pane
     if ($chart && paneIdToRemove) {
       try {
         console.log('🗑️ Removing Volume from pane:', paneIdToRemove);
@@ -3648,7 +3684,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if ($ctx.editIndName !== 'VOL' || !$chart || groupIndex < 0 || groupIndex >= volGroups.length) return;
     
     const group = volGroups[groupIndex];
-    const paneId = group.paneId;
+    const paneId = 'candle_pane';
     
     if (!paneId) {
       console.warn('⚠️ No paneId found for Volume group:', groupIndex);
@@ -3695,10 +3731,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             color: group.styles.ema.color,
             size: group.styles.ema.thickness,
             style: lineStyle,
-            dashedValue: dashedValue
+            dashedValue: dashedValue,
+            visible: group.styles.ema.visible !== false
           }]
         }
-      }, paneId === $ctx.editPaneId, { id: paneId });
+      }, true, { id: paneId });
       
       // Update the save system
       if (indicatorId) {
@@ -5092,6 +5129,20 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     if (savedInd && (savedInd as any).superTrendGroups && (savedInd as any).superTrendGroups.length > 0) {
       // Load saved SuperTrend groups
       superTrendGroups = [...(savedInd as any).superTrendGroups];
+    } else if (savedInd && Array.isArray(savedInd.params)) {
+      // Seed from saved params with our desired defaults (lime/red, 1px, dashed, labels on)
+      const period = Number(savedInd.params[0] ?? 10);
+      const multiplier = Number(savedInd.params[1] ?? 3);
+      superTrendGroups = [{
+        id: generateUUID(),
+        period,
+        multiplier,
+        showLabels: true,
+        styles: {
+          uptrend: {color: '#00FF00', thickness: 1, lineStyle: 'dashed'},
+          downtrend: {color: '#FF0000', thickness: 1, lineStyle: 'dashed'}
+        }
+      }];
     } else if (superTrendGroups.length === 0) {
       // Create default SuperTrend group
       superTrendGroups = [{
@@ -5100,8 +5151,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         multiplier: 3,
         showLabels: true,
         styles: {
-          uptrend: {color: '#00FF00', thickness: 2, lineStyle: 'solid'},
-          downtrend: {color: '#FF0000', thickness: 2, lineStyle: 'solid'}
+          uptrend: {color: '#00FF00', thickness: 1, lineStyle: 'dashed'},
+          downtrend: {color: '#FF0000', thickness: 1, lineStyle: 'dashed'}
         }
       }];
     }
@@ -5130,17 +5181,17 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       id: generateUUID(),
       period: (base?.period || 10) + 2,
       multiplier: base?.multiplier || 3.0,
-      showLabels: false,
+      showLabels: true,
       styles: {
         uptrend: {
           color: newColor,
           thickness: 1,
-          lineStyle: 'solid'
+          lineStyle: 'dashed'
         },
         downtrend: {
           color: '#FF0000',
           thickness: 1,
-          lineStyle: 'solid'
+          lineStyle: 'dashed'
         }
       }
     };
@@ -5173,6 +5224,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     superTrendGroups.forEach((group, index) => {
       const calcParams = [group.period, group.multiplier];
       const indicatorStyles = {
+        // Base line style (actual per-segment style is controlled via extendData)
         lines: [{
           color: group.styles.uptrend.color,
           size: group.styles.uptrend.thickness,
@@ -5186,7 +5238,11 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         extendData: {
           showLabels: group.showLabels,
           uptrendColor: group.styles.uptrend.color,
-          downtrendColor: group.styles.downtrend.color
+          downtrendColor: group.styles.downtrend.color,
+          uptrendThickness: group.styles.uptrend.thickness,
+          downtrendThickness: group.styles.downtrend.thickness,
+          uptrendLineStyle: group.styles.uptrend.lineStyle,
+          downtrendLineStyle: group.styles.downtrend.lineStyle
         }
       }, true, { id: targetPaneId });
     });
@@ -8108,6 +8164,19 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       volColorPaletteType = type;
       volColorPalettePosition = { x: event.clientX, y: event.clientY };
       showVolColorPalette = true;
+      
+      // If opening histogram color palette, immediately apply default 70% opacity to chart
+      // so that the visual matches the palette's default opacity without user interaction.
+      if (volGroups.length > groupIndex && (type === 'histogram' || type === 'histogram-down')) {
+        const group = volGroups[groupIndex];
+        if (type === 'histogram') {
+          group.styles.histogram.upColor = buildRgba(group.styles.histogram.upColor || '#26a69a', 70);
+        } else {
+          group.styles.histogram.downColor = buildRgba(group.styles.histogram.downColor || '#ef5350', 70);
+        }
+        // Update indicator to reflect new opacity immediately
+        updateVolIndicator(groupIndex);
+      }
     };
   }
 
@@ -9253,7 +9322,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             size: group.styles.ema.thickness,
             style: group.styles.ema.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
             dashedValue: group.styles.ema.lineStyle === 'dashed' ? [4, 4] : [2, 2],
-            smooth: false
+            smooth: false,
+            visible: group.styles.ema.visible !== false
           }
         ]
       };
@@ -13890,6 +13960,16 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           <!-- EMA Line Styling -->
           <div class="space-y-2">
             <h4 class="text-xs font-medium text-base-content/70">EMA Line</h4>
+            <!-- EMA Visibility Toggle -->
+            <div class="flex items-center gap-2">
+              <input 
+                type="checkbox" 
+                class="checkbox checkbox-sm" 
+                bind:checked={group.styles.ema.visible}
+                onchange={() => updateVolIndicator(groupIndex)}
+              />
+              <label class="text-xs text-base-content/60">Show EMA with Volume</label>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               <!-- EMA Color -->
               <div class="flex items-center gap-2">
@@ -13936,19 +14016,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         </div>
       {/each}
 
-      <!-- Add More Volume Button -->
-      <div class="flex justify-center mt-4">
-        <button 
-          class="btn btn-sm btn-outline btn-primary" 
-          onclick={addVolGroup}
-          title="Add more Volume indicator"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="0.5" d="M12 4v16m8-8H4" />
-          </svg>
-          Add More Volume
-        </button>
-      </div>
+      <!-- Add More Volume Button removed by request -->
     </div>
   {:else if isTrix}
     <!-- TRIX Groups UI -->
@@ -15575,6 +15643,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       ? (volGroups[volColorPaletteIndex]?.styles?.histogram?.downColor || '#ef5350')
       : (volGroups[volColorPaletteIndex]?.styles?.ema?.color || '#2563eb')
   }
+  opacity={volColorPaletteType === 'histogram' || volColorPaletteType === 'histogram-down' ? 70 : 100}
   position={volColorPalettePosition}
   on:colorChange={(e) => {
     if (volGroups.length > volColorPaletteIndex) {

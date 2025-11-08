@@ -245,6 +245,10 @@ let showTimezoneModal = $state(false);
   // Undo/Redo state
   let canUndo = $state(false);
   let canRedo = $state(false);
+  
+  // Scroll arrow state
+  let showScrollArrow = $state(false);
+  let menuContainerRef = $state<HTMLDivElement>();
 
   // Sync with SaveManager state
   $effect(() => {
@@ -338,6 +342,28 @@ let showTimezoneModal = $state(false);
       }
     }
     
+    // Check scroll on mount
+    checkScrollNeeded();
+    
+    // Handle scroll events
+    const handleScroll = () => {
+      checkScrollNeeded();
+    };
+    
+    // Handle resize events
+    const handleResize = () => {
+      checkScrollNeeded();
+    };
+    
+    if (menuContainerRef) {
+      menuContainerRef.addEventListener('scroll', handleScroll);
+    }
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Also check after a short delay to ensure all elements are rendered
+    setTimeout(checkScrollNeeded, 500);
+    
     return () => {
       clearInterval(interval);
       
@@ -349,6 +375,11 @@ let showTimezoneModal = $state(false);
           window.removeEventListener('orientationchange', handleOrientationChange);
         }
       }
+      
+      if (menuContainerRef) {
+        menuContainerRef.removeEventListener('scroll', handleScroll);
+      }
+      window.removeEventListener('resize', handleResize);
     };
   });
 
@@ -1387,6 +1418,32 @@ let showTimezoneModal = $state(false);
     showChartLoadPopup = true;
   }
 
+  // Check if menu container needs scroll
+  function checkScrollNeeded() {
+    if (!menuContainerRef) return;
+    
+    const { scrollWidth, clientWidth, scrollLeft } = menuContainerRef;
+    const hasOverflow = scrollWidth > clientWidth;
+    const isAtEnd = scrollLeft + clientWidth >= scrollWidth - 5; // 5px threshold
+    
+    // Show arrow if there's overflow and not at the end
+    showScrollArrow = hasOverflow && !isAtEnd;
+  }
+
+  // Auto-scroll the menu container
+  function handleScrollArrowClick() {
+    if (!menuContainerRef) return;
+    
+    const { scrollLeft, clientWidth, scrollWidth } = menuContainerRef;
+    const scrollAmount = clientWidth * 0.7; // Scroll 70% of visible width
+    const targetScroll = Math.min(scrollLeft + scrollAmount, scrollWidth - clientWidth);
+    
+    menuContainerRef.scrollTo({
+      left: targetScroll,
+      behavior: 'smooth'
+    });
+  }
+
 </script>
 
 {#snippet MenuButton(onClick: () => void, icon: string = "", text: string = "", size: number = 16, isActive: boolean = false)}
@@ -1466,7 +1523,8 @@ let showTimezoneModal = $state(false);
 <!-- Success toast for save actions -->
 <Toast bind:visible={toastVisible} message={toastMessage} duration={2000} />
 
-<div bind:this={periodBarRef} class="menu-container">
+<div class="menu-wrapper">
+<div bind:this={menuContainerRef} class="menu-container">
   <!-- Left side scrollable content -->
   <div class="menu-left-section">
     <!-- Toggle Button -->
@@ -1631,10 +1689,34 @@ let showTimezoneModal = $state(false);
       </button>
     </div>
     <!-- Sidebar toggle button - hidden on mobile, shown on desktop at the end -->
-    <div class="sidebar-toggle-wrapper hidden md:flex">
+    <div class="sidebar-toggle-wrapper hidden lg:flex">
       {@render MenuButton(toggleSidebar, "sidebar", "", 18)}
     </div>
   </div>
+</div>
+
+<!-- Scroll Arrow Indicator -->
+{#if showScrollArrow}
+  <button 
+    class="menu-scroll-arrow"
+    onclick={handleScrollArrowClick}
+    title="Scroll to see more"
+    aria-label="Scroll right"
+  >
+    <svg 
+      width="20" 
+      height="20" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      stroke-width="2.5" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"
+    >
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </button>
+{/if}
 </div>
 
 {#if showThemeConfirm}
@@ -1658,6 +1740,12 @@ let showTimezoneModal = $state(false);
  
 
 <style>
+/* Menu Wrapper - contains menu-container and scroll arrow */
+.menu-wrapper {
+  position: relative;
+  width: 100%;
+}
+
 /* Main Container */
 .menu-container {
   position: relative;
@@ -1675,6 +1763,7 @@ let showTimezoneModal = $state(false);
   overflow-x: auto;
   overflow-y: hidden;
   box-shadow: var(--menu-shadow);
+  scroll-behavior: smooth;
 }
 
 /* CSS Variables for Theming */
@@ -2281,5 +2370,115 @@ let showTimezoneModal = $state(false);
 /* Smooth transitions for theme changes */
 * {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Scroll Arrow Button */
+.menu-scroll-arrow {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--menu-active-bg);
+  border: 1.5px solid var(--menu-glow);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 
+    0 4px 12px var(--menu-glow),
+    0 2px 6px rgba(0, 0, 0, 0.2);
+  animation: pulse-arrow 2s ease-in-out infinite;
+}
+
+.menu-scroll-arrow:hover {
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 
+    0 6px 20px var(--menu-glow),
+    0 3px 10px rgba(0, 0, 0, 0.3);
+}
+
+.menu-scroll-arrow:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.menu-scroll-arrow svg {
+  color: white;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* Arrow pulse animation */
+@keyframes pulse-arrow {
+  0%, 100% {
+    transform: translateY(-50%) scale(1);
+    box-shadow: 
+      0 4px 12px var(--menu-glow),
+      0 2px 6px rgba(0, 0, 0, 0.2);
+  }
+  50% {
+    transform: translateY(-50%) scale(1.05);
+    box-shadow: 
+      0 6px 18px var(--menu-glow),
+      0 3px 8px rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* Dark theme arrow styles */
+:global([data-theme="dark"]) .menu-scroll-arrow {
+  background: linear-gradient(135deg, #8a2be2 0%, #9932cc 100%);
+  border-color: rgba(138, 43, 226, 0.6);
+}
+
+:global([data-theme="dark"]) .menu-scroll-arrow:hover {
+  border-color: rgba(138, 43, 226, 0.8);
+}
+
+/* Light theme arrow styles */
+:global([data-theme="light"]) .menu-scroll-arrow {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 
+    0 4px 12px rgba(59, 130, 246, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+:global([data-theme="light"]) .menu-scroll-arrow:hover {
+  border-color: rgba(59, 130, 246, 0.8);
+  box-shadow: 
+    0 6px 20px rgba(59, 130, 246, 0.5),
+    0 3px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* Mobile responsiveness for scroll arrow */
+@media (max-width: 768px) {
+  .menu-scroll-arrow {
+    width: 32px;
+    height: 32px;
+    right: 6px;
+  }
+  
+  .menu-scroll-arrow svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .menu-scroll-arrow {
+    width: 30px;
+    height: 30px;
+    right: 4px;
+  }
+  
+  .menu-scroll-arrow svg {
+    width: 16px;
+    height: 16px;
+  }
 }
 </style>

@@ -306,12 +306,15 @@ export default class MyDatafeed implements Datafeed {
 
   // Convert timeframe format from '1m', '5m', '1h' etc. to just numbers for stocknow API
   private convertResolutionForStockNow(resolution: string): string {
-    // Remove 'm' and 'h' suffixes and return just the number
+    // Normalize common resolutions expected by StockNow API
     if (resolution === "1d") {
       return "1D";
     }
     if (resolution === "1w") {
       return "1W";
+    }
+    if (resolution === "1M") {
+      return "1M";
     }
     if (resolution.endsWith("m")) {
       return resolution.slice(0, -1); // Remove 'm'
