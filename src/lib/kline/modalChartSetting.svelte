@@ -1343,6 +1343,23 @@
           }
         }
         
+        // Persist axis tick text colors and opacity to saved styles
+        try {
+          const xHex = tempSettings.get('xAxisTickTextColor') || getDefaultColors().xAxisTickTextColor;
+          const xOp = tempSettings.get('xAxisTickTextOpacity') ?? 100;
+          const xRgba = hexToRgba(xHex, (xOp as number) / 100);
+          _.set(s.styles, 'xAxis.tickText.color', xRgba);
+          _.set(s.styles, 'xAxis.tickText.opacity', xOp);
+          
+          const yHex = tempSettings.get('yAxisTickTextColor') || getDefaultColors().yAxisTickTextColor;
+          const yOp = tempSettings.get('yAxisTickTextOpacity') ?? 100;
+          const yRgba = hexToRgba(yHex, (yOp as number) / 100);
+          _.set(s.styles, 'yAxis.tickText.color', yRgba);
+          _.set(s.styles, 'yAxis.tickText.opacity', yOp);
+        } catch (e) {
+          console.warn('Failed to persist axis tick text colors:', e);
+        }
+        
         // Persist candle colors into saved styles
         try {
           const bar = (s.styles as any).candle.bar as Record<string, any>;
