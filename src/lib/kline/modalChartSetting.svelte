@@ -1473,6 +1473,16 @@
           s.styles.grid.vertical.color = defaults.gridColor;
           delete (s.styles as any).gridGradient;
           
+          // Axis tick text defaults (100% opacity)
+          const xHex = defaults.xAxisTickTextColor;
+          const yHex = defaults.yAxisTickTextColor;
+          const xRgba = hexToRgba(xHex, 1);
+          const yRgba = hexToRgba(yHex, 1);
+          _.set(s.styles, 'xAxis.tickText.color', xRgba);
+          _.set(s.styles, 'xAxis.tickText.opacity', 100);
+          _.set(s.styles, 'yAxis.tickText.color', yRgba);
+          _.set(s.styles, 'yAxis.tickText.opacity', 100);
+          
           // Candle defaults
           if (!s.styles.candle) (s.styles as any).candle = {};
           if (!(s.styles as any).candle.bar) (s.styles as any).candle.bar = {};
@@ -1496,6 +1506,14 @@
           if ($save.styles?.candle?.type) {
             _.set(mergedStyles, 'candle.type', $save.styles.candle.type);
           }
+          
+          // Ensure axis defaults present on the applied styles too
+          const xHex = getDefaultColors().xAxisTickTextColor;
+          const yHex = getDefaultColors().yAxisTickTextColor;
+          const xRgba = hexToRgba(xHex, 1);
+          const yRgba = hexToRgba(yHex, 1);
+          _.set(mergedStyles, 'xAxis.tickText.color', xRgba);
+          _.set(mergedStyles, 'yAxis.tickText.color', yRgba);
           
           const processed = processLineChartStyles(mergedStyles as unknown as Record<string, unknown>);
           $chart.setStyles(processed);
