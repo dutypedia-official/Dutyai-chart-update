@@ -181,7 +181,54 @@
           console.warn('⚠️ Failed to restore active saved data:', result.error);
         }
       } else {
-        console.log('ℹ️ No active saved data to restore');
+        // No active layout locally. If user has a server account (userId),
+        // auto-pick a saved layout from API and set it active for cross-device continuity.
+        let userId: string | null = null;
+        try {
+          userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+        } catch {}
+        
+        if (userId) {
+          console.log('🌐 No local active layout; attempting server-backed auto-restore for user:', userId);
+          
+          // Get a one-time snapshot of savedLayouts from the save manager state
+          let savedLayoutsSnapshot: any[] = [];
+          const unsubscribe = saveManager.state.subscribe((state: any) => {
+            savedLayoutsSnapshot = state?.savedLayouts || [];
+          });
+          unsubscribe && unsubscribe();
+          
+          // If not loaded yet, try refresh
+          if (!savedLayoutsSnapshot || savedLayoutsSnapshot.length === 0) {
+            try {
+              await saveManager.refresh();
+              const unsub2 = saveManager.state.subscribe((state: any) => {
+                savedLayoutsSnapshot = state?.savedLayouts || [];
+              });
+              unsub2 && unsub2();
+            } catch (e) {
+              console.warn('⚠️ Could not refresh saved layouts:', e);
+            }
+          }
+          
+          if (savedLayoutsSnapshot && savedLayoutsSnapshot.length > 0) {
+            // Pick the first layout (API currently does not flag active; this is a best-effort)
+            const chosen = savedLayoutsSnapshot[0];
+            console.log('🧭 Auto-selecting first saved layout from server:', chosen?.id, chosen?.name);
+            if (chosen?.id) {
+              const loadRes = await saveManager.load(chosen.id);
+              if (loadRes.success) {
+                console.log('✅ Server-backed layout auto-restored and set active:', chosen.id);
+              } else {
+                console.warn('⚠️ Failed to auto-load chosen server layout:', loadRes.error);
+              }
+            }
+          } else {
+            console.log('ℹ️ No server layouts found to auto-restore; keeping defaults.');
+          }
+        } else {
+          console.log('ℹ️ No active saved data to restore');
+        }
       }
     } catch (error) {
       console.error('❌ Error restoring active saved data:', error);
