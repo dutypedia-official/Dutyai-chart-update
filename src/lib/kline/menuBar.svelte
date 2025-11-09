@@ -1359,14 +1359,21 @@ let showAIModal = $state(false);
 
   async function handleSaveAsSelectSave(event: CustomEvent<{ layoutId: string }>) {
     const { layoutId } = event.detail;
+    console.log('💾 SaveAsSelectSave triggered with layoutId:', layoutId);
+    
     if (typeof window !== 'undefined' && (window as any).saveManager) {
       const saveManager = (window as any).saveManager;
+      console.log('✅ SaveManager found, calling saveTo...');
+      
       const result = await saveManager.saveTo(layoutId);
       if (result.success) {
+        console.log('✅ Save to existing successful');
         showSaveAsSelectModal = false;
       } else {
-        console.error('Save to existing failed:', result.error);
+        console.error('❌ Save to existing failed:', result.error);
       }
+    } else {
+      console.error('❌ SaveManager not available');
     }
   }
 

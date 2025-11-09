@@ -21,7 +21,10 @@
 
   function handleSave() {
     if (selectedId) {
+      console.log('💾 SaveAsSelectModal dispatching saveTo event with layoutId:', selectedId);
       dispatch('saveTo', { layoutId: selectedId });
+    } else {
+      console.log('❌ SaveAsSelectModal: No layout selected');
     }
   }
 
