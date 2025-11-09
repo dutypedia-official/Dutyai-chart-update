@@ -22,7 +22,7 @@ interface SuperTrendData {
  */
 export const superTrend: IndicatorTemplate = {
   name: 'SUPERTREND',
-  shortName: 'ST',
+  shortName: 'SmartTrend BuySell',
   precision: 2,
   calcParams: [10, 3], // Default period: 10, multiplier: 3
   shouldOhlc: true, // SuperTrend is overlaid on the main price chart
@@ -36,7 +36,7 @@ export const superTrend: IndicatorTemplate = {
     // SuperTrend line
     {
       key: 'superTrend',
-      title: 'SuperTrend: ',
+      title: 'SmartTrend: ',
       type: 'line'
     }
   ],
@@ -189,6 +189,83 @@ export const superTrend: IndicatorTemplate = {
 
     ctx.save();
     
+    // Helper: draw rounded rectangle
+    const drawRoundedRect = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) => {
+      const radius = Math.min(r, w / 2, h / 2);
+      c.beginPath();
+      c.moveTo(x + radius, y);
+      c.arcTo(x + w, y, x + w, y + h, radius);
+      c.arcTo(x + w, y + h, x, y + h, radius);
+      c.arcTo(x, y + h, x, y, radius);
+      c.arcTo(x, y, x + w, y, radius);
+      c.closePath();
+    };
+    
+    // Helper: convert hex color to rgba
+    const toRgba = (hex: string, alpha: number) => {
+      if (!hex) return `rgba(0,0,0,${alpha})`;
+      // Handle rgb/rgba strings directly
+      if (hex.startsWith('rgb')) {
+        // Basic replace alpha if rgba provided
+        if (hex.startsWith('rgba')) {
+          return hex.replace(/rgba\(([^)]+)\)/, (m, inner) => {
+            const parts = inner.split(',').map(p => p.trim());
+            return `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+          });
+        }
+        return hex.replace(/rgb\(([^)]+)\)/, (m, inner) => `rgba(${inner}, ${alpha})`);
+      }
+      // Assume #RRGGBB
+      const value = hex.replace('#', '');
+      const r = parseInt(value.substring(0, 2), 16);
+      const g = parseInt(value.substring(2, 4), 16);
+      const b = parseInt(value.substring(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+    
+    // Helper: stylish label with background, border and soft glow
+    const drawSignalLabel = (centerX: number, centerY: number, text: string, color: string) => {
+      const font = 'bold 10px Arial';
+      ctx.font = font;
+      const metrics = ctx.measureText(text);
+      // Fallback for height if metrics not supported
+      const textHeight = (metrics.actualBoundingBoxAscent && metrics.actualBoundingBoxDescent)
+        ? (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent)
+        : 10;
+      const paddingX = 6;
+      const paddingY = 4;
+      const boxW = Math.ceil(metrics.width) + paddingX * 2;
+      const boxH = Math.ceil(textHeight) + paddingY * 2;
+      const x = Math.round(centerX - boxW / 2);
+      const y = Math.round(centerY - boxH / 2);
+      
+      // Pulse glow
+      const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const pulse = 0.35 + 0.25 * Math.sin(now / 450);
+      
+      // Background with glow
+      ctx.save();
+      ctx.shadowColor = toRgba(color, Math.max(0, pulse));
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = toRgba(color, 0.14);
+      drawRoundedRect(ctx, x, y, boxW, boxH, 6);
+      ctx.fill();
+      ctx.restore();
+      
+      // Border
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = toRgba(color, 0.9);
+      drawRoundedRect(ctx, x, y, boxW, boxH, 6);
+      ctx.stroke();
+      
+      // Text
+      ctx.fillStyle = toRgba(color, 0.95);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = font;
+      ctx.fillText(text, centerX, centerY + 0.5);
+    };
+    
     // Get custom style data (colors, thickness, style per trend) from extendData
     const extendData = indicator.extendData as any;
     const showLabels = extendData?.showLabels !== false;
@@ -258,6 +335,23 @@ export const superTrend: IndicatorTemplate = {
     
     // Draw Buy/Sell signals if enabled
     if (showLabels) {
+      // Determine current reference price to compute live P/L
+      // Use last visible close if available, otherwise last data close
+      let currentPrice = 0;
+      try {
+        const fullDataList = (chart as any)?.getDataList?.() as KLineData[] | undefined;
+        if (fullDataList && fullDataList.length > 0) {
+          currentPrice = fullDataList[fullDataList.length - 1].close ?? 0;
+        } else {
+          // Fallback to last visible result price (use superTrend value as proxy)
+          const last = visibleData[visibleData.length - 1] as any;
+          currentPrice = (last?.superTrend ?? 0);
+        }
+      } catch {
+        // Ignore errors; default currentPrice remains 0
+      }
+      const precision = (indicator?.precision as number) ?? 2;
+      
       for (let i = 0; i < visibleData.length; i++) {
         const data = visibleData[i] as any;
         const x = xAxis.convertToPixel(from + i);
@@ -272,11 +366,12 @@ export const superTrend: IndicatorTemplate = {
           ctx.arc(x, y - 10, 4, 0, 2 * Math.PI);
           ctx.fill();
           
-          // Draw "BUY" text
-          ctx.fillStyle = '#00FF00';
-          ctx.font = '10px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('BUY', x, y - 20);
+          // Compute P/L from signal to current price for BUY
+          const diff = currentPrice ? (currentPrice - data.buySignal) : 0;
+          const diffText = `${diff >= 0 ? '+' : ''}${Number(diff).toFixed(precision)}`;
+          
+          // Stylish "BUY" pill label with background and glow
+          drawSignalLabel(x, y - 20, `BUY ${diffText}`, '#10B981'); // emerald-500 tone for nicer look
         }
         
         // Draw Sell signal
@@ -289,11 +384,12 @@ export const superTrend: IndicatorTemplate = {
           ctx.arc(x, y + 10, 4, 0, 2 * Math.PI);
           ctx.fill();
           
-          // Draw "SELL" text
-          ctx.fillStyle = '#FF0000';
-          ctx.font = '10px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('SELL', x, y + 25);
+          // Compute P/L from signal to current price for SELL
+          const diff = currentPrice ? (data.sellSignal - currentPrice) : 0;
+          const diffText = `${diff >= 0 ? '+' : ''}${Number(diff).toFixed(precision)}`;
+          
+          // Stylish "SELL" pill label with background and glow
+          drawSignalLabel(x, y + 25, `SELL ${diffText}`, '#EF4444'); // red-500 tone
         }
       }
     }

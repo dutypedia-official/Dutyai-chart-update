@@ -280,6 +280,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   const isRsi = $derived($ctx.editIndName === 'RSI');
   const isStochastic = $derived($ctx.editIndName === 'STOCH');
   const isSuperTrend = $derived($ctx.editIndName === 'SUPERTREND');
+  // Human-friendly modal title
+  const editTitle = $derived($ctx.editIndName === 'SUPERTREND' ? 'SmartTrend BuySell' : $ctx.editIndName);
 
   // ZigZag specific style variables
   let zigzagColor = $state('#2962FF');
@@ -11603,7 +11605,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
 
 </script>
 
-<Modal title={$ctx.editIndName} width={600} maxWidth="min(600px, 95vw)" maxHeight="90vh" bind:show={show} theme={$save.theme} click={handleConfirm}>
+<Modal title={editTitle} width={600} maxWidth="min(600px, 95vw)" maxHeight="90vh" bind:show={show} theme={$save.theme} click={handleConfirm}>
   <div class="responsive-modal-content">
     {#if isMacd}
     <!-- MACD Minimalist UI -->
@@ -13561,18 +13563,18 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       </div>
     </div>
   {:else if isSuperTrend}
-    <!-- SuperTrend Minimalist UI -->
+    <!-- SmartTrend BuySell Minimalist UI -->
     <div class="space-y-2 mt-3">
       {#each superTrendGroups as group, groupIndex}
         <div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3">
-          <!-- SuperTrend Header -->
+          <!-- SmartTrend Header -->
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-medium text-base-content/80">SuperTrend {groupIndex + 1}</span>
+            <span class="text-xs sm:text-sm font-medium text-base-content/80">SmartTrend BuySell {groupIndex + 1}</span>
             {#if superTrendGroups.length > 1}
               <button 
                 class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" 
                 onclick={() => removeSuperTrendGroup(group.id)}
-                title="Remove SuperTrend Group"
+                title="Remove SmartTrend Group"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -13581,7 +13583,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             {/if}
           </div>
           
-          <!-- SuperTrend Parameters Row -->
+          <!-- SmartTrend Parameters Row -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
             <div class="flex flex-col gap-1">
               <label class="text-xs text-base-content/60">Period</label>
@@ -13699,12 +13701,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         <button 
           class="btn btn-xs btn-outline btn-primary" 
           onclick={addSuperTrendGroup}
-          title="Add more SuperTrend"
+          title="Add more SmartTrend"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          Add SuperTrend
+          Add SmartTrend
         </button>
       </div>
     </div>

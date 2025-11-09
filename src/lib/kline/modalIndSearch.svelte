@@ -34,7 +34,7 @@
     { name: 'MA', title: 'MA (Moving Average)', is_main: true },
     { name: 'SAR', title: 'SAR (Parabolic SAR)', is_main: true },
     { name: 'SMA', title: 'SMA (Simple Moving Average)', is_main: true },
-    { name: 'SUPERTREND', title: 'SuperTrend (Trend Following Indicator)', is_main: true },
+    { name: 'SUPERTREND', title: 'SmartTrend BuySell', is_main: true },
     { name: 'ZIGZAG', title: 'ZigZag (Trend Reversal Indicator)', is_main: true },
     
     // Sub indicators (separate panes) - sorted alphabetically
@@ -139,9 +139,9 @@
       const keywordLow = keyword.toLowerCase();
       return base
         .filter(i =>
-          i.name.toLowerCase().includes(keywordLow) ||
-          i.title.toLowerCase().includes(keywordLow)
-        )
+        i.name.toLowerCase().includes(keywordLow) || 
+        i.title.toLowerCase().includes(keywordLow)
+      )
         .sort((a, b) => a.name.localeCompare(b.name));
     }
     return base;
@@ -257,19 +257,23 @@
         const ind_id = chartObj.createIndicator({
           name: 'SUPERTREND',
           calcParams: [10, 3.0],
+          // Base style for SmartTrend; per-trend colors/thickness/style come from extendData in draw()
           styles: {
-            lines: [
-              {
-                color: '#10B981', // Green for uptrend
-                size: 2,
-                style: kc.LineType.Solid
-              },
-              {
-                color: '#EF4444', // Red for downtrend
-                size: 2,
-                style: kc.LineType.Solid
-              }
-            ]
+            lines: [{
+              color: '#00FF00',
+              size: 1,
+              style: kc.LineType.Dashed,
+              dashedValue: [4, 4]
+            }]
+          },
+          extendData: {
+            showLabels: true,
+            uptrendColor: '#00FF00',
+            downtrendColor: '#FF0000',
+            uptrendThickness: 1,
+            downtrendThickness: 1,
+            uptrendLineStyle: 'dashed',
+            downtrendLineStyle: 'dashed'
           },
           // @ts-expect-error
           createTooltipDataSource: ({ indicator }) => {
@@ -285,10 +289,17 @@
             name: 'SUPERTREND', 
             pane_id: paneId, 
             params: [10, 3.0],
-            styles: [
-              {color: '#10B981', thickness: 2, lineStyle: 'solid'}, // Uptrend
-              {color: '#EF4444', thickness: 2, lineStyle: 'solid'}  // Downtrend
-            ]
+            // Persist a hint of defaults for modal to pick up if needed
+            superTrendGroups: [{
+              id: 'st_default',
+              period: 10,
+              multiplier: 3.0,
+              showLabels: true,
+              styles: {
+                uptrend: { color: '#00FF00', thickness: 1, lineStyle: 'dashed' },
+                downtrend: { color: '#FF0000', thickness: 1, lineStyle: 'dashed' }
+              }
+            }]
           };
           const saveKey = `${paneId}_SUPERTREND`;
           

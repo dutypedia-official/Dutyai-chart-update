@@ -1460,10 +1460,15 @@ let showAIModal = $state(false);
     const scrollAmount = clientWidth * 0.7; // Scroll 70% of visible width
     const targetScroll = Math.min(scrollLeft + scrollAmount, scrollWidth - clientWidth);
     
-    menuContainerRef.scrollTo({
-      left: targetScroll,
-      behavior: 'smooth'
-    });
+    try {
+      menuContainerRef.scrollTo({
+        left: targetScroll,
+        behavior: 'smooth'
+      });
+    } catch (_) {
+      // Fallback for WebView implementations without smooth scroll
+      menuContainerRef.scrollLeft = targetScroll;
+    }
   }
   
   // Handle touch events for mobile WebView compatibility
@@ -1721,7 +1726,7 @@ let showAIModal = $state(false);
         </div>
       </button>
     </div>
-    
+
     <!-- Chart Type Section -->
     <div class="chart-type-section">
       {@render MenuButton(() => showChartTypeModal = true, getCurrentChartType().icon, getCurrentChartType().name)}
@@ -1825,9 +1830,10 @@ let showAIModal = $state(false);
 {#if showScrollArrow}
   <button 
     class="menu-scroll-arrow"
-    onclick={handleScrollArrowClick}
-    ontouchstart={handleScrollArrowTouch}
-    ontouchend={(e) => e.preventDefault()}
+    onclick={(e) => handleScrollArrowClick(e)}
+    ontouchstart={(e) => handleScrollArrowTouch(e)}
+    ontouchend={(e) => { e.preventDefault(); e.stopPropagation(); }}
+    onpointerdown={(e) => handleScrollArrowClick(e)}
     title="Scroll to see more"
     aria-label="Scroll right"
     type="button"
@@ -2840,6 +2846,7 @@ let showAIModal = $state(false);
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
+  pointer-events: auto;
 }
 
 .menu-scroll-arrow:hover {
