@@ -331,6 +331,21 @@ export const superTrend: IndicatorTemplate = {
       }
       
       ctx.stroke();
+      
+      // Exit/Hold marker:
+      // - For segments that ended due to a trend change → show "EXIT"
+      // - For the active, ongoing (last) segment → show "HOLD"
+      if (showLabels) {
+        const endData = visibleData[segment.end] as any;
+        if (endData && endData.superTrend !== undefined) {
+          const isLastSegment = segment === segments[segments.length - 1];
+          const labelText = isLastSegment ? 'HOLD' : 'EXIT';
+          const endX = xAxis.convertToPixel(from + segment.end);
+          const endY = yAxis.convertToPixel(endData.superTrend);
+          const offsetY = isUp ? -26 : 26;
+          drawSignalLabel(endX, endY + offsetY, labelText, color);
+        }
+      }
     });
     
     // Draw Buy/Sell signals if enabled

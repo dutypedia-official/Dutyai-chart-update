@@ -1838,18 +1838,20 @@ let showAIModal = $state(false);
     aria-label="Scroll right"
     type="button"
   >
-    <svg 
-      width="20" 
-      height="20" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      stroke-width="2.5" 
-      stroke-linecap="round" 
-      stroke-linejoin="round"
-    >
-      <polyline points="9 18 15 12 9 6"></polyline>
-    </svg>
+    <span class="arrow-icon">
+      <svg 
+        width="20" 
+        height="20" 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        stroke-width="2.5" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"
+      >
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </span>
   </button>
 {/if}
 </div>
@@ -2932,5 +2934,20 @@ let showAIModal = $state(false);
     width: 16px;
     height: 16px;
   }
+}
+
+/* Subtle horizontal nudge to suggest scrolling */
+.menu-scroll-arrow .arrow-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  animation: arrow-nudge 2.4s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes arrow-nudge {
+  0%, 60%, 100% { transform: translateX(0); }
+  12%, 22% { transform: translateX(6px); }
+  30% { transform: translateX(0); }
 }
 </style>

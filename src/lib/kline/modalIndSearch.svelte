@@ -115,6 +115,10 @@
   
   let keyword = $state('');
   let wasOpenedFromIndicatorList = $state(false);
+  // Snapshot of selected indicators captured at the moment the modal opens.
+  // Used to pin those indicators at the top while the modal remains open.
+  let pinnedOnOpen = $state<Set<string>>(new Set());
+  let prevShow = $state(false);
   
   // Scroll-based search bar hide/show
   let isSearchBarVisible = $state(true);
@@ -134,18 +138,48 @@
   });
 
   let showInds = $derived.by(() => {
-    const base = sortedIndicators;
+    // Start from alphabetically sorted base
+    let base = sortedIndicators;
     if (keyword) {
       const keywordLow = keyword.toLowerCase();
-      return base
+      base = base
         .filter(i =>
-        i.name.toLowerCase().includes(keywordLow) || 
-        i.title.toLowerCase().includes(keywordLow)
-      )
+          i.name.toLowerCase().includes(keywordLow) ||
+          i.title.toLowerCase().includes(keywordLow)
+        )
         .sort((a, b) => a.name.localeCompare(b.name));
+    }
+    // When modal is open, keep the snapshot of selected indicators (captured on open)
+    // pinned at the top; both pinned and the rest keep alphabetical order.
+    if (show && pinnedOnOpen.size > 0) {
+      const pinned = base.filter(i => pinnedOnOpen.has(i.name));
+      const rest = base.filter(i => !pinnedOnOpen.has(i.name));
+      return [...pinned, ...rest];
     }
     return base;
   })
+  
+  // Capture a snapshot of currently selected indicators when the modal opens,
+  // and reset when it closes. This ensures:
+  // - Added indicators while open stay in alphabetical position (not re-pinned)
+  // - Deleted indicators while open remain pinned at top until the modal closes
+  $effect(() => {
+    if (show !== prevShow) {
+      if (show) {
+        // Snapshot current selection at open time
+        const snapshot = new Set<string>();
+        selectedIndicators.forEach?.((name: string) => snapshot.add(name));
+        // For non-iterable Sets (in some runtimes), fallback:
+        if (snapshot.size === 0 && selectedIndicators && (selectedIndicators as any).size > 0) {
+          for (const name of (selectedIndicators as any).values()) snapshot.add(name);
+        }
+        pinnedOnOpen = snapshot;
+      } else {
+        pinnedOnOpen = new Set();
+      }
+      prevShow = show;
+    }
+  });
 
   // Function to get specific icon for each indicator
   function getIndicatorIcon(name: string): string {
@@ -1614,7 +1648,7 @@
 
 </script>
 
-<Modal title={m.indicator()} width={700} bind:show={show} theme={$save.theme} buttons={[]}>
+<Modal title={m.indicator()} width={700} maxWidth="95vw" maxHeight="min(92svh, 90vh)" bind:show={show} theme={$save.theme} buttons={[]} class="ind-modal">
   <div class="flex flex-col gap-6">
     <!-- Ultra-Minimalist Premium Search -->
     <div class="relative group transition-all duration-300 ease-out {isSearchBarVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'}">
@@ -1646,11 +1680,11 @@
     
     <!-- Ultra-Minimalist Premium Indicator List -->
     <div class="relative rounded-2xl overflow-hidden backdrop-blur-sm indicator-list-container">
-      <div class="h-[480px] overflow-y-auto ultra-minimal-scrollbar" bind:this={scrollContainer} onscroll={handleScroll}>
+      <div class="indicator-scroll ultra-minimal-scrollbar" bind:this={scrollContainer} onscroll={handleScroll}>
         {#each showInds as ind, index}
           {@const isSelected = selectedIndicators.has(ind.name)}
           <div 
-            class="group relative flex items-center min-h-[56px] px-5 py-3 cursor-pointer transition-all duration-500 ease-out
+            class="group indicator-row relative flex items-center min-h-[56px] px-5 py-3 cursor-pointer transition-all duration-500 ease-out
                    {index < showInds.length - 1 ? 'border-b' : ''} 
                    {isSelected ? 'indicator-item-selected' : 'indicator-item-unselected'}"
             onclick={() => !isSelected && addIndicator(ind.is_main, ind.name)}
@@ -1662,7 +1696,7 @@
             
             <!-- Clean Typography -->
             <div class="flex-1 min-w-0">
-              <span class="text-[15px] font-medium tracking-wide leading-relaxed 
+              <span class="indicator-title text-[15px] font-medium tracking-wide leading-relaxed 
                            {isSelected ? 'indicator-text-selected' : 'indicator-text-unselected'}">
                 {ind.title}
               </span>
@@ -2037,6 +2071,64 @@
     
     .ultra-minimal-scrollbar::-webkit-scrollbar {
       width: 1px;
+    }
+  }
+  
+  /* ===== Responsive, Touch-friendly Scroll Container for Indicator List ===== */
+  .indicator-scroll {
+    max-height: 70vh;           /* default for desktops/tablets */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;  /* smooth iOS scrolling */
+    overscroll-behavior: auto;          /* allow parent modal to scroll after list end */
+    touch-action: pan-y;                /* improve touch panning */
+  }
+  
+  @media (max-width: 1024px) {
+    .indicator-scroll {
+      max-height: 65vh;         /* tighter cap on smaller screens */
+    }
+  }
+  
+  @media (max-width: 640px) and (orientation: portrait) {
+    .indicator-scroll {
+      max-height: 62vh;         /* portrait phones */
+    }
+  }
+  
+  @media (max-width: 900px) and (orientation: landscape) {
+    .indicator-scroll {
+      max-height: 52vh;         /* landscape phones where viewport height is low */
+    }
+  }
+  
+  /* ===== Compact rows in tight vertical space (mobile landscape) ===== */
+  @media (max-width: 900px) and (orientation: landscape) {
+    .indicator-row {
+      min-height: 50px;
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+  }
+  
+  /* ===== Title clamping for long indicator names ===== */
+  .indicator-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;      /* show up to 2 lines, then ellipsis */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  @media (max-width: 900px) and (orientation: landscape) {
+    .indicator-title {
+      font-size: 14px;          /* slightly smaller text to save space */
+      line-height: 1.3;
+    }
+  }
+  
+  /* ===== Hide modal header for this modal in mobile landscape to save space ===== */
+  @media (max-width: 900px) and (orientation: landscape) {
+    :global(.ind-modal .modal-header) {
+      display: none;
     }
   }
 </style>
