@@ -1448,7 +1448,12 @@ let showAIModal = $state(false);
   }
 
   // Auto-scroll the menu container
-  function handleScrollArrowClick() {
+  function handleScrollArrowClick(e?: Event) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!menuContainerRef) return;
     
     const { scrollLeft, clientWidth, scrollWidth } = menuContainerRef;
@@ -1459,6 +1464,13 @@ let showAIModal = $state(false);
       left: targetScroll,
       behavior: 'smooth'
     });
+  }
+  
+  // Handle touch events for mobile WebView compatibility
+  function handleScrollArrowTouch(e: TouchEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    handleScrollArrowClick();
   }
 
 </script>
@@ -1814,8 +1826,11 @@ let showAIModal = $state(false);
   <button 
     class="menu-scroll-arrow"
     onclick={handleScrollArrowClick}
+    ontouchstart={handleScrollArrowTouch}
+    ontouchend={(e) => e.preventDefault()}
     title="Scroll to see more"
     aria-label="Scroll right"
+    type="button"
   >
     <svg 
       width="20" 
@@ -2819,6 +2834,12 @@ let showAIModal = $state(false);
     0 4px 12px var(--menu-glow),
     0 2px 6px rgba(0, 0, 0, 0.2);
   animation: pulse-arrow 2s ease-in-out infinite;
+  
+  /* WebView touch support */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .menu-scroll-arrow:hover {

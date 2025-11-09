@@ -1349,7 +1349,12 @@ function checkScrollNeeded() {
 }
 
 // Auto-scroll the drawbar container
-function handleScrollArrowClick() {
+function handleScrollArrowClick(e?: Event) {
+  if (e) {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  
   if (!drawbarContainerRef) return
   
   const { scrollTop, clientHeight, scrollHeight } = drawbarContainerRef
@@ -1360,6 +1365,13 @@ function handleScrollArrowClick() {
     top: targetScroll,
     behavior: 'smooth'
   })
+}
+
+// Handle touch events for mobile WebView compatibility
+function handleScrollArrowTouch(e: TouchEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+  handleScrollArrowClick()
 }
 
 // Monitor scroll state for drawbar
@@ -1573,8 +1585,11 @@ export function externalRemoved(overlayId: string) {
   <button 
     class="drawbar-scroll-arrow"
     onclick={handleScrollArrowClick}
+    ontouchstart={handleScrollArrowTouch}
+    ontouchend={(e) => e.preventDefault()}
     title="Scroll to see more tools"
     aria-label="Scroll down"
+    type="button"
   >
     <svg 
       width="12" 
@@ -2145,6 +2160,12 @@ export function externalRemoved(overlayId: string) {
     -webkit-backdrop-filter: blur(8px);
     box-shadow: 0 2px 6px rgba(59, 130, 246, 0.15);
     opacity: 0.7;
+    
+    /* WebView touch support */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   .drawbar-scroll-arrow:hover {
