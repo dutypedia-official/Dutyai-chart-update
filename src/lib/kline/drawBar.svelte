@@ -44,6 +44,8 @@ let contextMenuStyles = $state({
 let isDragging = $state(false)
 let dragOffset = $state({ x: 0, y: 0 })
 let contextMenuPosition = $state<{x: number, y: number} | null>(null)
+// Track last time user interacted with the floating panel (e.g., dragging)
+let lastPanelInteractionAt = $state(0)
 
 // Clone and Copy functionality
 let copiedOverlay = $state<any>(null)
@@ -456,6 +458,8 @@ export function addOverlay(data: any){
       if(overlayClass.onSelected){
         overlayClass.onSelected(event)
       }
+      // Prevent immediate hide from chart click debouncer on desktop
+      lastOverlaySelectAt = Date.now()
       selectDraw = event.overlay.id
       selectedOverlay = event.overlay
       
@@ -788,27 +792,33 @@ function updateOverlayStyles() {
 // Drag functionality for context menu
 function startDrag(e: MouseEvent | TouchEvent) {
   isDragging = true
+  lastPanelInteractionAt = Date.now()
   
   // Handle both mouse and touch events
   const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX
   const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY
   
   const rect = (e.target as HTMLElement).closest('.context-menu-container')?.getBoundingClientRect()
-  if (rect && contextMenuPosition) {
+  if (rect) {
+    // Use actual rendered panel position (viewport coords) for precise grab offset
+    dragOffset.x = clientX - rect.left
+    dragOffset.y = clientY - rect.top
+  } else if (contextMenuPosition) {
+    // Fallback to stored position
     dragOffset.x = clientX - contextMenuPosition.x
     dragOffset.y = clientY - contextMenuPosition.y
   }
   e.preventDefault()
+  // Prevent bubbling to chart container which could be interpreted as a click
+  if (e.stopPropagation) (e as any).stopPropagation()
 }
 
 function onMouseMove(e: MouseEvent | TouchEvent) {
   if (isDragging && contextMenuPosition) {
+    lastPanelInteractionAt = Date.now()
     // Handle both mouse and touch events
     const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX
     const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY
-    
-    // Get chart container bounds for better boundary detection
-    const chartBounds = getChartContainerBounds()
     
     // Responsive menu dimensions
     const isMobile = window.innerWidth <= 768
@@ -816,17 +826,19 @@ function onMouseMove(e: MouseEvent | TouchEvent) {
     const menuHeight = isMobile ? 40 : 60
     const minMargin = isMobile ? 5 : 10
     
-    // Calculate new position relative to chart bounds
     const chartRect = chartContainer?.getBoundingClientRect()
-    const relativeX = clientX - (chartRect?.left || 0) - dragOffset.x
-    const relativeY = clientY - (chartRect?.top || 0) - dragOffset.y
+    // Compute desired viewport-fixed position directly under cursor
+    let desiredLeft = clientX - dragOffset.x
+    let desiredTop = clientY - dragOffset.y
     
-    // Apply boundary constraints within chart area
-    const newX = Math.max(minMargin, Math.min(relativeX, chartBounds.width - menuWidth - minMargin))
-    const newY = Math.max(minMargin, Math.min(relativeY, chartBounds.height - menuHeight - minMargin))
+    // Constrain within chart viewport bounds
+    const minX = (chartRect?.left || 0) + minMargin
+    const maxX = (chartRect ? chartRect.right : window.innerWidth) - menuWidth - minMargin
+    const minY = (chartRect?.top || 0) + minMargin
+    const maxY = (chartRect ? chartRect.bottom : window.innerHeight) - menuHeight - minMargin
     
-    contextMenuPosition.x = newX
-    contextMenuPosition.y = newY
+    contextMenuPosition.x = Math.max(minX, Math.min(desiredLeft, maxX))
+    contextMenuPosition.y = Math.max(minY, Math.min(desiredTop, maxY))
   }
 }
 
@@ -835,6 +847,7 @@ function stopDrag() {
     savePosition(contextMenuPosition)
   }
   isDragging = false
+  lastPanelInteractionAt = Date.now()
 }
 
 // Touch event handlers
@@ -1301,7 +1314,8 @@ clickChart.subscribe(() => {
   popoverKey = ''
   // Hide floating panel when clicking on chart background.
   // Skip if just selected an overlay (to avoid immediate hide due to event bubbling).
-  if (Date.now() - lastOverlaySelectAt > 120) {
+  const now = Date.now()
+  if ((now - lastOverlaySelectAt > 150) && !isDragging) {
     showContextMenu = false
     showDeleteButton = false
     showMoreOptions = false

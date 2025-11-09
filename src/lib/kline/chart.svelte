@@ -1,5 +1,5 @@
 <script lang="ts">
-  console.log('📊 Chart component script loaded');
+  console.log('👋 Welcome to Duty AI Chart');
   import {page} from '$app/stores';
   import { setContext } from 'svelte';
   import * as kc from 'klinecharts';
@@ -17,7 +17,7 @@
   import SidebarHost from './SidebarHost.svelte';
 
   import {browser} from '$app/environment';
-  import {getThemeStyles,GetNumberDotOffset, build_ohlcvs, currentSymbol, currentPeriod, processLineChartStyles, convertToHeikinAshi} from './coms';
+  import {getThemeStyles,GetNumberDotOffset, build_ohlcvs, currentSymbol, currentPeriod, processLineChartStyles, convertToHeikinAshi, convertToRenko} from './coms';
   import {tf_to_secs, toUTCStamp} from '../dateutil';
   import { createAlertStore } from '../stores/alerts';
 	import Alert from '../alert.svelte';
@@ -98,6 +98,8 @@
   let historicalLoadError = $state<string | null>(null);
   // Track if user is pinned to the right edge (latest bars)
   let isPinnedToRight = true;
+  // When using Renko, track earliest RAW timestamp fetched so we can request older chunks correctly
+  let renkoEarliestRawTs: number | null = null;
   let showUnsavedModal = $state(false);
   // Cleanup reference for infinite scrolling poller
   let infiniteScrollCleanup: (() => void) | null = null;
@@ -941,13 +943,26 @@
       console.log('🔄 Loading more historical data...');
       
       try {
-        const newData = await datafeed.loadMoreHistoricalData($save.symbol, $save.period, earliestTimestamp);
+        // For Renko, use earliest RAW timestamp window rather than brick timestamp
+        const isRenko = $save.styles?.candle?.type === 'renko_atr';
+        const rawBoundary = isRenko ? (renkoEarliestRawTs ?? earliestTimestamp) : earliestTimestamp;
+        const newData = await datafeed.loadMoreHistoricalData($save.symbol, $save.period, rawBoundary);
         
         if (newData.data.length > 0) {
-          // Apply Heikin Ashi conversion if needed
+          // Apply chart-type specific transformations if needed
           let klines = newData.data;
           if ($save.styles?.candle?.type === 'heikin_ashi') {
             klines = convertToHeikinAshi(klines);
+          } else if ($save.styles?.candle?.type === 'renko_atr') {
+            const renkoCfg = ($save.styles as any)?.candle?.renko || { method: 'ATR', atrLength: 14, source: 'close', wick: false };
+            klines = convertToRenko(klines, renkoCfg);
+            // Update earliest RAW boundary for next fetch
+            try {
+              const minTs = newData.data && newData.data.length ? Math.min(...newData.data.map((d: any) => d.timestamp || 0)) : null;
+              if (minTs && (!renkoEarliestRawTs || minTs < renkoEarliestRawTs)) {
+                renkoEarliestRawTs = minTs;
+              }
+            } catch {}
           }
           
           // Get current data and merge properly
@@ -1096,9 +1111,19 @@
     
 
     
-    // Apply Heikin Ashi conversion if chart type is heikin_ashi
+    // Apply chart-type specific transformations
     if ($save.styles?.candle?.type === 'heikin_ashi') {
       klines = convertToHeikinAshi(klines);
+    } else if ($save.styles?.candle?.type === 'renko_atr') {
+      // Update earliest RAW timestamp window for infinite scroll
+      try {
+        const minTs = kdata.data && kdata.data.length ? Math.min(...kdata.data.map((d: any) => d.timestamp || 0)) : null;
+        if (minTs && (!renkoEarliestRawTs || minTs < renkoEarliestRawTs)) {
+          renkoEarliestRawTs = minTs;
+        }
+      } catch {}
+      const renkoCfg = ($save.styles as any)?.candle?.renko || { method: 'ATR', atrLength: 14, source: 'close', wick: false };
+      klines = convertToRenko(klines, renkoCfg);
     }
     
     // Validate timestamps before applying to chart
@@ -1115,8 +1140,9 @@
       console.log('⏭️ Ignoring stale load result');
       return;
     }
-    const hasMore = loadMore && klines.length > 0;
-    chartObj.applyNewData(klines, hasMore);
+    const isRenko = $save.styles?.candle?.type === 'renko_atr';
+    const hasMore = !isRenko && (loadMore && klines.length > 0);
+    chartObj.applyNewData(klines, !!hasMore);
     if(kdata.lays && kdata.lays.length > 0 && !!drawBarRef){
       kdata.lays.forEach(o => {
         drawBarRef!.addOverlay(o)
@@ -1131,7 +1157,7 @@
       const tf_msecs = tf_to_secs(period.timeframe) * 1000
       const curTime = new Date().getTime()
       const stop_ms = klines[klines.length - 1].timestamp + tf_msecs
-      if (stop_ms + tf_msecs > curTime) {
+      if (!isRenko && (stop_ms + tf_msecs > curTime)) {
         // 加载的是最新的bar，则自动开启websocket监听
         datafeed.subscribe(symbol, (param: unknown) => {
           const result = param as { bars: BarArr[], secs: number };
@@ -1214,6 +1240,9 @@
     // Update global period store for tooltip display
     currentPeriod.set($save.period);
     
+    // Reset renko earliest boundary when timeframe changes
+    renkoEarliestRawTs = null;
+    
     if (customLoad || !$chart) return
     
     // Use render integration for flicker-free timeframe change
@@ -1237,6 +1266,8 @@
     console.log('📊 Loading state:', $ctx.loadingKLine, 'Custom load:', customLoad);
     // Update global symbol store for tooltip
     currentSymbol.set($save.symbol);
+    // Reset renko earliest boundary when symbol changes
+    renkoEarliestRawTs = null;
     
     // Update DrawingManager with new symbol
     if (drawingManager) {
@@ -1364,11 +1395,13 @@
   chartType.subscribe((new_val) => {
     if ($ctx.loadingKLine || customLoad) return
     
-    // 当切换到或从Heikin Ashi时，重新加载数据以应用转换
+    // 当切换到或从Heikin Ashi/Renko时，重新加载数据以应用转换
     const chartObj = $chart;
     if (!chartObj) return;
+    // Reset renko earliest boundary on type change
+    renkoEarliestRawTs = null;
     
-    if (new_val === 'heikin_ashi' || (new_val !== 'heikin_ashi' && chartObj.getDataList().length > 0)) {
+    if (new_val === 'heikin_ashi' || new_val === 'renko_atr' || ((new_val !== 'heikin_ashi' && new_val !== 'renko_atr') && chartObj.getDataList().length > 0)) {
       // Use render integration for flicker-free chart type change
       renderIntegration.switchChartType({
         chart: chartObj,
@@ -1379,6 +1412,26 @@
       });
     }
   })
+
+  // Reload when Renko settings change (ATR length, wick, source) while Renko is active
+  const renkoConfig = derived(save, ($save) => {
+    const cfg = ($save.styles as any)?.candle?.renko || {};
+    // stringify to detect deep changes
+    return JSON.stringify(cfg);
+  });
+  renkoConfig.subscribe((_str) => {
+    if ($ctx.loadingKLine || customLoad) return;
+    if (($save.styles?.candle?.type) !== 'renko_atr') return;
+    const chartObj = $chart;
+    if (!chartObj) return;
+    renderIntegration.switchChartType({
+      chart: chartObj,
+      newType: 'renko_atr',
+      reloadDataFn: async () => {
+        await loadSymbolPeriod();
+      }
+    });
+  });
 
   // 监听数据加载动作
   const fireOhlcv = derived(ctx, ($ctx) => $ctx.fireOhlcv);

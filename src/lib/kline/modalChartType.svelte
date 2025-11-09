@@ -22,6 +22,7 @@
     { id: 'candle_up_stroke', name: 'Up Hollow', icon: 'candle_up_stroke' },
     { id: 'candle_down_stroke', name: 'Down Hollow', icon: 'candle_down_stroke' },
     { id: 'heikin_ashi', name: 'Heikin Ashi', icon: 'candle_solid' },
+    { id: 'renko_atr', name: 'Renko', icon: 'candle_solid' },
     { id: 'ohlc', name: 'OHLC', icon: 'ohlc' },
     { id: 'area', name: 'Area', icon: 'area' },
     { id: 'line_chart', name: 'Line', icon: 'line' } // Changed from 'line' to 'line_chart'
@@ -92,6 +93,21 @@
         ]
       };
       console.log('✅ Area chart configured with gradient background');
+    } else if (chartType.id === 'renko_atr') {
+      console.log('🎯 Setting up RENKO (ATR) chart');
+      $save.styles.candle.type = 'renko_atr';
+      // Initialize default Renko settings if missing
+      if (!$save.styles.candle.renko) {
+        ($save.styles.candle as any).renko = {
+          method: 'ATR',
+          atrLength: 14,
+          source: 'close',
+          wick: true
+        };
+      }
+      // Remove line/area specific config if any
+      delete $save.styles.candle._isLineChart;
+      delete $save.styles.candle.area;
     } else {
       $save.styles.candle.type = chartType.id;
       // Remove line chart marker if switching to other type
@@ -361,6 +377,7 @@
         height: 50px;
         border-radius: 12px;
       }
+
     }
     
     .icon-glow {
@@ -576,3 +593,4 @@
     }
   </style>
 </Modal>
+

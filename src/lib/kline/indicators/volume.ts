@@ -155,7 +155,7 @@ export const volume: IndicatorTemplate = {
     ctx.globalAlpha = 1;
 
     // Draw EMA line within the same band (+ triangle fill if visible)
-    const emaVisible = (indicator as any)?.styles?.lines?.[0]?.visible !== false;
+    const emaVisible = (indicator as any)?.styles?.lines?.[0]?.visible === true;
     if (emaVisible) {
       const lineStyle = indicator.styles?.lines?.[0]?.style || kc.LineType.Solid;
       const lineSize = indicator.styles?.lines?.[0]?.size || 1;

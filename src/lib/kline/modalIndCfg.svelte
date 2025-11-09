@@ -3556,7 +3556,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             size: newGroup.styles.ema.thickness,
             style: lineStyle,
             dashedValue: dashedValue,
-            visible: newGroup.styles.ema.visible !== false
+            visible: newGroup.styles.ema.visible === true
           }]
         }
       }, true, { id: newPaneId }); // true = stack on main pane
@@ -3734,7 +3734,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             size: group.styles.ema.thickness,
             style: lineStyle,
             dashedValue: dashedValue,
-            visible: group.styles.ema.visible !== false
+            visible: group.styles.ema.visible === true
           }]
         }
       }, true, { id: paneId });
@@ -9325,7 +9325,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             style: group.styles.ema.lineStyle === 'solid' ? kc.LineType.Solid : kc.LineType.Dashed,
             dashedValue: group.styles.ema.lineStyle === 'dashed' ? [4, 4] : [2, 2],
             smooth: false,
-            visible: group.styles.ema.visible !== false
+            visible: group.styles.ema.visible === true
           }
         ]
       };
@@ -9335,7 +9335,15 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         $chart?.overrideIndicator({
           name: 'VOL',
           calcParams: calcParams,
-          styles: indicatorStyles,
+          styles: {
+            ...indicatorStyles,
+            lines: [
+              {
+                ...indicatorStyles.lines[0],
+                visible: group.styles.ema.visible === true
+              }
+            ]
+          },
           paneId: group.paneId
         });
         

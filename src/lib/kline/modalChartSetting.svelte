@@ -179,6 +179,65 @@
   let candleWickBullColor = $state('#26a69a');
   let candleWickBearColor = $state('#ef5350');
   
+  // Renko settings UI state (bound to $save.styles.candle.renko)
+  const isRenkoActive = $derived(($save.styles?.candle?.type) === 'renko_atr');
+  let renkoWick = $state(false);
+  let renkoSource = $state<'close' | 'open' | 'high' | 'low'>('close');
+  let renkoMethod = $state<'ATR'>('ATR');
+  let renkoAtrLength = $state(14);
+
+  // Initialize renko UI values from saved styles when modal opens
+  $effect(() => {
+    if (!show) return;
+    const cfg = ($save.styles as any)?.candle?.renko || {};
+    // Default OFF unless explicitly true
+    renkoWick = !!cfg.wick;
+    renkoSource = (cfg.source || 'close');
+    renkoMethod = (cfg.method || 'ATR');
+    renkoAtrLength = Math.max(1, (cfg.atrLength ?? 14) | 0);
+  });
+  // Auto-show Renko tab only when Renko chart is active; otherwise keep Candle
+  $effect(() => {
+    if (!show) return;
+    if (isRenkoActive) {
+      activeTab = activeTab === 'canvas' || activeTab === 'other' ? activeTab : 'renko';
+    } else if (activeTab === 'renko') {
+      activeTab = 'candle';
+    }
+  });
+
+  function persistRenkoConfig(updates: Partial<{ wick: boolean; source: 'close' | 'open' | 'high' | 'low'; method: 'ATR'; atrLength: number }>) {
+    save.update(s => {
+      if (!s.styles) s.styles = {};
+      if (!s.styles.candle) (s.styles as any).candle = {};
+      const candle: any = (s.styles as any).candle;
+      if (!candle.renko) candle.renko = { method: 'ATR', atrLength: 14, source: 'close', wick: false };
+      candle.renko = { ...candle.renko, ...updates };
+      return s;
+    });
+  }
+
+  function handleRenkoWickChange(e: Event) {
+    const val = (e.target as HTMLInputElement).checked;
+    renkoWick = val;
+    persistRenkoConfig({ wick: val });
+  }
+  function handleRenkoSourceChange(e: Event) {
+    const val = (e.target as HTMLSelectElement).value as 'close' | 'open' | 'high' | 'low';
+    renkoSource = val;
+    persistRenkoConfig({ source: val });
+  }
+  function handleRenkoMethodChange(e: Event) {
+    const val = 'ATR';
+    renkoMethod = val;
+    persistRenkoConfig({ method: val });
+  }
+  function handleRenkoAtrLengthChange(e: Event) {
+    const v = parseInt((e.target as HTMLInputElement).value || '14', 10);
+    const val = Math.max(1, isNaN(v) ? 14 : v);
+    renkoAtrLength = val;
+    persistRenkoConfig({ atrLength: val });
+  }
 
   
   // Gradient configurations - Initialize with saved or default values
@@ -1611,6 +1670,17 @@
         >
           Candle
         </button>
+        {#if isRenkoActive}
+        <button 
+          class="flex-shrink-0 lg:w-full text-left px-4 py-2 rounded-lg transition-colors duration-200"
+          class:bg-primary={activeTab === 'renko'}
+          class:text-primary-content={activeTab === 'renko'}
+          class:hover:bg-base-200={activeTab !== 'renko'}
+          onclick={() => activeTab = 'renko'}
+        >
+          Renko
+        </button>
+        {/if}
       </div>
     </div>
     
@@ -1825,6 +1895,39 @@
                     class:opacity-50={!candleWickShow}
                   ></button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {:else if activeTab === 'renko'}
+        <div class="space-y-6 pb-6">
+          <h4 class="text-lg font-semibold mb-4">Renko Settings</h4>
+          <div class="space-y-4 p-3 rounded-lg border border-base-300">
+            <div class="flex items-center gap-3">
+              <label class="flex items-center gap-2">
+                <input type="checkbox" class="checkbox checkbox-sm" checked={renkoWick} onchange={handleRenkoWickChange} />
+                <span>Wick</span>
+              </label>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="flex flex-col gap-1">
+                <label class="text-xs opacity-80">Source</label>
+                <select class="select select-bordered select-sm" bind:value={renkoSource} onchange={handleRenkoSourceChange}>
+                  <option value="close">Close</option>
+                  <option value="open">Open</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs opacity-80">Box size assignment method</label>
+                <select class="select select-bordered select-sm" bind:value={renkoMethod} onchange={handleRenkoMethodChange} disabled>
+                  <option value="ATR">ATR</option>
+                </select>
+              </div>
+              <div class="flex flex-col gap-1">
+                <label class="text-xs opacity-80">ATR length</label>
+                <input type="number" min="1" class="input input-bordered input-sm" value={renkoAtrLength} oninput={handleRenkoAtrLengthChange} />
               </div>
             </div>
           </div>

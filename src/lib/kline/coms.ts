@@ -624,6 +624,11 @@ export function processLineChartStyles(styles: Record<string, unknown>): Record<
     processedStyles.candle.type = 'candle_solid';
   }
   
+  // Convert renko custom type to a supported rendering type (candle)
+  if (processedStyles.candle && processedStyles.candle.type === 'renko_atr') {
+    processedStyles.candle.type = 'candle_solid';
+  }
+  
   return processedStyles;
 }
 
@@ -707,4 +712,158 @@ export function convertToHeikinAshi(data: any[]): any[] {
   }
   
   return heikinAshiData;
+}
+
+/**
+ * Convert OHLC data to Renko bricks.
+ * - Supports ATR box size method with configurable atrLength (default 14)
+ * - Uses close price as source by default
+ * - When wick=false, brick high/low collapse to open/close to hide wicks visually
+ */
+export function convertToRenko(
+  data: any[],
+  cfg?: {
+    method?: 'ATR';
+    atrLength?: number;
+    source?: 'close' | 'open' | 'high' | 'low';
+    wick?: boolean;
+  }
+): any[] {
+  if (!Array.isArray(data) || data.length === 0) return data;
+  const method = (cfg?.method || 'ATR') as 'ATR';
+  const atrLength = Math.max(1, (cfg?.atrLength ?? 14) | 0);
+  const source = (cfg?.source || 'close') as 'close' | 'open' | 'high' | 'low';
+  // Default wick to OFF (false) unless explicitly enabled
+  const showWick = !!cfg?.wick;
+  
+  // Helper to get source value
+  const getSrc = (d: any) => {
+    switch (source) {
+      case 'open': return d.open;
+      case 'high': return d.high;
+      case 'low': return d.low;
+      default: return d.close;
+    }
+  };
+  
+  // Compute ATR series (Wilder's smoothing, closer to TradingView)
+  const trArr: number[] = [];
+  let prevClose: number | null = null;
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i];
+    const tr = prevClose == null
+      ? Math.max(0, d.high - d.low)
+      : Math.max(
+          d.high - d.low,
+          Math.abs(d.high - prevClose),
+          Math.abs(d.low - prevClose)
+        );
+    trArr.push(Math.max(0, tr));
+    prevClose = d.close;
+  }
+  const atr: number[] = new Array(trArr.length).fill(0);
+  let sum = 0;
+  for (let i = 0; i < trArr.length; i++) {
+    sum += trArr[i];
+    if (i === atrLength - 1) {
+      atr[i] = sum / atrLength;
+    } else if (i >= atrLength) {
+      atr[i] = ((atr[i - 1] * (atrLength - 1)) + trArr[i]) / atrLength;
+    } else {
+      atr[i] = trArr[i]; // pre-warm
+    }
+  }
+  // Use a SINGLE constant box size for the whole conversion (consistent brick size)
+  const defaultBoxSeed = atr[Math.min(atr.length - 1, Math.max(0, atrLength - 1))] || (trArr.reduce((a, b) => a + b, 0) / Math.max(1, trArr.length));
+  const seriesBox = Math.max(1e-12, atr[atr.length - 1] || defaultBoxSeed); // prefer latest ATR
+  
+  // Build bricks
+  const bricks: any[] = [];
+  let lastBrickClose = getSrc(data[0]); // start from first source value without rounding to avoid bias
+  
+  // Ensure strictly increasing timestamps for bricks to avoid dedupe in merges
+  let lastTs: number = (data[0] && typeof data[0].timestamp === 'number') ? data[0].timestamp : Date.now();
+  
+  const MAX_BRICKS_PER_BAR = 1000; // safety cap to avoid runaway loops on tiny box sizes
+  for (let i = 1; i < data.length; i++) {
+    const d = data[i];
+    const price = getSrc(d);
+    let boxSize = method === 'ATR' ? seriesBox : seriesBox;
+    if (!boxSize || boxSize <= 0) continue;
+    // Safety: prevent microscopic boxes from generating millions of bricks
+    // Clamp box size to a minimum relative to price range of current bar
+    const barRange = Math.max(1e-12, Math.abs(d.high - d.low));
+    const minBox = barRange * 1e-6; // one-millionth of bar range
+    if (boxSize < minBox) {
+      boxSize = minBox;
+    }
+    
+    // Up bricks (batch generation with safety cap)
+    let upCount = Math.floor((price - (lastBrickClose + boxSize)) / boxSize) + 1;
+    if (upCount > 0) {
+      upCount = Math.min(upCount, MAX_BRICKS_PER_BAR);
+    }
+    for (let k = 0; k < upCount; k++) {
+      const open = lastBrickClose;
+      const close = lastBrickClose + boxSize;
+      // Base (no-wick) extremes for a single brick
+      const baseHigh = Math.max(open, close);
+      const baseLow = Math.min(open, close);
+      // Only the last brick created from this source bar gets wick to the bar's extreme
+      const isLastFromBar = k === upCount - 1;
+      const high = showWick && isLastFromBar ? Math.max(baseHigh, d.high) : baseHigh;
+      const low = baseLow;
+      // assign unique, strictly increasing timestamp
+      lastTs = Math.max(d.timestamp || lastTs, lastTs + 1);
+      bricks.push({
+        timestamp: lastTs,
+        open,
+        high,
+        low,
+        close,
+        volume: d.volume ?? 0
+      });
+      lastBrickClose = close;
+    }
+    // Down bricks (batch generation with safety cap)
+    let downCount = Math.floor(((lastBrickClose - boxSize) - price) / boxSize) + 1;
+    if (downCount > 0) {
+      downCount = Math.min(downCount, MAX_BRICKS_PER_BAR);
+    }
+    for (let k = 0; k < downCount; k++) {
+      const open = lastBrickClose;
+      const close = lastBrickClose - boxSize;
+      const baseHigh = Math.max(open, close);
+      const baseLow = Math.min(open, close);
+      const isLastFromBar = k === downCount - 1;
+      const high = baseHigh;
+      const low = showWick && isLastFromBar ? Math.min(baseLow, d.low) : baseLow;
+      lastTs = Math.max(d.timestamp || lastTs, lastTs + 1);
+      bricks.push({
+        timestamp: lastTs,
+        open,
+        high,
+        low,
+        close,
+        volume: d.volume ?? 0
+      });
+      lastBrickClose = close;
+    }
+  }
+  
+  // If no bricks produced (flat data), fallback to minimal single brick series
+  if (bricks.length === 0) {
+    const d = data[data.length - 1];
+    const open = d.open;
+    const close = d.close;
+    const high = showWick ? d.high : Math.max(open, close);
+    const low = showWick ? d.low : Math.min(open, close);
+    bricks.push({
+      timestamp: (d.timestamp || lastTs || Date.now()),
+      open, high, low, close,
+      volume: d.volume ?? 0
+    });
+  }
+  
+  return bricks;
 }

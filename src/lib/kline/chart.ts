@@ -151,6 +151,14 @@ export class ChartSave {
       candle: {
         pane: {
           backgroundColor: '#070211'
+        },
+        // Default to Renko (ATR) chart with wick off
+        type: 'renko_atr',
+        renko: {
+          method: 'ATR',
+          atrLength: 14,
+          source: 'close',
+          wick: false
         }
       },
       grid: {

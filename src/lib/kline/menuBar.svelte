@@ -240,6 +240,7 @@ let showAIModal = $state(false);
     { id: 'candle_up_stroke', name: 'Up Hollow', icon: 'candle_up_stroke' },
     { id: 'candle_down_stroke', name: 'Down Hollow', icon: 'candle_down_stroke' },
     { id: 'heikin_ashi', name: 'Heikin Ashi', icon: 'candle_solid' },
+    { id: 'renko_atr', name: 'Renko', icon: 'candle_solid' },
     { id: 'ohlc', name: 'OHLC', icon: 'ohlc' },
     { id: 'area', name: 'Area', icon: 'area' },
     { id: 'line_chart', name: 'Line', icon: 'line' }
@@ -469,6 +470,20 @@ let showAIModal = $state(false);
         ]
       };
       console.log('✅ Area chart configured with gradient from menuBar');
+    } else if (typeId === 'renko_atr') {
+      console.log('🎯 Setting up RENKO (ATR) chart from menuBar');
+      $save.styles.candle.type = 'renko_atr';
+      // Initialize default Renko settings if missing
+      if (!$save.styles.candle.renko) {
+        ($save.styles.candle as any).renko = {
+          method: 'ATR',
+          atrLength: 14,
+          source: 'close',
+          wick: false
+        };
+      }
+      delete $save.styles.candle._isLineChart;
+      delete $save.styles.candle.area;
     } else {
       $save.styles.candle.type = typeId;
       // Remove line chart marker
@@ -491,7 +506,7 @@ let showAIModal = $state(false);
     if ($save.styles?.candle?._isLineChart) {
       return chartTypes.find(type => type.id === 'line_chart') || chartTypes[0];
     }
-    const currentType = $save.styles?.candle?.type || 'candle_solid';
+    const currentType = $save.styles?.candle?.type || 'renko_atr';
     const chartType = chartTypes.find(type => type.id === currentType);
     return chartType || chartTypes[0];
   }

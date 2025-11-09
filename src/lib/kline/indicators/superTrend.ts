@@ -342,7 +342,10 @@ export const superTrend: IndicatorTemplate = {
           const labelText = isLastSegment ? 'HOLD' : 'EXIT';
           const endX = xAxis.convertToPixel(from + segment.end);
           const endY = yAxis.convertToPixel(endData.superTrend);
-          const offsetY = isUp ? -26 : 26;
+          // Exit/Hold positioning:
+          // - For BUY (uptrend) place below the line
+          // - For SELL (downtrend) place above the line
+          const offsetY = isUp ? 22 : -22;
           drawSignalLabel(endX, endY + offsetY, labelText, color);
         }
       }
@@ -385,8 +388,8 @@ export const superTrend: IndicatorTemplate = {
           const diff = currentPrice ? (currentPrice - data.buySignal) : 0;
           const diffText = `${diff >= 0 ? '+' : ''}${Number(diff).toFixed(precision)}`;
           
-          // Stylish "BUY" pill label with background and glow
-          drawSignalLabel(x, y - 20, `BUY ${diffText}`, '#10B981'); // emerald-500 tone for nicer look
+          // BUY label below the line for better separation
+          drawSignalLabel(x, y + 22, `BUY ${diffText}`, '#10B981'); // emerald-500 tone
         }
         
         // Draw Sell signal
@@ -403,8 +406,8 @@ export const superTrend: IndicatorTemplate = {
           const diff = currentPrice ? (data.sellSignal - currentPrice) : 0;
           const diffText = `${diff >= 0 ? '+' : ''}${Number(diff).toFixed(precision)}`;
           
-          // Stylish "SELL" pill label with background and glow
-          drawSignalLabel(x, y + 25, `SELL ${diffText}`, '#EF4444'); // red-500 tone
+          // SELL label above the line for better separation
+          drawSignalLabel(x, y - 22, `SELL ${diffText}`, '#EF4444'); // red-500 tone
         }
       }
     }
