@@ -735,10 +735,115 @@ let showAIModal = $state(false);
     });
   }
   
+  function handleWhatNext() {
+    try {
+      if (typeof window !== 'undefined' && (window as any).predictNextCandle) {
+        (window as any).predictNextCandle();
+      } else {
+        console.error('❌ Prediction function not available');
+      }
+    } catch (error) {
+      console.error('❌ Error calling prediction function:', error);
+    }
+  }
+
   function clickScreenShot(){
-    let bgColor = $save.theme === 'dark' ? '#151517' : '#ffffff'
-    screenShotUrl = $chart?.getConvertPictureUrl(true, 'jpeg', bgColor) ?? ''
-    showScreenShotModal = true
+    // If user selected gradient background, composite chart over generated gradient
+    const isGradient = _.get($save.styles, 'backgroundType') === 'gradient';
+    const gradientCfg: any = _.get($save.styles, 'backgroundGradient');
+    const hasGradient = isGradient && gradientCfg && Array.isArray(gradientCfg.stops) && gradientCfg.stops.length > 0;
+    const toRgba = (hex: string, alpha: number) => {
+      const clean = (hex || '#000000').replace('#', '');
+      const r = parseInt(clean.substring(0, 2), 16) || 0;
+      const g = parseInt(clean.substring(2, 4), 16) || 0;
+      const b = parseInt(clean.substring(4, 6), 16) || 0;
+      const a = Math.max(0, Math.min(1, alpha ?? 1));
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    };
+    if (hasGradient) {
+      requestAnimationFrame(() => {
+        try {
+          const transparentUrl = $chart?.getConvertPictureUrl(true, 'png', 'rgba(0, 0, 0, 0)');
+          if (!transparentUrl) {
+            return;
+          }
+          const img = new Image();
+          img.onload = () => {
+            const w = img.naturalWidth || img.width;
+            const h = img.naturalHeight || img.height;
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            let grad: CanvasGradient;
+            const type = gradientCfg.type === 'radial' ? 'radial' : 'linear';
+            if (type === 'radial') {
+              grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) / 2);
+            } else {
+              const cssDeg = typeof gradientCfg.direction === 'number' ? gradientCfg.direction : 90;
+              // Map CSS linear-gradient angle (0deg = up) to canvas angle (0rad = right, y down)
+              const rad = ((cssDeg - 90) * Math.PI) / 180;
+              const x = Math.cos(rad);
+              const y = Math.sin(rad);
+              const x0 = w / 2 - (w / 2) * x;
+              const y0 = h / 2 - (h / 2) * y;
+              const x1 = w / 2 + (w / 2) * x;
+              const y1 = h / 2 + (h / 2) * y;
+              grad = ctx.createLinearGradient(x0, y0, x1, y1);
+            }
+            const stops = [...gradientCfg.stops].sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0));
+            stops.forEach((s: any) => {
+              const pos = Math.max(0, Math.min(1, (s.position ?? 0) / 100));
+              const col = toRgba(s.color, (s.opacity ?? 100) / 100);
+              grad.addColorStop(pos, col);
+            });
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            screenShotUrl = canvas.toDataURL('image/png');
+            showScreenShotModal = true;
+          };
+          img.src = transparentUrl;
+        } catch (_) {
+          let fallback = $save.theme === 'dark' ? '#151517' : '#ffffff';
+          screenShotUrl = $chart?.getConvertPictureUrl(true, 'jpeg', fallback) ?? '';
+          showScreenShotModal = true;
+        }
+      });
+      return;
+    }
+    // Solid background: use currently applied background color
+    let effectiveBg: string | undefined;
+    try {
+      const widget = document.querySelector('.kline-widget') as HTMLElement | null;
+      const main = document.querySelector('.kline-main') as HTMLElement | null;
+      const pickCssVar = (el: HTMLElement | null) => {
+        if (!el) return '';
+        const val = getComputedStyle(el).getPropertyValue('--chart-background-color').trim();
+        if (val && !val.includes('gradient')) return val;
+        return '';
+      };
+      effectiveBg = pickCssVar(widget) || pickCssVar(main) || undefined;
+      if (!effectiveBg && $chart && typeof $chart.getStyles === 'function') {
+        const styles = $chart.getStyles() ?? {};
+        effectiveBg =
+          _.get(styles, 'pane.backgroundColor') ||
+          _.get(styles, 'candle.pane.backgroundColor') ||
+          undefined;
+      }
+      if (!effectiveBg) {
+        const savedSolid = _.get($save.styles, 'backgroundColor') as string | undefined;
+        effectiveBg = savedSolid && typeof savedSolid === 'string' ? savedSolid : undefined;
+      }
+    } catch (_) {}
+    if (!effectiveBg) {
+      effectiveBg = $save.theme === 'dark' ? '#151517' : '#ffffff';
+    }
+    requestAnimationFrame(() => {
+      screenShotUrl = $chart?.getConvertPictureUrl(true, 'jpeg', effectiveBg as string) ?? '';
+      showScreenShotModal = true;
+    });
   }
   
 
@@ -1801,6 +1906,8 @@ let showAIModal = $state(false);
       </svg>
       Load
     </button>
+    <!-- What Next Prediction Button -->
+    {@render MenuButton(handleWhatNext, "play", "", 20)}
     {@render MenuButton(() => showTimezoneModal = true, "timezone", "")}
     {@render MenuButton(() => showChartSettingModal = true, "setting", "")}
     {@render MenuButton(clickScreenShot, "screenShot", "", 20)}
@@ -1910,8 +2017,8 @@ let showAIModal = $state(false);
   padding: 0 16px;
   background: var(--menu-bg);
   border-bottom: 2px solid var(--menu-border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   overflow-x: auto;
   overflow-y: hidden;
   box-shadow: var(--menu-shadow);
@@ -1930,6 +2037,7 @@ let showAIModal = $state(false);
   --menu-glow: rgba(138, 43, 226, 0.4);
   --menu-btn-bg: rgba(255, 255, 255, 0.05);
   --menu-btn-border: rgba(138, 43, 226, 0.2);
+  --menu-right-btn-bg: #171923; /* solid to avoid backdrop bleed */
 }
 
 :global([data-theme="light"]) {
@@ -1943,6 +2051,7 @@ let showAIModal = $state(false);
   --menu-glow: rgba(59, 130, 246, 0.3);
   --menu-btn-bg: rgba(0, 0, 0, 0.02);
   --menu-btn-border: rgba(59, 130, 246, 0.15);
+  --menu-right-btn-bg: #ffffff; /* solid */
 }
 
 /* Left Section */
@@ -1963,6 +2072,18 @@ let showAIModal = $state(false);
   margin-left: auto;
   gap: 8px;
   padding-right: 8px;
+}
+
+/* Ensure save/load buttons are crisp on frosted menubar */
+.menu-right-section .btn {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-clip: padding-box;
+  -webkit-font-smoothing: auto;
+  text-rendering: optimizeLegibility;
+}
+.menu-right-section .btn svg {
+  shape-rendering: geometricPrecision;
 }
 
 /* Menu Button Styles */

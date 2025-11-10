@@ -143,10 +143,193 @@
 			.kline-content * {
 				transition: none !important;
 			}
+
+			/* ---------- Improved click ripple (clean + beautiful) ---------- */
+			:root {
+				--ripple-duration: 560ms;
+				--ripple-press-scale: 0.985;
+			}
+			:root[data-theme="dark"] {
+				--ripple-color: rgba(255, 255, 255, 0.22);
+				--ripple-highlight: rgba(255, 255, 255, 0.08);
+			}
+			:root[data-theme="light"] {
+				--ripple-color: rgba(0, 0, 0, 0.18);
+				--ripple-highlight: rgba(0, 0, 0, 0.05);
+			}
+
+			/* Opt-in surfaces: native button, common .btn/.icon-button and [data-ripple] */
+			button,
+			.btn,
+			.icon-button,
+			[data-ripple] {
+				position: relative;
+				overflow: hidden;
+				cursor: pointer;
+				-webkit-tap-highlight-color: transparent;
+				transition: transform 90ms ease, filter 120ms ease;
+				will-change: transform;
+			}
+			button:active,
+			.btn:active,
+			.icon-button:active,
+			[data-ripple]:active {
+				transform: scale(var(--ripple-press-scale));
+				filter: brightness(0.985);
+			}
+
+			/* Subtle highlight on press */
+			button::before,
+			.btn::before,
+			.icon-button::before,
+			[data-ripple]::before {
+				content: "";
+				position: absolute;
+				inset: 0;
+				background: var(--ripple-highlight);
+				opacity: 0;
+				transition: opacity 120ms ease;
+				pointer-events: none;
+			}
+			button:active::before,
+			.btn:active::before,
+			.icon-button:active::before,
+			[data-ripple]:active::before {
+				opacity: 1;
+			}
+
+			/* The ripple wave node (JS-inserted) */
+			.ripple-wave {
+				position: absolute;
+				left: 0;
+				top: 0;
+				border-radius: 50%;
+				transform: translate(-50%, -50%) scale(0);
+				pointer-events: none;
+				width: var(--rw, 12px);
+				height: var(--rw, 12px);
+				opacity: 0.9;
+				background: radial-gradient(
+					circle at center,
+					var(--ripple-color) 0%,
+					color-mix(in oklab, var(--ripple-color) 70%, transparent) 45%,
+					transparent 70%
+				);
+				animation: ripple-wave var(--ripple-duration) ease-out forwards;
+				filter: blur(0.25px);
+			}
+			@keyframes ripple-wave {
+				to {
+					transform: translate(-50%, -50%) scale(1);
+					opacity: 0;
+				}
+			}
+
+			/* Reduced motion */
+			@media (prefers-reduced-motion: reduce) {
+				button,
+				.btn,
+				.icon-button,
+				[data-ripple] {
+					transition: none;
+				}
+				.ripple-wave {
+					animation: none;
+					opacity: 0;
+				}
+			}
+
+			/* ---------- Trading Typography: professional, crisp, numeric-aligned ---------- */
+			:root {
+				--trading-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+					Roboto, "Helvetica Neue", Arial, "Noto Sans", "Inter", sans-serif;
+				--trading-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+					"Liberation Mono", "Courier New", monospace;
+				--trading-letter-spacing: 0.015em; /* subtle global */
+				--trading-label-spacing: 0.035em;  /* labels/buttons */
+				--trading-line-height: 1.35;
+			}
+			/* Apply to key surfaces without fighting component styles */
+			body,
+			button,
+			input,
+			select,
+			textarea,
+			.kline-main,
+			.menu-container,
+			.btn,
+			[data-ripple],
+			.chart-container,
+			.kline-content {
+				font-family: var(--trading-font);
+				line-height: var(--trading-line-height);
+				letter-spacing: var(--trading-letter-spacing);
+				-webkit-font-smoothing: antialiased;
+				-moz-osx-font-smoothing: grayscale;
+				text-rendering: optimizeLegibility;
+				/* Align important numbers (prices, volumes, timestamps) */
+				font-variant-numeric: tabular-nums lining-nums;
+				font-feature-settings: "tnum" 1, "lnum" 1, "liga" 1, "calt" 1;
+			}
+			/* Stronger label feel for actionable UI */
+			.kline-main .menu-text,
+			.kline-main .timeframe-text,
+			.kline-main .symbol-name,
+			.menu-container .menu-text,
+			.menu-container .timeframe-text,
+			.menu-container .symbol-name,
+			.btn {
+				letter-spacing: var(--trading-label-spacing);
+				font-weight: 600;
+			}
+			/* Any generic numeric class gets tabular treatment explicitly */
+			.number, .value, .price, .volume, .percent, .date, .time {
+				font-variant-numeric: tabular-nums lining-nums;
+				font-feature-settings: "tnum" 1, "lnum" 1;
+			}
 		</style>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents;">%sveltekit.body%</div>
+		<script>
+			// Delegated ripple creator: appends a wave node at click/press point
+			(function () {
+				try {
+					const SELECTOR = 'button, .btn, .icon-button, [data-ripple]';
+
+					function createWave(target, x, y) {
+						const rect = target.getBoundingClientRect();
+						const maxDim = Math.max(rect.width, rect.height);
+						const size = maxDim * 2.1; // ensure covers from click point to farthest corner
+						const wave = document.createElement('span');
+						wave.className = 'ripple-wave';
+						wave.style.left = x + 'px';
+						wave.style.top = y + 'px';
+						wave.style.setProperty('--rw', size + 'px');
+						target.appendChild(wave);
+						wave.addEventListener('animationend', () => wave.remove(), { once: true });
+					}
+
+					document.addEventListener('pointerdown', (ev) => {
+						const target = ev.target && ev.target.closest && ev.target.closest(SELECTOR);
+						if (!target) return;
+						const rect = target.getBoundingClientRect();
+						createWave(target, ev.clientX - rect.left, ev.clientY - rect.top);
+					}, { passive: true });
+
+					// Keyboard accessibility: ripple from center on Enter/Space
+					document.addEventListener('keydown', (ev) => {
+						if (ev.key !== 'Enter' && ev.key !== ' ') return;
+						const active = document.activeElement && document.activeElement.closest && document.activeElement.closest(SELECTOR);
+						if (!active) return;
+						const rect = active.getBoundingClientRect();
+						createWave(active, rect.width / 2, rect.height / 2);
+					});
+				} catch (e) {
+					console.warn('Ripple bootstrap failed:', e);
+				}
+			})();
+		</script>
 	</body>
 </html>

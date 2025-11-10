@@ -763,18 +763,18 @@
       console.log('✅ Bulk SAR deletion completed');
     } else if (name === 'SUPERTREND') {
       // For SuperTrend, delete all instances on all panes and clear all saved keys
-      console.log('🗑️ Starting bulk SUPERTREND deletion...');
+      console.log('🗑️ Starting bulk SmartTrend deletion...');
       if ($chart) {
         try {
           const indicators = $chart.getIndicators();
           const stIndicators = indicators.filter(ind => ind.name === 'SUPERTREND');
-          console.log('📊 Found SUPERTREND indicators on chart:', stIndicators.length);
+          console.log('📊 Found SmartTrend indicators on chart:', stIndicators.length);
           stIndicators.forEach(indicator => {
-            console.log('🗑️ Removing SUPERTREND from pane:', indicator.paneId);
+            console.log('🗑️ Removing SmartTrend from pane:', indicator.paneId);
             $chart.removeIndicator({ paneId: indicator.paneId, name: 'SUPERTREND' });
           });
         } catch (error) {
-          console.error('❌ Error removing SUPERTREND indicators from chart:', error);
+          console.error('❌ Error removing SmartTrend indicators from chart:', error);
           // Fallback: try common panes
           try { $chart.removeIndicator({ paneId: 'candle_pane', name: 'SUPERTREND' }); } catch (_) {}
           try { $chart.removeIndicator({ paneId: $ctx.editPaneId, name: 'SUPERTREND' }); } catch (_) {}
@@ -790,7 +790,7 @@
         });
         return s;
       });
-      console.log('✅ Bulk SUPERTREND deletion completed');
+      console.log('✅ Bulk SmartTrend deletion completed');
     } else if (name === 'CR') {
       // For CR, delete all instances and groups from all sub-panes
       console.log('🗑️ Starting bulk CR deletion...');

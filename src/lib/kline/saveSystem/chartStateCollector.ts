@@ -7,7 +7,8 @@
  * - Drawings/overlays scoped by symbol
  */
 
-import type { Chart } from 'klinecharts';
+ import type { Chart } from 'klinecharts';
+ import * as kc from 'klinecharts';
 import type { Writable } from 'svelte/store';
 import { get } from 'svelte/store';
 import type { 
@@ -296,7 +297,7 @@ export async function applyGlobalState(
         ...s.period,
         timeframe: globalState.interval
       };
-      s.theme = globalState.theme;
+      // Preserve current user-selected theme; do not override from layout loads
       
       // Update styles (canvas/candle/grid colors etc.) from saved layout
       // Ensure object exists
@@ -363,9 +364,60 @@ export async function applyGlobalState(
           const indicatorConfig: any = {
             name: indicator.type,
             calcParams: paramsArray.length > 0 ? paramsArray : undefined,
-            styles: stylesArray.length > 0 ? stylesArray : undefined,
             visible: indicator.visible !== false
           };
+          
+          // Map saved generic styles (color/thickness/lineStyle) to klinecharts style schema
+          if (stylesArray.length > 0) {
+            indicatorConfig.styles = {
+              lines: stylesArray.map((s) => {
+                const isDashed = s.lineStyle === 'dashed' || s.lineStyle === 'dotted';
+                const dashedValue = s.lineStyle === 'dotted' ? [2, 2] : [4, 4];
+                return {
+                  color: s.color,
+                  size: s.thickness ?? 1,
+                  style: isDashed ? kc.LineType.Dashed : kc.LineType.Solid,
+                  dashedValue: isDashed ? dashedValue : [2, 2]
+                };
+              })
+            };
+          }
+          
+          // Special handling for SUPERTREND (SmartTrend) which uses extendData to style segments
+          if (indicator.type === 'SUPERTREND') {
+            const group: any = (indicator as any).superTrendGroup;
+            // Build extendData from saved group if present, otherwise use dashed defaults
+            const extend = group ? {
+              showLabels: Boolean(group.showLabels),
+              uptrendColor: group.styles?.uptrend?.color ?? '#00FF00',
+              downtrendColor: group.styles?.downtrend?.color ?? '#FF0000',
+              uptrendThickness: group.styles?.uptrend?.thickness ?? 1,
+              downtrendThickness: group.styles?.downtrend?.thickness ?? 1,
+              uptrendLineStyle: group.styles?.uptrend?.lineStyle ?? 'dashed',
+              downtrendLineStyle: group.styles?.downtrend?.lineStyle ?? 'dashed'
+            } : {
+              showLabels: true,
+              uptrendColor: '#00FF00',
+              downtrendColor: '#FF0000',
+              uptrendThickness: 1,
+              downtrendThickness: 1,
+              uptrendLineStyle: 'dashed',
+              downtrendLineStyle: 'dashed'
+            };
+            indicatorConfig.extendData = extend;
+            // Ensure base line style matches intended uptrend default if no explicit styles were saved
+            if (!indicatorConfig.styles) {
+              const upDashed = extend.uptrendLineStyle === 'dotted' || extend.uptrendLineStyle === 'dashed';
+              indicatorConfig.styles = {
+                lines: [{
+                  color: extend.uptrendColor,
+                  size: extend.uptrendThickness,
+                  style: upDashed ? kc.LineType.Dashed : kc.LineType.Solid,
+                  dashedValue: extend.uptrendLineStyle === 'dotted' ? [2, 2] : [4, 4]
+                }]
+              };
+            }
+          }
           
           // Determine if this should be stacked (true for main panel, false for sub-panels)
           const isStack = indicator.paneId === 'candle_pane';

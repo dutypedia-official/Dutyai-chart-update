@@ -5199,7 +5199,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     };
     
     superTrendGroups = [...superTrendGroups, newGroup];
-    console.log('✅ Added new SuperTrend group:', newGroup);
+    console.log('✅ Added new SmartTrend group:', newGroup);
     rebuildAllSuperTrendOnPane();
   }
 

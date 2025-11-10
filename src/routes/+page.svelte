@@ -128,7 +128,5 @@
 </script>
 
 {#if mounted}
-  {#key currentTheme}
-    <Chart {ctx} {save}></Chart>
-  {/key}
+  <Chart {ctx} {save}></Chart>
 {/if}

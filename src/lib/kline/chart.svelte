@@ -40,6 +40,7 @@
   import { normalizeSymbolKey } from './saveSystem/chartStateCollector';
   import UnsavedChangesModal from '$lib/UnsavedChangesModal.svelte';
   import { hasUnsavedChanges, unsavedChanges } from '$lib/stores/unsavedChanges';
+  import { predictNextCandle, isMarketLikelyClosed } from './candlePredictor';
   setTimezone('UTC')
 
   const datafeed = new MyDatafeed()
@@ -402,21 +403,9 @@
   console.log('📊 About to define onMount function');
   console.log('📊 Browser environment:', browser);
   
-  // Load theme early to prevent blinking
-  if (browser) {
-    try {
-      const savedChart = localStorage.getItem('chart');
-      if (savedChart) {
-        const chartData = JSON.parse(savedChart);
-        if (chartData.theme && chartData.theme !== $save.theme) {
-          $save.theme = chartData.theme;
-          console.log('🎨 Theme loaded early:', chartData.theme);
-        }
-      }
-    } catch (e) {
-      console.log('Theme loading error:', e);
-    }
-  }
+  // Theme is managed centrally in +page.svelte and applied to documentElement.
+  // Avoid re-reading localStorage here to prevent racing with persisted store writes
+  // that could momentarily revert the theme after a user toggle.
   
   // Try calling loadSymbols immediately regardless of browser environment
   console.log('🚀 Attempting to call loadSymbols immediately');
@@ -585,13 +574,49 @@
               })
             };
           }
+          
+          // Prepare extendData for SUPERTREND (SmartTrend) so per-segment styles are respected
+          let extendData: any | undefined = undefined;
+          if (name === 'SUPERTREND') {
+            const group: any = (ind as any).superTrendGroup;
+            extendData = group ? {
+              showLabels: Boolean(group.showLabels),
+              uptrendColor: group.styles?.uptrend?.color ?? '#00FF00',
+              downtrendColor: group.styles?.downtrend?.color ?? '#FF0000',
+              uptrendThickness: group.styles?.uptrend?.thickness ?? 1,
+              downtrendThickness: group.styles?.downtrend?.thickness ?? 1,
+              uptrendLineStyle: group.styles?.uptrend?.lineStyle ?? 'dashed',
+              downtrendLineStyle: group.styles?.downtrend?.lineStyle ?? 'dashed'
+            } : {
+              showLabels: true,
+              uptrendColor: '#00FF00',
+              downtrendColor: '#FF0000',
+              uptrendThickness: 1,
+              downtrendThickness: 1,
+              uptrendLineStyle: 'dashed',
+              downtrendLineStyle: 'dashed'
+            };
+            // If no explicit styles were saved, ensure base line looks dashed by default
+            if (!styles) {
+              const upDashed = extendData.uptrendLineStyle === 'dotted' || extendData.uptrendLineStyle === 'dashed';
+              styles = {
+                lines: [{
+                  color: extendData.uptrendColor,
+                  size: extendData.uptrendThickness,
+                  style: upDashed ? kc.LineType.Dashed : kc.LineType.Solid,
+                  dashedValue: extendData.uptrendLineStyle === 'dotted' ? [2, 2] : [4, 4]
+                }]
+              };
+            }
+          }
 
           const isMain = paneId === 'candle_pane';
           try {
             chartObj.createIndicator({
               name,
               calcParams: ind?.params,
-              styles
+              styles,
+              ...(extendData ? { extendData } : {})
             }, isMain, paneId ? { id: paneId } : undefined);
           } catch (err) {
             console.warn('⚠️ Failed to restore indicator:', name, err);
@@ -759,6 +784,8 @@
     try {
       if (typeof window !== 'undefined') {
         (window as any).drawBarRef = drawBarRef;
+        // Expose predictNextCandle function globally for menuBar access
+        (window as any).predictNextCandle = () => handleWhatNext();
       }
     } catch {}
 
@@ -1482,6 +1509,11 @@
   let tapCount = 0
   let tapTimeout: NodeJS.Timeout | null = null
 
+  // What Next prediction state
+  let isPredicting = $state(false)
+  let predictedCandles: KLineData[] = $state([])
+  let predictionCount = $state(0)
+
   function handleMouseMove(e: MouseEvent) {
     // Track mouse position for crosshair price calculation
     const chartRect = chartRef?.getBoundingClientRect()
@@ -1664,8 +1696,123 @@
     return false
   }
 
+  /**
+   * Handle "What Next" prediction
+   */
+  function handleWhatNext() {
+    const chartObj = $chart;
+    if (!chartObj) {
+      console.error('Chart not initialized');
+      return;
+    }
+
+    isPredicting = true;
+
+    try {
+      // Get current data
+      const dataList = chartObj.getDataList();
+      
+      if (dataList.length < 10) {
+        console.warn('⚠️ Need more historical data for prediction');
+        isPredicting = false;
+        return;
+      }
+
+      // Check if market is likely closed
+      const lastCandle = dataList[dataList.length - 1];
+      const timeframeSeconds = tf_to_secs($save.period.timeframe);
+      const timeframeMs = timeframeSeconds * 1000;
+      
+      const marketClosed = isMarketLikelyClosed(lastCandle.timestamp, timeframeMs);
+      
+      if (!marketClosed && predictionCount === 0) {
+        const timeSinceLastCandle = Date.now() - lastCandle.timestamp;
+        const minutesAgo = Math.floor(timeSinceLastCandle / 60000);
+        console.info(`ℹ️ Market appears to be open (last candle ${minutesAgo}m ago). Prediction is most useful when market is closed.`);
+      }
+
+      // Don't remove previous predictions - keep them all!
+      // Use the full current data list (including any previous predictions)
+      const baseData = dataList;
+
+      // Predict next candle based on all available data
+      const predictedCandle = predictNextCandle(baseData);
+
+      if (!predictedCandle) {
+        console.error('❌ Failed to generate prediction');
+        isPredicting = false;
+        return;
+      }
+
+      // Add the new predicted candle to our tracking array
+      predictedCandles = [...predictedCandles, predictedCandle];
+      predictionCount++;
+
+      // Add prediction to chart - append to existing data
+      const newDataList = [...baseData, predictedCandle];
+      
+      // Store current viewport
+      const currentVisibleRange = chartObj.getVisibleRange();
+      const shouldScrollToEnd = currentVisibleRange 
+        ? (currentVisibleRange.to >= baseData.length - 2)
+        : true;
+
+      chartObj.applyNewData(newDataList, false);
+
+      // Scroll to show the predicted candle
+      if (shouldScrollToEnd) {
+        setTimeout(() => {
+          chartObj.scrollToRealTime();
+        }, 50);
+      }
+
+      // Log success (no alert)
+      const previousClose = baseData[baseData.length - 1].close;
+      const priceChange = ((predictedCandle.close - previousClose) / previousClose) * 100;
+      const direction = priceChange > 0 ? '📈' : '📉';
+      console.log(
+        `${direction} Prediction #${predictionCount}: ${priceChange > 0 ? '+' : ''}${priceChange.toFixed(2)}% ` +
+        `(Close: ${predictedCandle.close.toFixed(2)})`
+      );
+
+      console.log('✅ Prediction added:', predictedCandle);
+      console.log('📊 Total predictions so far:', predictionCount);
+
+    } catch (error) {
+      console.error('❌ Prediction error:', error);
+    } finally {
+      isPredicting = false;
+    }
+  }
+
+  /**
+   * Clear all predictions
+   */
+  function clearPredictions() {
+    const chartObj = $chart;
+    if (!chartObj || predictedCandles.length === 0) return;
+
+    try {
+      const dataList = chartObj.getDataList();
+      const predictedTimestamps = new Set(predictedCandles.map(c => c.timestamp));
+      const dataWithoutPredictions = dataList.filter(c => !predictedTimestamps.has(c.timestamp));
+
+      chartObj.applyNewData(dataWithoutPredictions, false);
+      predictedCandles = [];
+      predictionCount = 0;
+      
+      console.log('🧹 Predictions cleared');
+    } catch (error) {
+      console.error('❌ Error clearing predictions:', error);
+    }
+  }
+
   function resetChartView() {
     console.log('🔄 RESET CHART VIEW called')
+    
+    // Clear predictions on reset
+    clearPredictions();
+    
     const chartObj = $chart
     if (chartObj) {
       // CRITICAL: Preserve chart type and grid color settings before reset
@@ -1926,6 +2073,7 @@
     message={toastMessage}
     duration={2000}
   />
+
   
   <!-- Unsaved Changes Warning Modal -->
   <UnsavedChangesModal 

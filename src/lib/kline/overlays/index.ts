@@ -21,6 +21,7 @@ import ruler from "./ruler";
 import trade from "./trade";
 import note from "./note"
 import emoji from "./emoji"
+import { horizontalStraightLine, horizontalRayLine } from "./horizontalLine"
 import type { OverlayTemplate } from 'klinecharts'
 
 const overlays = [
@@ -29,7 +30,8 @@ const overlays = [
   fibonacciCircle, fibonacciSegment, fibonacciSpiral,
   fibonacciSpeedResistanceFan, fibonacciExtension, gannBox,
   threeWaves, fiveWaves, eightWaves, anyWaves, abcd, xabcd,
-  barSignal, ruler, trade, note, emoji
+  barSignal, ruler, trade, note, emoji,
+  horizontalStraightLine, horizontalRayLine
 ]
 
 export const overlayMap: Record<string, OverlayTemplate> = {
@@ -38,7 +40,8 @@ export const overlayMap: Record<string, OverlayTemplate> = {
   fibonacciCircle, fibonacciSegment, fibonacciSpiral,
   fibonacciSpeedResistanceFan, fibonacciExtension, gannBox,
   threeWaves, fiveWaves, eightWaves, anyWaves, abcd, xabcd,
-  barSignal, ruler, trade, note, emoji
+  barSignal, ruler, trade, note, emoji,
+  horizontalStraightLine, horizontalRayLine
 }
 
 export default overlays
