@@ -55,9 +55,10 @@ export class ApiStorageProvider implements StorageProvider {
       throw new Error("User ID not found in localStorage");
     }
 
-    // Don't save data that was just loaded from API (prevents infinite loops)
-    if (layoutData._source === "api") {
-      console.log("🔄 Skipping API save for API-loaded data");
+    // Allow updates to API data but prevent infinite loops by checking if this is a fresh save
+    // Only skip if this is the exact same data that was just loaded from API
+    if (layoutData._source === "api" && !layoutData._isModified) {
+      console.log("🔄 Skipping API save for unmodified API-loaded data");
       return {
         ...layoutData,
         _source: "api", // Preserve the source flag
@@ -65,30 +66,43 @@ export class ApiStorageProvider implements StorageProvider {
     }
 
     try {
+      console.log(layoutData, "layoutData");
+
+      // Extract the layout ID if it exists
+      const layoutId = layoutData.id || this.generateApiId();
+      
+      // Prepare the data in the format your API expects
+      const apiData = {
+        clerkId: userId,
+        settings: layoutData,
+        id: layoutId,
+      };
+
+      console.log("🌐 Sending to API:", apiData);
+
       const response = await fetch(API_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          clerkId: userId,
-          settings: layoutData,
-          id: layoutData.id || this.generateApiId(),
-        }),
+        body: JSON.stringify(apiData),
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error("API error response:", errorText);
         throw new Error(
-          `API request failed: ${response.status} ${response.statusText}`
+          `API request failed: ${response.status} ${response.statusText} - ${errorText}`
         );
       }
 
       const result = await response.json();
+      console.log("✅ API save successful:", result);
 
       // Return the saved layout data
       return {
         ...layoutData,
-        id: result.id || layoutData.id || this.generateApiId(),
+        id: result.id || layoutId,
         createdAt: result.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -299,21 +313,53 @@ export class ApiStorageProvider implements StorageProvider {
   ): Promise<SavedLayout> {
     await this.initialize();
 
-    if (this.hasUserId() && id.startsWith("api_")) {
+    if (this.hasUserId()) {
       try {
         console.log("🌐 Updating via API (userId found)");
-        // For API updates, we need to get the existing layout first
-        const existingLayout =
-          await this.localStorageProvider.getSavedLayout(id);
+        
+        // First try to get the layout from API to see if it exists there
+        try {
+          const apiLayouts = await this.loadFromApi();
+          const apiLayout = apiLayouts.find(layout => layout.id === id);
+          
+          if (apiLayout) {
+          console.log("📝 Layout found in API, updating via API");
+          const updatedLayout = { 
+            ...apiLayout, 
+            ...updates,
+            _isModified: true // Mark as modified to allow API save
+          };
+          return await this.saveToApi(updatedLayout);
+        }
+        } catch (apiError) {
+          console.log("📖 Layout not found in API, checking localStorage:", apiError);
+        }
+        
+        // If not found in API, check localStorage
+        const existingLayout = await this.localStorageProvider.getSavedLayout(id);
         if (existingLayout) {
+          console.log("📝 Layout found in localStorage, updating via API");
           const updatedLayout = { ...existingLayout, ...updates };
           return await this.saveToApi(updatedLayout);
         }
+        
+        // If layout doesn't exist anywhere, create it
+        console.log("📝 Layout not found, creating new via API");
+        const newLayout = {
+          id,
+          ...updates,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          _isModified: true, // Mark as modified to allow API save
+        } as SavedLayout;
+        return await this.saveToApi(newLayout);
+        
       } catch (error) {
         console.error(
           "API update failed, falling back to localStorage:",
           error
         );
+        // Fall back to localStorage if API fails
       }
     }
 
