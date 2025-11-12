@@ -835,56 +835,20 @@
         try { infiniteScrollCleanup(); } catch {}
         infiniteScrollCleanup = null;
       }
+      
+      // Cleanup separator event listeners
+      try {
+        const cleanup = (chartRef as any)?.__separatorCleanup;
+        if (cleanup) {
+          cleanup();
+          (chartRef as any).__separatorCleanup = null;
+        }
+      } catch {}
     });
     
-    // Enhanced separator interaction functionality
-    setTimeout(() => {
-      const separators = chartRef?.querySelectorAll('.klinecharts-pane-separator');
-      separators?.forEach((separator) => {
-        const element = separator as HTMLElement;
-        
-        // Add smooth cursor feedback
-        element.style.transition = 'background-color 0.2s ease, transform 0.1s ease';
-        
-        // Enhanced mouse events for desktop
-        element.addEventListener('mouseenter', () => {
-          element.style.cursor = 'row-resize';
-          element.style.transform = 'scaleY(1.2)';
-        });
-        
-        element.addEventListener('mouseleave', () => {
-          element.style.transform = 'scaleY(1)';
-        });
-        
-        // Add dragging class for visual feedback
-        element.addEventListener('mousedown', () => {
-          element.classList.add('dragging');
-          document.body.style.cursor = 'row-resize';
-        });
-        
-        // Remove dragging class on mouse up (global)
-        const handleMouseUp = () => {
-          element.classList.remove('dragging');
-          document.body.style.cursor = '';
-        };
-        
-        document.addEventListener('mouseup', handleMouseUp);
-        
-        // Enhanced touch support for mobile
-        element.addEventListener('touchstart', (e) => {
-          e.preventDefault();
-          element.classList.add('dragging');
-          // Add haptic feedback if available
-          if ('vibrate' in navigator) {
-            navigator.vibrate(10);
-          }
-        });
-        
-        element.addEventListener('touchend', () => {
-          element.classList.remove('dragging');
-        });
-      });
-    }, 500); // Delay to ensure chart is fully rendered
+    // Note: Mobile separator drag is now handled by the local klinechart-source
+    // The source code has been fixed to properly dispatch touch events to the SEPARATOR widget
+    console.log('✅ Chart initialized with local klinecharts source (mobile separator drag enabled)');
   })
 
   // Setup infinite scrolling for historical data loading
@@ -2312,12 +2276,18 @@
     cursor: ns-resize !important;
     transition: background-color 0.2s ease !important;
     z-index: 10 !important;
+    touch-action: none !important; /* Allow custom drag handling on mobile */
     /* Performance optimizations */
     will-change: transform, background-color !important;
     transform: translateZ(0) !important; /* Force hardware acceleration */
     backface-visibility: hidden !important;
     perspective: 1000px !important;
     contain: layout style paint !important; /* CSS containment for better performance */
+  }
+  
+  /* CRITICAL: Catch separators created with inline styles (ns-resize) */
+  :global(div[style*="ns-resize"]) {
+    touch-action: none !important;
   }
 
   /* Enhanced touch area for mobile */

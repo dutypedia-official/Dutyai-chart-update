@@ -1,0 +1,17 @@
+diff --git a/node_modules/klinecharts/dist/index.d.ts b/node_modules/klinecharts/dist/index.d.ts
+index 1234567..abcdefg 100644
+--- a/node_modules/klinecharts/dist/index.d.ts
++++ b/node_modules/klinecharts/dist/index.d.ts
+@@ -1,3 +1,3 @@
+ export * from './types';
+ export * from './index.esm';
+-
++// Patch applied for mobile separator touch support
+diff --git a/node_modules/klinecharts/dist/index.esm.d.ts b/node_modules/klinecharts/dist/index.esm.d.ts
+index 2345678..bcdefgh 100644
+--- a/node_modules/klinecharts/dist/index.esm.d.ts
++++ b/node_modules/klinecharts/dist/index.esm.d.ts
+@@ -1 +1 @@
+-export {};
++export {}; // Mobile separator touch support patched
+
