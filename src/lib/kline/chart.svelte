@@ -784,8 +784,12 @@
     try {
       if (typeof window !== 'undefined') {
         (window as any).drawBarRef = drawBarRef;
-        // Expose predictNextCandle function globally for menuBar access
+        // Expose predictNextCandle function and state globally for menuBar access
         (window as any).predictNextCandle = () => handleWhatNext();
+        (window as any).getAutoPlayState = () => isAutoPlaying;
+        (window as any).getPlaybackSpeed = () => playbackSpeed;
+        (window as any).setPlaybackSpeed = (speed: number) => changeSpeed(speed);
+        (window as any).stopPrediction = () => stopAutoPlay();
       }
     } catch {}
 
@@ -828,6 +832,9 @@
 
     // Cleanup listeners on destroy
     onDestroy(() => {
+      // Stop auto-play if running
+      stopAutoPlay();
+      
       window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
       window.removeEventListener('beforeunload', onBeforeUnload);
       try { window.removeEventListener('resize', onWindowResize) } catch {}
@@ -835,20 +842,56 @@
         try { infiniteScrollCleanup(); } catch {}
         infiniteScrollCleanup = null;
       }
-      
-      // Cleanup separator event listeners
-      try {
-        const cleanup = (chartRef as any)?.__separatorCleanup;
-        if (cleanup) {
-          cleanup();
-          (chartRef as any).__separatorCleanup = null;
-        }
-      } catch {}
     });
     
-    // Note: Mobile separator drag is now handled by the local klinechart-source
-    // The source code has been fixed to properly dispatch touch events to the SEPARATOR widget
-    console.log('✅ Chart initialized with local klinecharts source (mobile separator drag enabled)');
+    // Enhanced separator interaction functionality
+    setTimeout(() => {
+      const separators = chartRef?.querySelectorAll('.klinecharts-pane-separator');
+      separators?.forEach((separator) => {
+        const element = separator as HTMLElement;
+        
+        // Add smooth cursor feedback
+        element.style.transition = 'background-color 0.2s ease, transform 0.1s ease';
+        
+        // Enhanced mouse events for desktop
+        element.addEventListener('mouseenter', () => {
+          element.style.cursor = 'row-resize';
+          element.style.transform = 'scaleY(1.2)';
+        });
+        
+        element.addEventListener('mouseleave', () => {
+          element.style.transform = 'scaleY(1)';
+        });
+        
+        // Add dragging class for visual feedback
+        element.addEventListener('mousedown', () => {
+          element.classList.add('dragging');
+          document.body.style.cursor = 'row-resize';
+        });
+        
+        // Remove dragging class on mouse up (global)
+        const handleMouseUp = () => {
+          element.classList.remove('dragging');
+          document.body.style.cursor = '';
+        };
+        
+        document.addEventListener('mouseup', handleMouseUp);
+        
+        // Enhanced touch support for mobile
+        element.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          element.classList.add('dragging');
+          // Add haptic feedback if available
+          if ('vibrate' in navigator) {
+            navigator.vibrate(10);
+          }
+        });
+        
+        element.addEventListener('touchend', () => {
+          element.classList.remove('dragging');
+        });
+      });
+    }, 500); // Delay to ensure chart is fully rendered
   })
 
   // Setup infinite scrolling for historical data loading
@@ -1477,6 +1520,9 @@
   let isPredicting = $state(false)
   let predictedCandles: KLineData[] = $state([])
   let predictionCount = $state(0)
+  let isAutoPlaying = $state(false)
+  let autoPlayInterval: NodeJS.Timeout | null = null
+  let playbackSpeed = $state(1) // 0.5x to 3x speed (1 = 2 seconds default)
 
   function handleMouseMove(e: MouseEvent) {
     // Track mouse position for crosshair price calculation
@@ -1661,16 +1707,14 @@
   }
 
   /**
-   * Handle "What Next" prediction
+   * Create a single prediction
    */
-  function handleWhatNext() {
+  function createSinglePrediction() {
     const chartObj = $chart;
     if (!chartObj) {
       console.error('Chart not initialized');
-      return;
+      return false;
     }
-
-    isPredicting = true;
 
     try {
       // Get current data
@@ -1678,8 +1722,7 @@
       
       if (dataList.length < 10) {
         console.warn('⚠️ Need more historical data for prediction');
-        isPredicting = false;
-        return;
+        return false;
       }
 
       // Check if market is likely closed
@@ -1704,8 +1747,7 @@
 
       if (!predictedCandle) {
         console.error('❌ Failed to generate prediction');
-        isPredicting = false;
-        return;
+        return false;
       }
 
       // Add the new predicted candle to our tracking array
@@ -1742,10 +1784,92 @@
       console.log('✅ Prediction added:', predictedCandle);
       console.log('📊 Total predictions so far:', predictionCount);
 
+      return true;
     } catch (error) {
       console.error('❌ Prediction error:', error);
-    } finally {
-      isPredicting = false;
+      return false;
+    }
+  }
+
+  /**
+   * Get interval based on speed (speed: 0.5 to 3)
+   */
+  function getIntervalFromSpeed(): number {
+    // Base interval is 2000ms (2 seconds)
+    // Speed 0.5 = 4000ms, Speed 1 = 2000ms, Speed 2 = 1000ms, Speed 3 = 667ms
+    return Math.round(2000 / playbackSpeed);
+  }
+
+  /**
+   * Restart auto-play with new speed
+   */
+  function restartAutoPlayWithSpeed() {
+    if (!isAutoPlaying) return;
+    
+    // Clear existing interval
+    if (autoPlayInterval) {
+      clearInterval(autoPlayInterval);
+      autoPlayInterval = null;
+    }
+    
+    // Start new interval with updated speed
+    const interval = getIntervalFromSpeed();
+    autoPlayInterval = setInterval(() => {
+      if (!isAutoPlaying) return;
+      createSinglePrediction();
+    }, interval);
+    
+    console.log(`⚡ Speed changed: ${playbackSpeed}x (${interval}ms interval)`);
+  }
+
+  /**
+   * Change playback speed
+   */
+  function changeSpeed(newSpeed: number) {
+    playbackSpeed = newSpeed;
+    restartAutoPlayWithSpeed();
+  }
+
+  /**
+   * Start auto-playing predictions
+   */
+  function startAutoPlay() {
+    if (isAutoPlaying) return;
+    
+    isAutoPlaying = true;
+    console.log('▶️ Auto-play started');
+    
+    // Create first candle immediately
+    createSinglePrediction();
+    
+    // Then create new candles based on speed
+    const interval = getIntervalFromSpeed();
+    autoPlayInterval = setInterval(() => {
+      if (!isAutoPlaying) return;
+      createSinglePrediction();
+    }, interval);
+  }
+
+  /**
+   * Stop auto-playing predictions
+   */
+  function stopAutoPlay() {
+    isAutoPlaying = false;
+    if (autoPlayInterval) {
+      clearInterval(autoPlayInterval);
+      autoPlayInterval = null;
+    }
+    console.log('⏸️ Auto-play stopped');
+  }
+
+  /**
+   * Toggle auto-play (play/stop)
+   */
+  function handleWhatNext() {
+    if (isAutoPlaying) {
+      stopAutoPlay();
+    } else {
+      startAutoPlay();
     }
   }
 
@@ -1755,6 +1879,9 @@
   function clearPredictions() {
     const chartObj = $chart;
     if (!chartObj || predictedCandles.length === 0) return;
+
+    // Stop auto-play if running
+    stopAutoPlay();
 
     try {
       const dataList = chartObj.getDataList();
@@ -2276,18 +2403,12 @@
     cursor: ns-resize !important;
     transition: background-color 0.2s ease !important;
     z-index: 10 !important;
-    touch-action: none !important; /* Allow custom drag handling on mobile */
     /* Performance optimizations */
     will-change: transform, background-color !important;
     transform: translateZ(0) !important; /* Force hardware acceleration */
     backface-visibility: hidden !important;
     perspective: 1000px !important;
     contain: layout style paint !important; /* CSS containment for better performance */
-  }
-  
-  /* CRITICAL: Catch separators created with inline styles (ns-resize) */
-  :global(div[style*="ns-resize"]) {
-    touch-action: none !important;
   }
 
   /* Enhanced touch area for mobile */
