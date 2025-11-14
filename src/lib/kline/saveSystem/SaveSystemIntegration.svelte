@@ -23,6 +23,62 @@
   let currentSymbolKey: SymbolKey | null = null;
   let symbolUnsubscribe: (() => void) | null = null;
 
+  /**
+   * Clear persisted chart cache (unsaved changes from localStorage)
+   * This prevents WebView from showing cached unsaved changes
+   */
+  function clearPersistedChartCache() {
+    try {
+      console.log('🧹 Clearing persisted chart cache to prevent showing unsaved changes...');
+      
+      // Get current save state to preserve important data
+      const currentSave = $save;
+      
+      // Clear the persisted localStorage completely
+      const chartKey = 'chart';
+      
+      // Remove all chart-related cached data
+      if (typeof localStorage !== 'undefined') {
+        // Don't remove these - they are part of saved layouts system:
+        // - 'activeSaveId' 
+        // - 'savedLayouts'
+        
+        // Remove the main persisted chart store (contains unsaved indicators, drawings, etc)
+        const storedChart = localStorage.getItem(chartKey);
+        if (storedChart) {
+          try {
+            const parsed = JSON.parse(storedChart);
+            // Keep only essential settings, remove volatile state
+            const cleaned = {
+              key: parsed.key || 'chart',
+              theme: parsed.theme || 'dark',
+              symbol: parsed.symbol || 'BINANCE:BTCUSDT',
+              period: parsed.period || { timeframe: '1h', timespan: 'hour' },
+              // Remove indicators, panes, overlays - these should come from saved layouts
+              // indicators: [], // Will be loaded from saved layout
+              // panes: [], // Will be loaded from saved layout
+              // styles will be loaded from saved layout or default theme
+            };
+            localStorage.setItem(chartKey, JSON.stringify(cleaned));
+            console.log('✅ Cleared unsaved chart changes, kept basic settings');
+          } catch (e) {
+            console.warn('⚠️ Could not parse stored chart, clearing completely:', e);
+            localStorage.removeItem(chartKey);
+          }
+        }
+        
+        // Clear drawing caches (these should come from saved layouts only)
+        localStorage.removeItem('chart_drawings');
+        localStorage.removeItem('chart_overlays');
+        localStorage.removeItem('dataSpaceOverlays');
+        
+        console.log('✅ Persisted chart cache cleared successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error clearing persisted chart cache:', error);
+    }
+  }
+
   onMount(async () => {
     // Wait for chart to be ready
     if (!$chart) {
@@ -167,12 +223,16 @@
         };
       }
 
-      // CRITICAL FIX: Auto-restore active saved data immediately after chart initialization
-      // This ensures that when the chart is refreshed or reopened (e.g., in WebView), 
-      // it always loads from saved layouts instead of using cached data
-      // Minimal delay to ensure chart DOM is ready
+      // CRITICAL FIX: Clear persisted localStorage cache first, then load saved layouts
+      // This ensures WebView always shows either saved layout or default chart
+      // Never shows cached unsaved changes
       setTimeout(async () => {
+        // Step 1: Clear persisted chart cache (unsaved changes)
+        clearPersistedChartCache();
+        
+        // Step 2: Restore from saved layouts (or use default)
         await restoreActiveSavedData();
+        
         // After auto-restore, baseline is clean
         try { markClean(); } catch {}
       }, 100);

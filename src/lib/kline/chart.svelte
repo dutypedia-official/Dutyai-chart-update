@@ -630,29 +630,36 @@
         activeSaveId = (typeof window !== 'undefined') ? localStorage.getItem('chart.activeSaveId') : null;
       } catch {}
       
-      // If there is NO active saved layout, restore ad-hoc indicators (from $save.saveInds)
-      if (!activeSaveId) {
-        // Run after initial style application to avoid flicker
-        setTimeout(restoreIndicatorsFromSave, 150);
+      // IMPORTANT: Never restore from $save.saveInds (these are cached unsaved changes)
+      // Only SaveSystem should restore indicators from saved layouts
+      // If no saved layout exists, we'll add default indicators below
+      if (activeSaveId) {
+        console.log('ℹ️ Active layout detected, SaveSystem will restore indicators.');
       } else {
-        console.log('ℹ️ Active layout detected, skipping ad-hoc indicator restore. Will let SaveSystem restore.');
+        console.log('ℹ️ No active layout, will add default indicators if needed.');
       }
 
-      // Helper to add default indicators (optionally forcing regardless of saved/existing)
+      // Helper to add default indicators
+      // This is called only when there's NO saved layout
       const addDefaultIndicators = (force: boolean) => {
         try {
           if (!$chart) return;
           const chartObj = $chart;
+          
+          // When force=true, always add defaults
+          // When force=false, check if indicators already exist
           if (!force) {
-            const hasSaved = Object.keys($save.saveInds || {}).length > 0;
             let existing: Array<{ name: string; paneId?: string }> = [];
             try {
               existing = (chartObj.getIndicators?.() ?? []) as Array<{ name: string; paneId?: string }>;
             } catch {}
-            if (hasSaved || (existing && existing.length > 0)) {
+            if (existing && existing.length > 0) {
+              console.log('ℹ️ Indicators already exist, skipping defaults');
               return;
             }
           }
+          
+          console.log('🎨 Adding default indicators...');
           
           const mainPaneId = 'candle_pane';
           // SuperTrend
@@ -722,7 +729,7 @@
         }
       };
       
-      // Detect browser reload navigation and force defaults
+      // Detect browser reload navigation
       let isReload = false;
       try {
         const navEntries = (performance as any).getEntriesByType?.('navigation');
@@ -733,25 +740,20 @@
         }
       } catch {}
       
-      if (isReload) {
-        // On reload, if there is an active saved layout, do nothing here and let SaveSystem restore it.
-        if (activeSaveId) {
-          console.log('🔁 Reload with active layout detected; defaults suppressed.');
-        } else {
-          // No active layout => reset ad-hoc state and force defaults
-          save.update(s => {
-            s.saveInds = {};
-            return s;
-          });
-          setTimeout(() => addDefaultIndicators(true), 200);
-        }
+      // CRITICAL FIX: Always clear cached unsaved indicators
+      // Only saved layouts should persist, not ad-hoc changes
+      save.update(s => {
+        s.saveInds = {}; // Clear unsaved indicator cache
+        return s;
+      });
+      
+      if (activeSaveId) {
+        // Active saved layout exists - SaveSystem will restore it
+        console.log('✅ Active saved layout will be restored by SaveSystem');
       } else {
-        // Normal path: only add defaults if nothing saved/existing and no active layout
-        if (!activeSaveId) {
-          setTimeout(() => addDefaultIndicators(false), 300);
-        } else {
-          console.log('ℹ️ Active layout present; skipping defaults on normal init.');
-        }
+        // No saved layout - add default indicators
+        console.log('🎨 No saved layout found, adding default indicators');
+        setTimeout(() => addDefaultIndicators(true), 250);
       }
     } catch (e) {
       console.warn('⚠️ Indicator restore failed:', e);
