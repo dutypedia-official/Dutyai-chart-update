@@ -280,6 +280,73 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   const isRsi = $derived($ctx.editIndName === 'RSI');
   const isStochastic = $derived($ctx.editIndName === 'STOCH');
   const isSuperTrend = $derived($ctx.editIndName === 'SUPERTREND');
+  const isSmartMoney = $derived($ctx.editIndName === 'SMART_MONEY');
+  const isTrapHunter = $derived($ctx.editIndName === 'TRAP_HUNTER');
+  const isVolcanic = $derived($ctx.editIndName === 'VOLCANIC');
+  const isVolcanicSig = $derived($ctx.editIndName === 'VOLCANIC_SIG');
+  
+  // Realtime updater for Trap Hunter indicator
+  function updateTrapHunter() {
+    if ($ctx.editIndName !== 'TRAP_HUNTER' || !$chart) return;
+    try {
+      const calcParams = (params || []).map((v: unknown) => Number(v));
+      ($chart as any).overrideIndicator({
+        name: 'TRAP_HUNTER',
+        calcParams,
+        paneId: $ctx.editPaneId
+      });
+    } catch (error) {
+      console.error('❌ Error updating Trap Hunter:', error);
+    }
+  }
+  // Realtime updater for Volcanic Pressure indicator
+  function updateVolcanicRealtime() {
+    if ($ctx.editIndName !== 'VOLCANIC' || !$chart) return;
+    try {
+      const calcParams = (params || []).map((v: unknown) => Number(v));
+      ($chart as any).overrideIndicator({
+        name: 'VOLCANIC',
+        calcParams,
+        paneId: $ctx.editPaneId
+      });
+    } catch (error) {
+      console.error('❌ Error updating VOLCANIC:', error);
+    }
+  }
+  // Realtime updater for Volcanic Eruptions overlay
+  function updateVolcanicSigRealtime() {
+    if ($ctx.editIndName !== 'VOLCANIC_SIG' || !$chart) return;
+    try {
+      const calcParams = (params || []).map((v: unknown) => Number(v));
+      ($chart as any).overrideIndicator({
+        name: 'VOLCANIC_SIG',
+        calcParams,
+        paneId: $ctx.editPaneId
+      });
+    } catch (error) {
+      console.error('❌ Error updating VOLCANIC_SIG:', error);
+    }
+  }
+  
+  // Safety: reactive watchers to ensure real-time updates on any param change
+  let __volcanicParamsKey = $state('');
+  $effect(() => {
+    if (!isVolcanic) return;
+    const key = JSON.stringify(params ?? []);
+    if (key !== __volcanicParamsKey) {
+      __volcanicParamsKey = key;
+      updateVolcanicRealtime();
+    }
+  });
+  let __volcanicSigParamsKey = $state('');
+  $effect(() => {
+    if (!isVolcanicSig) return;
+    const key = JSON.stringify(params ?? []);
+    if (key !== __volcanicSigParamsKey) {
+      __volcanicSigParamsKey = key;
+      updateVolcanicSigRealtime();
+    }
+  });
   // Human-friendly modal title
   const editTitle = $derived($ctx.editIndName === 'SUPERTREND' ? 'SmartTrend BuySell' : $ctx.editIndName);
 
@@ -297,6 +364,121 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   let crMa2Period = $state(20);
   let crMa3Period = $state(40);
   let crMa4Period = $state(60);
+  
+  // Smart Money Footprint (user-friendly UI state)
+  interface SmfGroup {
+    zoneLookbackBars: number;
+    minZoneBars: number;
+    maxZoneBars: number;
+    atrPeriod: number;
+    volumeMAPeriod: number;
+    minVolumeFactor: number;
+    maxZoneWidthPct: number;
+    priorTrendLookback: number;
+    minOBVTrendStrength: number;
+    minZoneScore: number;
+    mergeNearbyZones: boolean;
+    maxZonesDisplayed: number;
+    showLabels: boolean;
+  }
+  let smfGroup = $state<SmfGroup>({
+    zoneLookbackBars: 40,
+    minZoneBars: 5,
+    maxZoneBars: 25,
+    atrPeriod: 14,
+    volumeMAPeriod: 20,
+    minVolumeFactor: 1.2,
+    maxZoneWidthPct: 0.03,
+    priorTrendLookback: 20,
+    minOBVTrendStrength: 0.2,
+    minZoneScore: 0.6,
+    mergeNearbyZones: true,
+    maxZonesDisplayed: 20,
+    showLabels: true
+  });
+
+  function updateSmartMoneyRealtime() {
+    if (!isSmartMoney || !$chart || !$ctx.editPaneId) return;
+    const calcParams: unknown[] = [
+      smfGroup.zoneLookbackBars,
+      smfGroup.minZoneBars,
+      smfGroup.maxZoneBars,
+      smfGroup.atrPeriod,
+      smfGroup.volumeMAPeriod,
+      smfGroup.minVolumeFactor,
+      smfGroup.maxZoneWidthPct,
+      smfGroup.priorTrendLookback,
+      smfGroup.minOBVTrendStrength,
+      smfGroup.minZoneScore,
+      smfGroup.mergeNearbyZones ? 1 : 0,
+      smfGroup.maxZonesDisplayed,
+      smfGroup.showLabels ? 1 : 0
+    ];
+    try {
+      ($chart as any).overrideIndicator({
+        name: 'SMART_MONEY',
+        calcParams,
+        paneId: $ctx.editPaneId
+      });
+    } catch (e) {
+      console.error('SMART_MONEY realtime update failed:', e);
+    }
+  }
+
+  function syncSmartMoneyFromParams() {
+    if (!isSmartMoney || !Array.isArray(params)) return;
+    const p = params as any[];
+    smfGroup.zoneLookbackBars = Number(p[0] ?? smfGroup.zoneLookbackBars);
+    smfGroup.minZoneBars = Number(p[1] ?? smfGroup.minZoneBars);
+    smfGroup.maxZoneBars = Number(p[2] ?? smfGroup.maxZoneBars);
+    smfGroup.atrPeriod = Number(p[3] ?? smfGroup.atrPeriod);
+    smfGroup.volumeMAPeriod = Number(p[4] ?? smfGroup.volumeMAPeriod);
+    smfGroup.minVolumeFactor = Number(p[5] ?? smfGroup.minVolumeFactor);
+    smfGroup.maxZoneWidthPct = Number(p[6] ?? smfGroup.maxZoneWidthPct);
+    smfGroup.priorTrendLookback = Number(p[7] ?? smfGroup.priorTrendLookback);
+    smfGroup.minOBVTrendStrength = Number(p[8] ?? smfGroup.minOBVTrendStrength);
+    smfGroup.minZoneScore = Number(p[9] ?? smfGroup.minZoneScore);
+    smfGroup.mergeNearbyZones = Number(p[10] ?? (smfGroup.mergeNearbyZones ? 1 : 0)) > 0;
+    smfGroup.maxZonesDisplayed = Number(p[11] ?? smfGroup.maxZonesDisplayed);
+    smfGroup.showLabels = Number(p[12] ?? (smfGroup.showLabels ? 1 : 0)) > 0;
+  }
+
+  $effect(() => {
+    if (isSmartMoney) {
+      syncSmartMoneyFromParams();
+    }
+  });
+
+  function handleSmartMoneyConfirm() {
+    const calcParams: unknown[] = [
+      smfGroup.zoneLookbackBars,
+      smfGroup.minZoneBars,
+      smfGroup.maxZoneBars,
+      smfGroup.atrPeriod,
+      smfGroup.volumeMAPeriod,
+      smfGroup.minVolumeFactor,
+      smfGroup.maxZoneWidthPct,
+      smfGroup.priorTrendLookback,
+      smfGroup.minOBVTrendStrength,
+      smfGroup.minZoneScore,
+      smfGroup.mergeNearbyZones ? 1 : 0,
+      smfGroup.maxZonesDisplayed,
+      smfGroup.showLabels ? 1 : 0
+    ];
+    $chart?.overrideIndicator({
+      name: 'SMART_MONEY',
+      calcParams,
+      paneId: $ctx.editPaneId
+    });
+    save.update(s => {
+      s.saveInds[`${$ctx.editPaneId}_SMART_MONEY`] = {
+        name: 'SMART_MONEY',
+        params: calcParams,
+        pane_id: $ctx.editPaneId
+      };
+      return s;
+    });
+  }
   let crColor = $state('#FF6B35');
   let crMa1Color = $state('#2196F3');
   let crMa2Color = $state('#4CAF50');
@@ -11353,6 +11535,20 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       return;
     }
     
+    // Handle SMART_MONEY specially
+    if (from === 'confirm' && isSmartMoney && $ctx.editIndName && $ctx.editPaneId) {
+      handleSmartMoneyConfirm();
+      // Clear edit state
+      ctx.update(c => {
+        c.editIndName = '';
+        c.editPaneId = '';
+        c.modalIndCfg = false;
+        return c;
+      });
+      show = false;
+      return;
+    }
+    
     // Handle PVT groups specially - apply all changes to chart and save
     if (from === 'confirm' && isPvt && $ctx.editIndName && $ctx.editPaneId) {
       console.log('🔄 PVT Confirm: Applying all changes to chart');
@@ -11549,9 +11745,8 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             param = field.default
           }
         }
-        if(param){
-          result.push(Number(param))
-        }
+        // Always push numeric params, including 0 (needed for toggles)
+        result.push(Number(param))
       }
     });
     
@@ -11766,6 +11961,324 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
           </svg>
           <span class="text-xs sm:text-sm">Add MACD</span>
         </button>
+      </div>
+    </div>
+  {:else if isSmartMoney}
+    <!-- Smart Money Footprint - Friendly UI -->
+    <div class="space-y-3 mt-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Zone Lookback Bars</label>
+          <input type="number" min="10" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={smfGroup.zoneLookbackBars} oninput={updateSmartMoneyRealtime} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Prior Trend Lookback</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={smfGroup.priorTrendLookback} oninput={updateSmartMoneyRealtime} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min Zone Bars</label>
+          <input type="number" min="3" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={smfGroup.minZoneBars} oninput={updateSmartMoneyRealtime} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Max Zone Bars</label>
+          <input type="number" min="5" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={smfGroup.maxZoneBars} oninput={updateSmartMoneyRealtime} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">ATR Period</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={smfGroup.atrPeriod} oninput={updateSmartMoneyRealtime} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Volume MA Period</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={smfGroup.volumeMAPeriod} oninput={updateSmartMoneyRealtime} />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Max Zone Width %</label>
+          <div class="flex items-center gap-2">
+            <input type="range" min="0.005" max="0.10" step="0.005" bind:value={smfGroup.maxZoneWidthPct} class="range range-xs flex-1" oninput={updateSmartMoneyRealtime} />
+            <span class="text-xs w-10 text-right">{(smfGroup.maxZoneWidthPct * 100).toFixed(1)}%</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min Volume Factor</label>
+          <div class="flex items-center gap-2">
+            <input type="range" min="0.5" max="2.0" step="0.05" bind:value={smfGroup.minVolumeFactor} class="range range-xs flex-1" oninput={updateSmartMoneyRealtime} />
+            <span class="text-xs w-10 text-right">{smfGroup.minVolumeFactor.toFixed(2)}x</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min OBV Trend</label>
+          <div class="flex items-center gap-2">
+            <input type="range" min="0.0" max="0.6" step="0.01" bind:value={smfGroup.minOBVTrendStrength} class="range range-xs flex-1" oninput={updateSmartMoneyRealtime} />
+            <span class="text-xs w-10 text-right">{smfGroup.minOBVTrendStrength.toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min Zone Score</label>
+          <div class="flex items-center gap-2">
+            <input type="range" min="0.3" max="0.9" step="0.01" bind:value={smfGroup.minZoneScore} class="range range-xs flex-1" oninput={updateSmartMoneyRealtime} />
+            <span class="text-xs w-10 text-right">{smfGroup.minZoneScore.toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex items-center justify-between bg-base-50 border border-base-200 rounded-md p-2">
+          <div class="flex flex-col">
+            <span class="text-xs font-medium">Merge Nearby Zones</span>
+            <span class="text-[10px] text-base-content/60">Overlap/adjacent similar zones merge</span>
+          </div>
+          <input type="checkbox" class="toggle toggle-sm" bind:checked={smfGroup.mergeNearbyZones} onchange={updateSmartMoneyRealtime} />
+        </div>
+        <div class="flex items-center justify-between bg-base-50 border border-base-200 rounded-md p-2">
+          <div class="flex flex-col">
+            <span class="text-xs font-medium">Show Labels</span>
+            <span class="text-[10px] text-base-content/60">Type + score label</span>
+          </div>
+          <input type="checkbox" class="toggle toggle-sm" bind:checked={smfGroup.showLabels} onchange={updateSmartMoneyRealtime} />
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-xs text-base-content/60">Max Zones Displayed</label>
+        <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm w-28" bind:value={smfGroup.maxZonesDisplayed} oninput={updateSmartMoneyRealtime} />
+      </div>
+    </div>
+  {:else if isTrapHunter}
+    <!-- Trap Hunter - Friendly UI -->
+    <div class="space-y-3 mt-3">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Resistance Lookback</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[0]} oninput={updateTrapHunter} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Support Lookback</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[1]} oninput={updateTrapHunter} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Confirmation Bars</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[2]} oninput={updateTrapHunter} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Max Trap Bars</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[3]} oninput={updateTrapHunter} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Volume MA Period</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[4]} oninput={updateTrapHunter} />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min Volume Spike (x)</label>
+          <div class="flex items-center gap-2">
+            <input type="range" min="1.0" max="3.0" step="0.05" bind:value={params[5]} class="range range-xs flex-1" oninput={updateTrapHunter} />
+            <span class="text-xs w-10 text-right">{Number(params[5] ?? 1.2).toFixed(2)}x</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min Breakout Factor (%)</label>
+          <div class="flex items-center gap-2">
+            <input type="number" step="0.0001" min="0.0000" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm w-28" bind:value={params[6]} oninput={updateTrapHunter} />
+            <span class="text-[10px] text-base-content/60">e.g. 0.0005 = 0.05%</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min Wick Ratio</label>
+          <div class="flex items-center gap-2">
+            <input type="range" min="0.0" max="1.0" step="0.01" bind:value={params[7]} class="range range-xs flex-1" oninput={updateTrapHunter} />
+            <span class="text-xs w-10 text-right">{Number(params[7] ?? 0.35).toFixed(2)}</span>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Min Trap Score</label>
+          <div class="flex items-center gap-2">
+            <input type="range" min="0.0" max="1.0" step="0.01" bind:value={params[8]} class="range range-xs flex-1" oninput={updateTrapHunter} />
+            <span class="text-xs w-10 text-right">{Number(params[8] ?? 0.5).toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="flex items-center justify-between bg-base-50 border border-base-200 rounded-md p-2">
+          <div class="flex flex-col">
+            <span class="text-xs font-medium">Stable Signal</span>
+            <span class="text-[10px] text-base-content/60">Show blue “Stable” dots</span>
+          </div>
+          <input 
+            type="checkbox" 
+            class="toggle toggle-sm" 
+            checked={Number(params[9] ?? 1) > 0}
+            onchange={(e) => { params[9] = (e.currentTarget as HTMLInputElement).checked ? 1 : 0; updateTrapHunter(); }}
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-base-content/60">Normal Quiet Bars</label>
+          <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm w-28" bind:value={params[10]} oninput={updateTrapHunter} />
+        </div>
+      </div>
+    </div>
+  {:else if isVolcanic}
+    <!-- Volcanic Move (Pressure) - Friendly UI -->
+    <div class="space-y-3 mt-3">
+      <!-- Compression Inputs -->
+      <div class="bg-base-50 border border-base-200 rounded-md p-2">
+        <div class="text-xs font-medium text-base-content/80 mb-2">Compression Inputs</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">BB Period</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[0]} oninput={updateVolcanicRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">BB StdDev</label>
+            <input type="number" step="0.1" min="0.1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[1]} oninput={updateVolcanicRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">ATR Period</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[2]} oninput={updateVolcanicRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Volume MA Period</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[3]} oninput={updateVolcanicRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Normalize Lookback</label>
+            <input type="number" min="10" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[4]} oninput={updateVolcanicRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Pressure SMA</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[5]} oninput={updateVolcanicRealtime} />
+          </div>
+        </div>
+      </div>
+      <!-- Alert & Breakout Behavior -->
+      <div class="bg-base-50 border border-base-200 rounded-md p-2">
+        <div class="text-xs font-medium text-base-content/80 mb-2">Alert & Breakout Behavior</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Pressure for Alert</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.0" max="1.0" step="0.01" bind:value={params[6]} class="range range-xs flex-1" oninput={updateVolcanicRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[6] ?? 0.7).toFixed(2)}</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Confirmation Bars</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[7]} oninput={updateVolcanicRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Volume Expansion (x)</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.8" max="3.0" step="0.05" bind:value={params[8]} class="range range-xs flex-1" oninput={updateVolcanicRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[8] ?? 1.3).toFixed(2)}x</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Range Expansion (x)</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.8" max="3.0" step="0.05" bind:value={params[9]} class="range range-xs flex-1" oninput={updateVolcanicRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[9] ?? 1.3).toFixed(2)}x</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Body % of Range</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.0" max="1.0" step="0.01" bind:value={params[10]} class="range range-xs flex-1" oninput={updateVolcanicRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[10] ?? 0.6).toFixed(2)}</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Breakout Lookback</label>
+            <input type="number" min="5" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[11]} oninput={updateVolcanicRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Bars Between Signals</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[12]} oninput={updateVolcanicRealtime} />
+          </div>
+        </div>
+      </div>
+    </div>
+  {:else if isVolcanicSig}
+    <!-- Volcanic Eruptions (Markers) - Friendly UI -->
+    <div class="space-y-3 mt-3">
+      <!-- Use same parameter set as VOLCANIC for consistency -->
+      <div class="bg-base-50 border border-base-200 rounded-md p-2">
+        <div class="text-xs font-medium text-base-content/80 mb-2">Detection Parameters</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">BB Period</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[0]} oninput={updateVolcanicSigRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">BB StdDev</label>
+            <input type="number" step="0.1" min="0.1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[1]} oninput={updateVolcanicSigRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">ATR Period</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[2]} oninput={updateVolcanicSigRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Volume MA Period</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[3]} oninput={updateVolcanicSigRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Normalize Lookback</label>
+            <input type="number" min="10" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[4]} oninput={updateVolcanicSigRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Pressure SMA</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[5]} oninput={updateVolcanicSigRealtime} />
+          </div>
+        </div>
+      </div>
+      <div class="bg-base-50 border border-base-200 rounded-md p-2">
+        <div class="text-xs font-medium text-base-content/80 mb-2">Alert & Breakout Filters</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Pressure for Alert</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.0" max="1.0" step="0.01" bind:value={params[6]} class="range range-xs flex-1" oninput={updateVolcanicSigRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[6] ?? 0.7).toFixed(2)}</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Confirmation Bars</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[7]} oninput={updateVolcanicSigRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Volume Expansion (x)</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.8" max="3.0" step="0.05" bind:value={params[8]} class="range range-xs flex-1" oninput={updateVolcanicSigRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[8] ?? 1.3).toFixed(2)}x</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Range Expansion (x)</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.8" max="3.0" step="0.05" bind:value={params[9]} class="range range-xs flex-1" oninput={updateVolcanicSigRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[9] ?? 1.3).toFixed(2)}x</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Body % of Range</label>
+            <div class="flex items-center gap-2">
+              <input type="range" min="0.0" max="1.0" step="0.01" bind:value={params[10]} class="range range-xs flex-1" oninput={updateVolcanicSigRealtime} />
+              <span class="text-xs w-10 text-right">{Number(params[10] ?? 0.6).toFixed(2)}</span>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Breakout Lookback</label>
+            <input type="number" min="5" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[11]} oninput={updateVolcanicSigRealtime} />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/60">Min Bars Between Signals</label>
+            <input type="number" min="1" class="input input-bordered input-xs sm:input-sm text-xs sm:text-sm" bind:value={params[12]} oninput={updateVolcanicSigRealtime} />
+          </div>
+        </div>
       </div>
     </div>
   {:else if isRsi}

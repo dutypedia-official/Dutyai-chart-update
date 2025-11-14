@@ -102,7 +102,7 @@
           method: 'ATR',
           atrLength: 14,
           source: 'close',
-          wick: true
+          wick: false
         };
       }
       // Remove line/area specific config if any
@@ -137,7 +137,7 @@
     if ($save.styles?.candle?._isLineChart) {
       return 'line_chart';
     }
-    const currentType = $save.styles?.candle?.type || 'candle_solid';
+    const currentType = $save.styles?.candle?.type || 'renko_atr';
     return currentType;
   }
 </script>

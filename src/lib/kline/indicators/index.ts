@@ -23,5 +23,9 @@ import { sma } from './sma';
 import { stochastic } from './stochastic';
 import { superTrend } from './superTrend';
 import { customMACD } from './customMACD';
+import { trapHunter } from './trapHunter';
+import { smartMoneyFootprint } from './smartMoneyFootprint';
+import { volcanicPressure } from './volcanicPressure';
+import { volcanicEruptions } from './volcanicEruptions';
 
-export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma, stochastic, superTrend, customMACD]
+export default [bias, cci, ichimoku, pvt, rsi, sar, wr, vr, roc, psy, obv, zigzag, customMomentum, customAO, bollingerBands, cr, emv, mtm, trix, volume, sma, stochastic, superTrend, customMACD, trapHunter, smartMoneyFootprint, volcanicPressure, volcanicEruptions]

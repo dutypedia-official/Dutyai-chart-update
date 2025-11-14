@@ -42,19 +42,28 @@
 ## 🚀 How to Use
 
 1. **চার্ট লোড করুন** - যেকোনো symbol select করুন
-2. **▶ Play Button** - মেনুবারে Load বাটনের পরে minimalist icon দেখবেন
-3. **ক্লিক করুন** - প্রতিবার ক্লিক করলে একটা নতুন ক্যান্ডেল যোগ হবে
-4. **Multiple Predictions** - যতবার খুশি ক্লিক করতে পারবেন
-5. **Success Message** - প্রতিটি prediction এর details alert হিসেবে দেখা যাবে
+2. **▶ Play Button** - মেনুবারে Load বাটনের পরে play icon ক্লিক করুন
+3. **Speed Controller** - Play করলে একটা compact speed controller appear করবে:
+   - **Slider** - Speed adjust করুন (0.5x to 10x)
+   - **Speed Label** - Current speed দেখুন (e.g., 1x, 2x, 5x, 10x)
+   - **⏹ Stop Button** - Auto-play বন্ধ করুন
+4. **Auto-Hide** - Stop করলে controller hide হয়ে শুধু play button দেখাবে
+5. **Silent Mode** - কোনো toast notification নেই, শুধু console logs
 
 ## 🎨 Visual Design
 
-- **▶ Icon Only** - Minimalist design, শুধু Play icon
-- **Purple Gradient** - সুন্দর gradient background (#667eea → #764ba2)
-- **Pulse Animation** - Icon continuously pulse করে attention আকর্ষণ করে
-- **Hover Effect** - Gradient reverse, button lifts up
-- **Square Shape** - 40×40px perfect square button
-- **📈/📉 Alerts** - প্রতিটি prediction এর details success message হিসেবে
+- **▶ Play Button** - Single minimalist play icon
+- **Speed Controller** - Compact inline panel যখন playing:
+  - Width: ~120px (very compact)
+  - Height: 32px (menubar এর সাথে match)
+  - Slider: 60px wide, thin design
+  - Speed range: 0.5x to 10x (20 steps)
+  - Speed label: Small, clear (e.g., "1x", "5x", "10x")
+  - Stop button: Simple ⏹ emoji
+- **Auto-Hide/Show** - Play = show controller, Stop = hide controller
+- **Minimal Space** - মেনুবারে খুব কম space নেয়
+- **Responsive** - Mobile এ আরো compact হয়
+- **Silent Operation** - কোনো toast/alert নেই
 
 ## 📝 Algorithm Details
 
@@ -171,23 +180,39 @@ Next:    $101.80 (-0.68%) - Pullback
 ## 🎨 UI Elements
 
 ### Button Design:
-- **Minimalist** - শুধু Play icon, কোনো text নেই
+- **Minimalist Icon** - MenuButton component ব্যবহার করে
 - **Location** - Load বাটনের ঠিক পরে
-- **Size** - 40×40px square button
-- **Shape** - Rounded corners (8px border-radius)
+- **Dynamic Icon** - Play (▶) ⟷ Stop (⏹) toggle
+- **No Special Styling** - Settings button এর মতো same style
 
-### Button Features:
-- **Hover Effect** - Gradient reverses, lifts up slightly
-- **Active State** - Button press animation
-- **Pulse Animation** - Icon continuously pulses (scale 1.0 → 1.15)
-- **Mobile Responsive** - 36px (tablet) → 32px (phone)
+### Button States:
+- **▶ Play State** - Auto-play off, ready to start
+- **⏹ Stop State** - Auto-play on, running
+- **No Animation** - Clean, professional look
+- **Instant Toggle** - Click করলে immediately state change
 
-### Colors & Effects:
-- **Background** - Purple gradient (#667eea → #764ba2)
-- **Hover** - Reversed gradient (#764ba2 → #667eea)
-- **Shadow** - Glowing purple shadow (rgba(102, 126, 234, 0.4))
-- **Icon** - White play triangle (▶)
-- **Tooltip** - "Predict Next Candle (AI Simulator)"
+### Auto-Play Behavior:
+- **Base Speed** - 1x = 2 seconds per candle (default)
+- **Speed Range** - 0.5x to 10x (adjustable via slider)
+  - 0.5x = 4000ms (slowest)
+  - 1x = 2000ms (normal)
+  - 2x = 1000ms (fast)
+  - 3x = 667ms (faster)
+  - 5x = 400ms (very fast)
+  - 10x = 200ms (maximum speed)
+- **First Candle** - Immediately after play click
+- **Continuous** - Until stop clicked
+- **Dynamic Speed** - Change speed while playing
+- **Auto-Scroll** - Chart automatically scrolls to new candles
+- **Cleanup** - Interval clears on stop/unmount
+
+### Speed Controller Features:
+- **Compact Design** - Inline with menubar buttons
+- **Range Slider** - Smooth 0.5 to 10.0 adjustment (step: 0.5)
+- **Wide Range** - From 4 seconds to 0.2 seconds per candle
+- **Live Update** - Speed changes immediately
+- **Visual Feedback** - Current speed always visible
+- **One-Click Stop** - Instant stop button access
 
 ---
 

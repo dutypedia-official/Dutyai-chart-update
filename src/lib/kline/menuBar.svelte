@@ -735,15 +735,50 @@ let showAIModal = $state(false);
     });
   }
   
+  let isPlaying = $state(false);
+  let currentSpeed = $state(1);
+  
   function handleWhatNext() {
     try {
       if (typeof window !== 'undefined' && (window as any).predictNextCandle) {
         (window as any).predictNextCandle();
+        // Toggle state
+        if ((window as any).getAutoPlayState) {
+          isPlaying = (window as any).getAutoPlayState();
+        }
+        if ((window as any).getPlaybackSpeed) {
+          currentSpeed = (window as any).getPlaybackSpeed();
+        }
       } else {
         console.error('❌ Prediction function not available');
       }
     } catch (error) {
       console.error('❌ Error calling prediction function:', error);
+    }
+  }
+
+  function handleSpeedChange(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const newSpeed = parseFloat(target.value);
+    currentSpeed = newSpeed;
+    
+    try {
+      if (typeof window !== 'undefined' && (window as any).setPlaybackSpeed) {
+        (window as any).setPlaybackSpeed(newSpeed);
+      }
+    } catch (error) {
+      console.error('❌ Error changing speed:', error);
+    }
+  }
+
+  function handleStop() {
+    try {
+      if (typeof window !== 'undefined' && (window as any).stopPrediction) {
+        (window as any).stopPrediction();
+        isPlaying = false;
+      }
+    } catch (error) {
+      console.error('❌ Error stopping prediction:', error);
     }
   }
 
@@ -1913,8 +1948,32 @@ let showAIModal = $state(false);
       </svg>
       Load
     </button>
-    <!-- What Next Prediction Button -->
-    {@render MenuButton(handleWhatNext, "play", "", 20)}
+    <!-- What Next Prediction Button / Speed Controller -->
+    {#if !isPlaying}
+      {@render MenuButton(handleWhatNext, "play", "", 20)}
+    {:else}
+      <div class="speed-controller">
+        <input 
+          type="range" 
+          min="0.5" 
+          max="10" 
+          step="0.5" 
+          value={currentSpeed}
+          oninput={handleSpeedChange}
+          class="speed-slider"
+          title="Speed: {currentSpeed}x"
+        />
+        <span class="speed-label">{currentSpeed}x</span>
+        <button 
+          onclick={handleStop}
+          class="stop-btn"
+          title="Stop"
+          type="button"
+        >
+          ⏹
+        </button>
+      </div>
+    {/if}
     {@render MenuButton(() => showTimezoneModal = true, "timezone", "")}
     {@render MenuButton(() => showChartSettingModal = true, "setting", "")}
     {@render MenuButton(clickScreenShot, "screenShot", "", 20)}
@@ -2956,6 +3015,109 @@ let showAIModal = $state(false);
 }
 
  
+
+/* Speed Controller - Compact Inline Design */
+.speed-controller {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  height: 32px;
+}
+
+.speed-slider {
+  width: 60px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-color);
+  outline: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--primary-color);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.speed-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.speed-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--primary-color);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.speed-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+.speed-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-color);
+  min-width: 28px;
+  text-align: center;
+}
+
+.stop-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 4px;
+  color: var(--text-color);
+  opacity: 0.7;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+  line-height: 1;
+}
+
+.stop-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.stop-btn:active {
+  transform: scale(0.95);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .speed-controller {
+    height: 28px;
+    padding: 3px 6px;
+    gap: 4px;
+  }
+  
+  .speed-slider {
+    width: 50px;
+  }
+  
+  .speed-label {
+    font-size: 10px;
+    min-width: 24px;
+  }
+  
+  .stop-btn {
+    font-size: 14px;
+  }
+}
 
 /* Smooth transitions for theme changes */
 * {

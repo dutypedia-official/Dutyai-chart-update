@@ -140,16 +140,42 @@
       // Make save manager globally available for UI components
       if (typeof window !== 'undefined') {
         (window as any).saveManager = saveManager;
+        
+        // Expose force refresh function for WebView/Expo environments
+        // This allows the parent app to trigger a fresh load from saved charts
+        (window as any).forceRefreshChart = async () => {
+          console.log('🔄 Force refresh triggered from WebView parent');
+          await restoreActiveSavedData();
+        };
+        
+        // Expose function to clear local cache and reload
+        (window as any).clearChartCache = () => {
+          console.log('🗑️ Clearing chart cache');
+          try {
+            // Clear persisted chart data
+            localStorage.removeItem('chart');
+            // Clear drawing data
+            const dmKey = 'chart_drawings';
+            localStorage.removeItem(dmKey);
+            // Clear overlays
+            localStorage.removeItem('chart_overlays');
+            localStorage.removeItem('dataSpaceOverlays');
+            console.log('✅ Chart cache cleared');
+          } catch (e) {
+            console.error('❌ Error clearing cache:', e);
+          }
+        };
       }
 
-      // CRITICAL FIX: Auto-restore active saved data after chart initialization
-      // This ensures that when the chart is refreshed, the selected saved data persists
-      // Adding a small delay to ensure chart is fully loaded before restoration
+      // CRITICAL FIX: Auto-restore active saved data immediately after chart initialization
+      // This ensures that when the chart is refreshed or reopened (e.g., in WebView), 
+      // it always loads from saved layouts instead of using cached data
+      // Minimal delay to ensure chart DOM is ready
       setTimeout(async () => {
         await restoreActiveSavedData();
         // After auto-restore, baseline is clean
         try { markClean(); } catch {}
-      }, 500);
+      }, 100);
 
       console.log('✅ Save system initialized successfully');
     } catch (error) {
@@ -159,13 +185,30 @@
 
   /**
    * Restore active saved data after chart initialization
-   * This fixes the issue where chart refresh clears indicators even when saved data is selected
+   * This fixes the issue where chart refresh or WebView reopen clears indicators 
+   * even when saved data is selected. Always prioritizes saved layouts over cached data.
    */
   async function restoreActiveSavedData() {
     try {
-      console.log('🔍 Starting automatic restoration process...');
+      console.log('🔍 Starting automatic restoration process (WebView-safe)...');
       
-      // Get the current active save ID from save manager
+      // PRIORITY 1: Try to refresh saved layouts from server first (for logged-in users)
+      let userId: string | null = null;
+      try {
+        userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
+      } catch {}
+      
+      if (userId) {
+        console.log('🌐 User logged in, refreshing saved layouts from server...');
+        try {
+          await saveManager.refresh();
+          console.log('✅ Saved layouts refreshed from server');
+        } catch (e) {
+          console.warn('⚠️ Could not refresh saved layouts from server:', e);
+        }
+      }
+      
+      // PRIORITY 2: Get the current active save ID from save manager
       const activeSaveId = saveManager.getActiveSaveId();
       console.log('🔍 Active save ID found:', activeSaveId);
       
@@ -177,59 +220,38 @@
         
         if (result.success) {
           console.log('✅ Active saved data restored successfully:', activeSaveId);
+          return; // Successfully restored, exit
         } else {
           console.warn('⚠️ Failed to restore active saved data:', result.error);
-        }
-      } else {
-        // No active layout locally. If user has a server account (userId),
-        // auto-pick a saved layout from API and set it active for cross-device continuity.
-        let userId: string | null = null;
-        try {
-          userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null;
-        } catch {}
-        
-        if (userId) {
-          console.log('🌐 No local active layout; attempting server-backed auto-restore for user:', userId);
-          
-          // Get a one-time snapshot of savedLayouts from the save manager state
-          let savedLayoutsSnapshot: any[] = [];
-          const unsubscribe = saveManager.state.subscribe((state: any) => {
-            savedLayoutsSnapshot = state?.savedLayouts || [];
-          });
-          unsubscribe && unsubscribe();
-          
-          // If not loaded yet, try refresh
-          if (!savedLayoutsSnapshot || savedLayoutsSnapshot.length === 0) {
-            try {
-              await saveManager.refresh();
-              const unsub2 = saveManager.state.subscribe((state: any) => {
-                savedLayoutsSnapshot = state?.savedLayouts || [];
-              });
-              unsub2 && unsub2();
-            } catch (e) {
-              console.warn('⚠️ Could not refresh saved layouts:', e);
-            }
-          }
-          
-          if (savedLayoutsSnapshot && savedLayoutsSnapshot.length > 0) {
-            // Pick the first layout (API currently does not flag active; this is a best-effort)
-            const chosen = savedLayoutsSnapshot[0];
-            console.log('🧭 Auto-selecting first saved layout from server:', chosen?.id, chosen?.name);
-            if (chosen?.id) {
-              const loadRes = await saveManager.load(chosen.id);
-              if (loadRes.success) {
-                console.log('✅ Server-backed layout auto-restored and set active:', chosen.id);
-              } else {
-                console.warn('⚠️ Failed to auto-load chosen server layout:', loadRes.error);
-              }
-            }
-          } else {
-            console.log('ℹ️ No server layouts found to auto-restore; keeping defaults.');
-          }
-        } else {
-          console.log('ℹ️ No active saved data to restore');
+          // Continue to try other options
         }
       }
+      
+      // PRIORITY 3: If no active layout or it failed, try to load from available saved layouts
+      let savedLayoutsSnapshot: any[] = [];
+      const unsubscribe = saveManager.state.subscribe((state: any) => {
+        savedLayoutsSnapshot = state?.savedLayouts || [];
+      });
+      unsubscribe && unsubscribe();
+      
+      if (savedLayoutsSnapshot && savedLayoutsSnapshot.length > 0) {
+        // Pick the first layout (most recent or default)
+        const chosen = savedLayoutsSnapshot[0];
+        console.log('🧭 Auto-selecting first saved layout:', chosen?.id, chosen?.name);
+        if (chosen?.id) {
+          const loadRes = await saveManager.load(chosen.id);
+          if (loadRes.success) {
+            console.log('✅ First saved layout auto-restored and set active:', chosen.id);
+            return; // Successfully restored, exit
+          } else {
+            console.warn('⚠️ Failed to auto-load chosen layout:', loadRes.error);
+          }
+        }
+      }
+      
+      // PRIORITY 4: No saved layouts found, use default chart
+      console.log('ℹ️ No saved layouts found, using default chart configuration');
+      
     } catch (error) {
       console.error('❌ Error restoring active saved data:', error);
     }

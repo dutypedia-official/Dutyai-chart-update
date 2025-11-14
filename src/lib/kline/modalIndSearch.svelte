@@ -29,6 +29,9 @@
     // Main indicators (overlay on price chart) - sorted alphabetically
     { name: 'BBI', title: 'BBI (Bull and Bear Index)', is_main: false },
     { name: 'BOLL', title: 'BOLL (Bollinger Bands)', is_main: true },
+    { name: 'VOLCANIC_SIG', title: 'Volcanic Eruptions (Markers) (Main Pane)', is_main: true },
+    { name: 'SMART_MONEY', title: 'Smart Money Footprint', is_main: true },
+    { name: 'TRAP_HUNTER', title: 'Trap Hunter (Bull/Bear Traps)', is_main: true },
     { name: 'EMA', title: 'EMA (Exponential Moving Average)', is_main: true },
     { name: 'ICHIMOKU', title: 'ICHIMOKU (Ichimoku Kinko Hyo)', is_main: true },
     { name: 'MA', title: 'MA (Moving Average)', is_main: true },
@@ -42,6 +45,7 @@
     { name: 'BIAS', title: 'BIAS (Bias)', is_main: false },
     { name: 'CCI', title: 'CCI (Commodity Channel Index)', is_main: false },
     { name: 'CR', title: 'CR (Energy)', is_main: false },
+    { name: 'VOLCANIC', title: 'Volcanic Move (Pressure) (Sub Pane)', is_main: false },
     { name: 'DMI', title: 'DMI (Directional Movement Index)', is_main: false },
     { name: 'EMV', title: 'EMV (Ease of Movement)', is_main: false },
     { name: 'KDJ', title: 'KDJ (KDJ Index)', is_main: false },
@@ -184,6 +188,7 @@
   // Function to get specific icon for each indicator
   function getIndicatorIcon(name: string): string {
     const iconMap: Record<string, string> = {
+      'TRAP_HUNTER': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86l-7.6 13.17A1 1 0 003.53 19h16.94a1 1 0 00.84-1.5L13.71 3.86a1 1 0 00-1.73 0z"></path>',
       // Moving Averages - Trend Lines
       'MA': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>',
       'EMA': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>',
