@@ -64,6 +64,20 @@ import ModalAI from './ModalAI.svelte';
       
       // If exiting fullscreen, add multiple resize attempts with increasing delays
       if (wasFullscreen && !fullScreen) {
+        // IMMEDIATELY reapply saved chart styles BEFORE layout changes
+        // This prevents the default color flicker
+        if ($chart && $save.styles) {
+          (window as any).__forceApplySavedCanvasColors = true;
+          const styles = getThemeStyles($save.theme);
+          _.merge(styles, $save.styles);
+          $chart.setStyles(processLineChartStyles(styles));
+          
+          if ($ctx.applyCanvasColors) {
+            $ctx.applyCanvasColors();
+          }
+          console.log('🎨 Pre-applied chart styles before fullscreen exit');
+        }
+        
         // Immediate style reset
         if (mainContainer) {
           mainContainer.style.cssText = '';
@@ -80,14 +94,56 @@ import ModalAI from './ModalAI.svelte';
             window.getComputedStyle(mainContainer).height;
           }
           $chart?.resize();
+          
+          // Reapply immediately after first resize
+          if ($chart && $save.styles) {
+            (window as any).__forceApplySavedCanvasColors = true;
+            const styles = getThemeStyles($save.theme);
+            _.merge(styles, $save.styles);
+            $chart.setStyles(processLineChartStyles(styles));
+            if ($ctx.applyCanvasColors) {
+              $ctx.applyCanvasColors();
+            }
+          }
         }, 10);
         
         setTimeout(() => {
           $chart?.resize();
+          
+          // Reapply again after second resize
+          if ($chart && $save.styles) {
+            (window as any).__forceApplySavedCanvasColors = true;
+            const styles = getThemeStyles($save.theme);
+            _.merge(styles, $save.styles);
+            $chart.setStyles(processLineChartStyles(styles));
+            if ($ctx.applyCanvasColors) {
+              $ctx.applyCanvasColors();
+            }
+          }
         }, 100);
         
         setTimeout(() => {
           $chart?.resize();
+          
+          // Reapply with forced canvas redraw
+          if ($chart && $save.styles) {
+            (window as any).__forceApplySavedCanvasColors = true;
+            
+            const styles = getThemeStyles($save.theme);
+            _.merge(styles, $save.styles);
+            $chart.setStyles(processLineChartStyles(styles));
+            
+            if ($ctx.applyCanvasColors) {
+              $ctx.applyCanvasColors();
+              
+              // Force chart to redraw by scrolling to current position
+              const visibleRange = $chart.getVisibleRange();
+              if (visibleRange) {
+                $chart.scrollToDataIndex(visibleRange.to, 0);
+              }
+            }
+            console.log('✅ Final chart colors applied after fullscreen exit');
+          }
         }, 300);
         
         setTimeout(() => {
@@ -125,19 +181,63 @@ import ModalAI from './ModalAI.svelte';
         });
         
         const isIOSFullscreen = heightMatch || hasIOSClass || isStandalone;
+        const wasFullscreen = fullScreen;
         
         if (fullScreen !== isIOSFullscreen) {
           console.log(`🔄 iOS fullscreen state changed: ${fullScreen} → ${isIOSFullscreen}`);
           fullScreen = isIOSFullscreen;
           
+          // If exiting fullscreen on iOS, pre-apply styles immediately
+          if (wasFullscreen && !isIOSFullscreen && $chart && $save.styles) {
+            (window as any).__forceApplySavedCanvasColors = true;
+            const styles = getThemeStyles($save.theme);
+            _.merge(styles, $save.styles);
+            $chart.setStyles(processLineChartStyles(styles));
+            if ($ctx.applyCanvasColors) {
+              $ctx.applyCanvasColors();
+            }
+            console.log('🎨 Pre-applied chart styles for iOS exit');
+          }
+          
           // Trigger resize after fullscreen state change
           console.log('📏 Scheduling iOS chart resizes...');
           setTimeout(() => {
             $chart?.resize();
+            
+            // Reapply after first resize
+            if (wasFullscreen && !isIOSFullscreen && $chart && $save.styles) {
+              (window as any).__forceApplySavedCanvasColors = true;
+              const styles = getThemeStyles($save.theme);
+              _.merge(styles, $save.styles);
+              $chart.setStyles(processLineChartStyles(styles));
+              if ($ctx.applyCanvasColors) {
+                $ctx.applyCanvasColors();
+              }
+            }
           }, 100);
           
           setTimeout(() => {
             $chart?.resize();
+            
+            // If exiting fullscreen on iOS, reapply saved chart styles
+            if (wasFullscreen && !isIOSFullscreen && $chart && $save.styles) {
+              (window as any).__forceApplySavedCanvasColors = true;
+              
+              const styles = getThemeStyles($save.theme);
+              _.merge(styles, $save.styles);
+              $chart.setStyles(processLineChartStyles(styles));
+              
+              if ($ctx.applyCanvasColors) {
+                $ctx.applyCanvasColors();
+                
+                // Force chart to redraw by scrolling to current position
+                const visibleRange = $chart.getVisibleRange();
+                if (visibleRange) {
+                  $chart.scrollToDataIndex(visibleRange.to, 0);
+                }
+              }
+              console.log('✅ Final iOS chart colors applied');
+            }
           }, 300);
         } else {
           console.log('✅ No iOS fullscreen state change needed');
@@ -240,7 +340,7 @@ let showAIModal = $state(false);
     { id: 'candle_up_stroke', name: 'Up Hollow', icon: 'candle_up_stroke' },
     { id: 'candle_down_stroke', name: 'Down Hollow', icon: 'candle_down_stroke' },
     { id: 'heikin_ashi', name: 'Heikin Ashi', icon: 'candle_solid' },
-    { id: 'renko_atr', name: 'Renko', icon: 'candle_solid' },
+    { id: 'renko_atr', name: 'Duty AI Renko', icon: 'candle_solid' },
     { id: 'ohlc', name: 'OHLC', icon: 'ohlc' },
     { id: 'area', name: 'Area', icon: 'area' },
     { id: 'line_chart', name: 'Line', icon: 'line' }
@@ -1125,6 +1225,18 @@ let showAIModal = $state(false);
       return;
     }
     
+    // IMMEDIATELY pre-apply saved chart styles before exit to prevent flicker
+    if ($chart && $save.styles) {
+      (window as any).__forceApplySavedCanvasColors = true;
+      const styles = getThemeStyles($save.theme);
+      _.merge(styles, $save.styles);
+      $chart.setStyles(processLineChartStyles(styles));
+      if ($ctx.applyCanvasColors) {
+        $ctx.applyCanvasColors();
+      }
+      console.log('🎨 Pre-applied styles before iOS exit');
+    }
+    
     try {
       // Method 1: Try webkitExitFullscreen
       if ((document as any).webkitExitFullscreen) {
@@ -1174,11 +1286,61 @@ let showAIModal = $state(false);
       fullScreen = false;
       console.log('✅ Set fullScreen = false');
       
-      // Trigger resize after exit
+      // Multiple resize attempts with immediate style reapplication
       setTimeout(() => {
-        console.log('📏 Triggering chart resize...');
+        console.log('📏 First chart resize...');
         $chart?.resize();
+        
+        // Reapply immediately after first resize
+        if ($chart && $save.styles) {
+          (window as any).__forceApplySavedCanvasColors = true;
+          const styles = getThemeStyles($save.theme);
+          _.merge(styles, $save.styles);
+          $chart.setStyles(processLineChartStyles(styles));
+          if ($ctx.applyCanvasColors) {
+            $ctx.applyCanvasColors();
+          }
+        }
+      }, 10);
+      
+      setTimeout(() => {
+        $chart?.resize();
+        
+        // Reapply after second resize
+        if ($chart && $save.styles) {
+          (window as any).__forceApplySavedCanvasColors = true;
+          const styles = getThemeStyles($save.theme);
+          _.merge(styles, $save.styles);
+          $chart.setStyles(processLineChartStyles(styles));
+          if ($ctx.applyCanvasColors) {
+            $ctx.applyCanvasColors();
+          }
+        }
       }, 100);
+      
+      setTimeout(() => {
+        $chart?.resize();
+        
+        // Final reapplication with forced canvas redraw
+        if ($chart && $save.styles) {
+          (window as any).__forceApplySavedCanvasColors = true;
+          
+          const styles = getThemeStyles($save.theme);
+          _.merge(styles, $save.styles);
+          $chart.setStyles(processLineChartStyles(styles));
+          
+          if ($ctx.applyCanvasColors) {
+            $ctx.applyCanvasColors();
+            
+            // Force chart to redraw by scrolling to current position
+            const visibleRange = $chart.getVisibleRange();
+            if (visibleRange) {
+              $chart.scrollToDataIndex(visibleRange.to, 0);
+            }
+          }
+          console.log('✅ Final iOS chart colors applied after exit');
+        }
+      }, 300);
       
     } catch (error) {
       console.log('❌ iOS exit fullscreen failed:', error);
@@ -1865,8 +2027,8 @@ let showAIModal = $state(false);
       <button 
         class="ai-btn group relative overflow-hidden" 
         onclick={() => showAIModal = true}
-        aria-label="AI Features"
-        title="AI Powered Features (Coming Soon)"
+        aria-label="AI Indicators"
+        title="AI Powered Indicators"
         type="button"
       >
         <div class="ai-btn-content">

@@ -1,6 +1,7 @@
 <script lang="ts">
   import Modal from "./modal.svelte"
   import { getContext } from "svelte";
+  import { fly } from 'svelte/transition';
   import * as m from '$lib/paraglide/messages.js'
   import type { Chart, Nullable } from 'klinecharts';
   import { ChartCtx, ChartSave } from "./chart";
@@ -22,14 +23,48 @@
     { id: 'candle_up_stroke', name: 'Up Hollow', icon: 'candle_up_stroke' },
     { id: 'candle_down_stroke', name: 'Down Hollow', icon: 'candle_down_stroke' },
     { id: 'heikin_ashi', name: 'Heikin Ashi', icon: 'candle_solid' },
-    { id: 'renko_atr', name: 'Renko', icon: 'candle_solid' },
+    { id: 'renko_atr', name: 'Duty AI Renko', icon: 'candle_solid' },
     { id: 'ohlc', name: 'OHLC', icon: 'ohlc' },
     { id: 'area', name: 'Area', icon: 'area' },
     { id: 'line_chart', name: 'Line', icon: 'line' } // Changed from 'line' to 'line_chart'
   ];
+  
+  // AI indicators that are incompatible with Renko chart
+  const AI_INDICATORS = ['SMART_MONEY', 'TRAP_HUNTER', 'VOLCANIC', 'VOLCANIC_SIG'];
+  
+  // Check if any AI indicators are present in the chart
+  function hasAIIndicators() {
+    if (!$save || !$save.saveInds) return false;
+    
+    return Object.values($save.saveInds).some((indicator: any) => {
+      return indicator && AI_INDICATORS.includes(indicator.name);
+    });
+  }
+  
+  // Warning message state
+  let showWarning = $state(false);
+  let warningMessage = $state('');
+  
+  // Auto-hide warning after 5 seconds
+  $effect(() => {
+    if (showWarning) {
+      const timer = setTimeout(() => {
+        showWarning = false;
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  });
 
   function handleChartTypeClick(param: unknown, event?: MouseEvent) {
     const chartType = param as { id: string; name: string; icon: string };
+    
+    // Check if trying to select Renko when AI indicators are present
+    if (chartType.id === 'renko_atr' && hasAIIndicators()) {
+      warningMessage = `You cannot use Duty AI Renko chart with AI Indicator`;
+      showWarning = true;
+      console.log('⚠️ Cannot add Renko chart: AI indicators present');
+      return;
+    }
     console.log('📊 CHART TYPE CLICK:', chartType.id);
     
     // Add selection animation
@@ -143,18 +178,30 @@
 </script>
 
 <Modal bind:show title="Chart Type" width="550px" maxWidth="95vw" maxHeight="90vh" buttons={[]} theme={$save.theme} class="chart-type-modal-premium">
+  <!-- Warning Message -->
+  {#if showWarning}
+    <div class="warning-banner" transition:fly="{{ y: -20, duration: 300 }}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 9v2m0 4h.01M10.29 3.86l-7.6 13.17A1 1 0 003.53 19h16.94a1 1 0 00.84-1.5L13.71 3.86a1 1 0 00-1.73 0z"></path>
+      </svg>
+      <span>{warningMessage}</span>
+    </div>
+  {/if}
+  
   <div class="premium-grid">
     {#each chartTypes as chartType (chartType.id)}
+      {@const isDisabled = chartType.id === 'renko_atr' && hasAIIndicators()}
       <button 
         class="chart-card"
         class:active={getCurrentChartType() === chartType.id}
+        class:disabled={isDisabled}
         onclick={(e) => handleChartTypeClick(chartType, e)}
       >
         <!-- Animated background gradient -->
         <div class="card-bg"></div>
         
         <!-- Selection badge -->
-        {#if getCurrentChartType() === chartType.id}
+        {#if getCurrentChartType() === chartType.id && !isDisabled}
           <div class="selection-badge">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path d="M13.3 4.3L6 11.6 2.7 8.3l1.1-1.1L6 9.4l6.2-6.2 1.1 1.1z" 
@@ -590,6 +637,79 @@
       box-shadow: 
         0 2px 8px rgba(74, 144, 226, 0.3),
         0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* ===== WARNING BANNER ===== */
+    .warning-banner {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(239, 68, 68, 0.1) 100%);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 12px;
+      color: rgba(251, 191, 36, 0.95);
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+    }
+    
+    .warning-banner svg {
+      flex-shrink: 0;
+      color: rgba(251, 191, 36, 1);
+      filter: drop-shadow(0 2px 4px rgba(245, 158, 11, 0.3));
+    }
+    
+    :global([data-theme="light"]) .warning-banner {
+      background: linear-gradient(135deg, rgba(254, 243, 199, 0.9) 0%, rgba(254, 226, 226, 0.8) 100%);
+      border-color: rgba(217, 119, 6, 0.3);
+      color: rgba(146, 64, 14, 0.95);
+      box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);
+    }
+    
+    :global([data-theme="light"]) .warning-banner svg {
+      color: rgba(217, 119, 6, 1);
+      filter: drop-shadow(0 1px 2px rgba(217, 119, 6, 0.2));
+    }
+    
+    /* ===== DISABLED STATE ===== */
+    .chart-card.disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      pointer-events: auto;
+    }
+    
+    .chart-card.disabled:hover {
+      transform: none;
+      opacity: 0.35;
+      border-color: rgba(255, 255, 255, 0.06);
+      background: linear-gradient(145deg, 
+        rgba(30, 35, 48, 0.6) 0%, 
+        rgba(20, 25, 35, 0.4) 100%);
+      box-shadow: 
+        0 4px 20px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    
+    .chart-card.disabled .card-bg {
+      opacity: 0;
+    }
+    
+    .chart-card.disabled .icon-container {
+      transform: none;
+    }
+    
+    .chart-card.disabled .shine-effect {
+      display: none;
+    }
+    
+    :global([data-theme="light"]) .chart-card.disabled {
+      opacity: 0.4;
+    }
+    
+    :global([data-theme="light"]) .chart-card.disabled:hover {
+      opacity: 0.4;
     }
   </style>
 </Modal>

@@ -1,49 +1,404 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { getContext, onMount } from 'svelte';
   import { fade, fly, scale } from 'svelte/transition';
   import { cubicOut, elasticOut } from 'svelte/easing';
+  import { ChartSave, ChartCtx } from "./chart";
+  import type { Writable } from "svelte/store";
+  import type { Chart, Nullable } from 'klinecharts';
+  import * as kc from 'klinecharts';
+  import { undoRedoManager } from './undoRedoManager';
+  import { markDirty } from '$lib/stores/unsavedChanges';
+  import KlineIcon from './icon.svelte';
+  import _ from "lodash";
+  import { getThemeStyles, processLineChartStyles } from "./coms";
   
   let { show = $bindable() } = $props();
   
-  let particles: Array<{x: number, y: number, vx: number, vy: number, size: number, delay: number}> = [];
-  let mounted = $state(false);
+  // Get context variables
+  const ctx = getContext('ctx') as Writable<ChartCtx>;
+  const save = getContext('save') as Writable<ChartSave>;
+  const chart = getContext('chart') as Writable<Nullable<Chart>>;
   
-  // Auto close after 6 seconds
+  // AI-powered indicators list
+  const aiIndicators = [
+    { name: 'SMART_MONEY', title: 'Smart Money Footprint', is_main: true, icon: '💰' },
+    { name: 'TRAP_HUNTER', title: 'Trap Hunter (Bull/Bear Traps)', is_main: true, icon: '🎯' },
+    { name: 'VOLCANIC', title: 'Volcanic Move (Pressure) (Sub Pane)', is_main: false, icon: '🌋' },
+    { name: 'VOLCANIC_SIG', title: 'Volcanic Eruptions (Markers) (Main Pane)', is_main: true, icon: '💥' }
+  ];
+  
+  // Unique loading phases for each indicator
+  const indicatorLoadingPhases: Record<string, Array<{ text: string; duration: number; subtext: string }>> = {
+    SMART_MONEY: [
+      { text: "💰 Tracking institutional money flow", duration: 1200, subtext: "Analyzing whale movements..." },
+      { text: "🏦 Detecting smart money footprints", duration: 1400, subtext: "Scanning OBV patterns..." },
+      { text: "📊 Mapping accumulation zones", duration: 1300, subtext: "Identifying support levels..." },
+      { text: "🎯 Calculating volume clusters", duration: 1200, subtext: "Processing 50,000+ trades..." },
+      { text: "✨ Activating smart money radar", duration: 1100, subtext: "Deploying footprint tracker..." }
+    ],
+    TRAP_HUNTER: [
+      { text: "🎯 Scanning for bull/bear traps", duration: 1200, subtext: "Analyzing false breakouts..." },
+      { text: "🔍 Detecting fake-out patterns", duration: 1400, subtext: "Identifying trap signatures..." },
+      { text: "⚡ Processing trap probability", duration: 1300, subtext: "Calculating 20+ parameters..." },
+      { text: "🚨 Mapping high-risk zones", duration: 1200, subtext: "Locating potential traps..." },
+      { text: "✨ Deploying trap detection AI", duration: 1100, subtext: "Activating alert system..." }
+    ],
+    VOLCANIC: [
+      { text: "🌋 Measuring market pressure", duration: 1200, subtext: "Analyzing momentum buildup..." },
+      { text: "📈 Detecting volcanic activity", duration: 1400, subtext: "Scanning RSI extremes..." },
+      { text: "🔥 Calculating eruption zones", duration: 1300, subtext: "Processing pressure levels..." },
+      { text: "⚡ Tracking explosive setups", duration: 1200, subtext: "Identifying breakout points..." },
+      { text: "✨ Activating volcanic pressure", duration: 1100, subtext: "Deploying oscillator..." }
+    ],
+    VOLCANIC_SIG: [
+      { text: "💥 Detecting eruption signals", duration: 1200, subtext: "Scanning breakout candles..." },
+      { text: "🚀 Analyzing explosive moves", duration: 1400, subtext: "Tracking volume spikes..." },
+      { text: "🎯 Mapping eruption markers", duration: 1300, subtext: "Calculating signal strength..." },
+      { text: "⚡ Processing 15,000+ patterns", duration: 1200, subtext: "Identifying eruption points..." },
+      { text: "✨ Deploying eruption markers", duration: 1100, subtext: "Activating signal alerts..." }
+    ]
+  };
+  
+  // Track selected indicators - Use $state for better reactivity
+  let selectedIndicators = $state<Set<string>>(new Set());
+  
+  // Recompute selected indicators whenever AI modal is open & chart indicators are available
   $effect(() => {
-    if (show) {
-      const timer = setTimeout(() => {
-        show = false;
-      }, 6000);
-      
-      return () => clearTimeout(timer);
+    if (!show || !$chart) return;
+    
+    const chartObj = $chart;
+    let activeIndicators = new Set<string>();
+    
+    try {
+      // Prefer authoritative source: indicators actually on the chart
+      const chartIndicators = (chartObj.getIndicators?.() ?? []) as Array<{ name: string; paneId?: string }>;
+      activeIndicators = new Set(chartIndicators.map(ind => ind.name));
+      console.log('🧠 AI Modal (open) - from chart.getIndicators:', chartIndicators);
+    } catch (e) {
+      console.warn('⚠️ AI Modal - getIndicators failed, falling back to saveInds', e);
+      // Fallback: derive from saveInds
+      const fallback = new Set<string>();
+      if ($save && $save.saveInds) {
+        Object.values($save.saveInds).forEach((indicator: any) => {
+          if (indicator && indicator.name) {
+            fallback.add(indicator.name);
+          }
+        });
+      }
+      activeIndicators = fallback;
+    }
+    
+    console.log('🔄 AI Modal (open) - selectedIndicators updated:', Array.from(activeIndicators));
+    console.log('🔍 AI Modal (open) - saveInds keys:', Object.keys($save.saveInds || {}));
+    
+    selectedIndicators = activeIndicators;
+  });
+  
+  let wasOpenedFromAIModal = $state(false);
+  
+  // AI Loading animation state
+  let loadingIndicator = $state<string | null>(null);
+  let loadingPhase = $state(0);
+  let loadingProgress = $state(0);
+  let currentLoadingPhases = $state<Array<{ text: string; duration: number; subtext: string }>>([]);
+  
+  // Watch for edit popup state changes
+  $effect(() => {
+    if (!$ctx.modalIndCfg && wasOpenedFromAIModal) {
+      wasOpenedFromAIModal = false;
+      setTimeout(() => {
+        show = true;
+      }, 100);
     }
   });
   
-  onMount(() => {
-    mounted = true;
-    // Generate particles for background animation
-    for (let i = 0; i < 30; i++) {
-      particles.push({
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
-        size: Math.random() * 3 + 1,
-        delay: Math.random() * 2
-      });
+  // Debug: Log when modal opens to check state
+  $effect(() => {
+    if (show) {
+      console.log('🎯 AI Modal opened');
+      console.log('📊 Current saveInds:', $save.saveInds);
+      console.log('✅ AI indicators in chart:', Array.from(selectedIndicators));
     }
   });
   
   function handleClose() {
     show = false;
   }
+  
+  // Check if Renko chart is active and convert to Candle if needed
+  function convertRenkoToCandleIfNeeded() {
+    const currentType = $save.styles?.candle?.type;
+    if (currentType === 'renko_atr') {
+      console.log('🔄 Converting Renko chart to Candlestick for AI indicator compatibility');
+      
+      // Change to candlestick
+      $save.styles.candle.type = 'candle_solid';
+      
+      // Remove Renko-specific config
+      delete ($save.styles.candle as any).renko;
+      delete $save.styles.candle._isLineChart;
+      delete $save.styles.candle.area;
+      
+      // Apply the new styles
+      const styles = getThemeStyles($save.theme);
+      _.merge(styles, $save.styles);
+      const processedStyles = processLineChartStyles(styles);
+      $chart?.setStyles(processedStyles);
+      
+      console.log('✅ Chart converted from Renko to Candlestick');
+      return true;
+    }
+    return false;
+  }
+  
+  // Simulate AI loading with realistic phases (indicator-specific)
+  async function simulateAILoading(name: string) {
+    loadingIndicator = name;
+    loadingPhase = 0;
+    loadingProgress = 0;
+    
+    // Get specific loading phases for this indicator
+    currentLoadingPhases = indicatorLoadingPhases[name] || indicatorLoadingPhases.SMART_MONEY;
+    
+    // Go through each phase
+    for (let i = 0; i < currentLoadingPhases.length; i++) {
+      loadingPhase = i;
+      const phase = currentLoadingPhases[i];
+      
+      // Animate progress for this phase
+      const startProgress = (i / currentLoadingPhases.length) * 100;
+      const endProgress = ((i + 1) / currentLoadingPhases.length) * 100;
+      const steps = 20;
+      const stepDuration = phase.duration / steps;
+      
+      for (let step = 0; step <= steps; step++) {
+        loadingProgress = startProgress + ((endProgress - startProgress) * (step / steps));
+        await new Promise(resolve => setTimeout(resolve, stepDuration));
+      }
+    }
+    
+    // Loading complete, now add indicator
+    loadingIndicator = null;
+    loadingPhase = 0;
+    loadingProgress = 0;
+    currentLoadingPhases = [];
+  }
+  
+  async function addIndicator(isMain: boolean, name: string) {
+    // Start AI loading animation
+    await simulateAILoading(name);
+    
+    // Check and convert Renko chart if needed before adding AI indicator
+    convertRenkoToCandleIfNeeded();
+    
+    let success = false;
+    
+    if (name === 'SMART_MONEY') {
+      const paneId = 'candle_pane';
+      const chartObj = $chart;
+      if (chartObj) {
+        const ind_id = chartObj.createIndicator({
+          name: 'SMART_MONEY',
+          calcParams: [40, 5, 25, 14, 20, 1.2, 0.03, 20, 0.2, 0.6, 1, 20, 1]
+        }, true, {id: paneId});
+        
+        if (ind_id) {
+          const ind = {
+            name: 'SMART_MONEY',
+            pane_id: paneId,
+            params: [40, 5, 25, 14, 20, 1.2, 0.03, 20, 0.2, 0.6, 1, 20, 1]
+          };
+          const saveKey = `${paneId}_SMART_MONEY`;
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          markDirty();
+          undoRedoManager.recordAddIndicator(name, paneId, ind.params, saveKey);
+          success = true;
+        }
+      }
+    } else if (name === 'TRAP_HUNTER') {
+      const paneId = 'candle_pane';
+      const chartObj = $chart;
+      if (chartObj) {
+        const ind_id = chartObj.createIndicator({
+          name: 'TRAP_HUNTER',
+          calcParams: [20, 20, 3, 5, 20, 1.5, 0.001, 0.4, 0.6, 1, 5]
+        }, true, {id: paneId});
+        
+        if (ind_id) {
+          const ind = {
+            name: 'TRAP_HUNTER',
+            pane_id: paneId,
+            params: [20, 20, 3, 5, 20, 1.5, 0.001, 0.4, 0.6, 1, 5]
+          };
+          const saveKey = `${paneId}_TRAP_HUNTER`;
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          markDirty();
+          undoRedoManager.recordAddIndicator(name, paneId, ind.params, saveKey);
+          success = true;
+        }
+      }
+    } else if (name === 'VOLCANIC') {
+      const paneId = 'pane_VOLCANIC';
+      const chartObj = $chart;
+      if (chartObj) {
+        // Use the full, friendly defaults aligned with volcanicCore + coms.ts,
+        // slightly relaxed so the user sees signals without manual tuning.
+        const params = [
+          16,      // BB Period
+          2.0,     // BB StdDev
+          14,      // ATR Period
+          20,      // Volume MA Period
+          60,      // Normalize Lookback
+          2,       // Pressure SMA
+          0.50,    // Min Pressure Alert (slightly softer than 0.55)
+          1,       // Confirm Bars
+          0.8,     // Min Volume x (softer than 1.0)
+          0.8,     // Min Range x (softer than 1.0)
+          0.40,    // Min Body % of Range (softer than 0.5)
+          10,      // Breakout Lookback
+          1,       // Min Bars Between Signals
+          30,      // Trend EMA Period
+          0,       // Require Trend Align (0 = off by default)
+          0.0007,  // Breakout Buffer %
+          0,       // Require BB Band Break (0 = off by default)
+          1        // Retest Window (bars)
+        ];
+
+        const ind_id = chartObj.createIndicator(
+          {
+            name: 'VOLCANIC',
+            calcParams: params
+          },
+          false,
+          { id: paneId }
+        );
+        
+        if (ind_id) {
+          const ind = {
+            name: 'VOLCANIC',
+            pane_id: paneId,
+            params
+          };
+          const saveKey = `${paneId}_VOLCANIC`;
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          markDirty();
+          undoRedoManager.recordAddIndicator(name, paneId, ind.params, saveKey);
+          success = true;
+        }
+      }
+    } else if (name === 'VOLCANIC_SIG') {
+      const paneId = 'candle_pane';
+      const chartObj = $chart;
+      if (chartObj) {
+        // Match VOLCANIC defaults so pressure pane and main chart markers stay in sync
+        const params = [
+          16,      // BB Period
+          2.0,     // BB StdDev
+          14,      // ATR Period
+          20,      // Volume MA Period
+          60,      // Normalize Lookback
+          2,       // Pressure SMA
+          0.50,    // Min Pressure Alert
+          1,       // Confirm Bars
+          0.8,     // Min Volume x
+          0.8,     // Min Range x
+          0.40,    // Min Body % of Range
+          10,      // Breakout Lookback
+          1,       // Min Bars Between Signals
+          30,      // Trend EMA Period
+          0,       // Require Trend Align
+          0.0007,  // Breakout Buffer %
+          0,       // Require BB Band Break
+          1        // Retest Window (bars)
+        ];
+
+        const ind_id = chartObj.createIndicator(
+          {
+            name: 'VOLCANIC_SIG',
+            calcParams: params
+          },
+          true,
+          { id: paneId }
+        );
+        
+        if (ind_id) {
+          const ind = {
+            name: 'VOLCANIC_SIG',
+            pane_id: paneId,
+            params
+          };
+          const saveKey = `${paneId}_VOLCANIC_SIG`;
+          save.update(s => {
+            s.saveInds[saveKey] = ind;
+            return s;
+          });
+          markDirty();
+          undoRedoManager.recordAddIndicator(name, paneId, ind.params, saveKey);
+          success = true;
+        }
+      }
+    }
+    
+    if (success) {
+      console.log(`✅ ${name} added successfully from AI modal`);
+    }
+  }
+  
+  function openEditPopup(paneId: string, name: string) {
+    wasOpenedFromAIModal = true;
+    show = false;
+    ctx.update(c => {
+      c.editPaneId = paneId;
+      c.editIndName = name;
+      c.modalIndCfg = true;
+      return c;
+    });
+  }
+  
+  async function delInd(paneId: string, name: string) {
+    console.log('🗑️ Deleting indicator:', { paneId, name });
+    if(!$chart) {
+      console.log('❌ No chart available');
+      return;
+    }
+    
+    const chartObj = $chart;
+    const saveKey = `${paneId}_${name}`;
+    const indicatorData = $save.saveInds[saveKey];
+    
+    if (indicatorData) {
+      undoRedoManager.recordRemoveIndicator(name, paneId, indicatorData.params || [], saveKey);
+    }
+    
+    try {
+      chartObj.removeIndicator({ paneId, name });
+      console.log('✅ Indicator removed');
+      
+      save.update(s => {
+        delete s.saveInds[saveKey];
+        return s;
+      });
+      markDirty();
+    } catch (error) {
+      console.log('❌ Error removing indicator:', error);
+    }
+  }
 </script>
 
 {#if show}
-  <!-- Backdrop -->
+  <!-- Backdrop - Light and Non-blurry -->
   <div 
     class="ai-modal-backdrop" 
-    transition:fade={{ duration: 400 }}
+    transition:fade={{ duration: 200 }}
     onclick={handleClose}
     role="presentation"
   ></div>
@@ -51,7 +406,7 @@
   <!-- Modal Container -->
   <div 
     class="ai-modal-container"
-    transition:scale={{ duration: 600, easing: elasticOut, start: 0.5 }}
+    transition:fly={{ y: 20, duration: 300, easing: cubicOut }}
     role="dialog"
     aria-modal="true"
     aria-labelledby="ai-modal-title"
@@ -62,141 +417,170 @@
       <div class="orb orb-1"></div>
       <div class="orb orb-2"></div>
       <div class="orb orb-3"></div>
-      
-      <!-- Particles -->
-      {#if mounted}
-        {#each particles as particle, i}
-          <div 
-            class="particle"
-            style="
-              left: {particle.x}%;
-              top: {particle.y}%;
-              width: {particle.size}px;
-              height: {particle.size}px;
-              animation-delay: {particle.delay}s;
-            "
-          ></div>
-        {/each}
-      {/if}
-      
-      <!-- Neural Network Lines -->
-      <svg class="neural-network" viewBox="0 0 400 300">
-        <g class="network-lines">
-          <line x1="50" y1="50" x2="150" y2="100" class="network-line" style="animation-delay: 0s;"/>
-          <line x1="150" y1="100" x2="250" y2="80" class="network-line" style="animation-delay: 0.2s;"/>
-          <line x1="250" y1="80" x2="350" y2="120" class="network-line" style="animation-delay: 0.4s;"/>
-          <line x1="50" y1="150" x2="150" y2="180" class="network-line" style="animation-delay: 0.3s;"/>
-          <line x1="150" y1="180" x2="250" y2="200" class="network-line" style="animation-delay: 0.5s;"/>
-          <line x1="250" y1="200" x2="350" y2="180" class="network-line" style="animation-delay: 0.7s;"/>
-          <line x1="150" y1="100" x2="150" y2="180" class="network-line" style="animation-delay: 0.6s;"/>
-          <line x1="250" y1="80" x2="250" y2="200" class="network-line" style="animation-delay: 0.8s;"/>
-        </g>
-        <g class="network-nodes">
-          <circle cx="50" cy="50" r="4" class="network-node" style="animation-delay: 0s;"/>
-          <circle cx="150" cy="100" r="5" class="network-node" style="animation-delay: 0.2s;"/>
-          <circle cx="250" cy="80" r="4" class="network-node" style="animation-delay: 0.4s;"/>
-          <circle cx="350" cy="120" r="4" class="network-node" style="animation-delay: 0.6s;"/>
-          <circle cx="50" cy="150" r="4" class="network-node" style="animation-delay: 0.3s;"/>
-          <circle cx="150" cy="180" r="5" class="network-node" style="animation-delay: 0.5s;"/>
-          <circle cx="250" cy="200" r="4" class="network-node" style="animation-delay: 0.7s;"/>
-          <circle cx="350" cy="180" r="4" class="network-node" style="animation-delay: 0.9s;"/>
-        </g>
-      </svg>
     </div>
     
     <!-- Content -->
     <div class="ai-content">
-      <!-- AI Icon with Animation -->
-      <div 
-        class="ai-icon-wrapper"
-        in:scale={{ duration: 800, delay: 200, easing: elasticOut }}
-      >
-        <div class="ai-icon-glow"></div>
-        <svg class="ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-        </svg>
-        <div class="pulse-ring"></div>
-        <div class="pulse-ring pulse-ring-2"></div>
-      </div>
-      
-      <!-- AI Badge -->
-      <div 
-        class="ai-badge"
-        in:fly={{ y: -20, duration: 600, delay: 400, easing: cubicOut }}
-      >
-        <span class="ai-badge-text">AI Powered</span>
-      </div>
-      
-      <!-- Main Title -->
-      <h2 
-        id="ai-modal-title"
-        class="ai-title"
-        in:fly={{ y: 30, duration: 600, delay: 600, easing: cubicOut }}
-      >
-        <span class="gradient-text">Coming Soon</span>
-      </h2>
-      
-      <!-- Description -->
-      <div 
-        class="ai-description"
-        in:fly={{ y: 30, duration: 600, delay: 800, easing: cubicOut }}
-      >
-        <p class="ai-text">
-          আমরা আনছি <span class="highlight">AI-Powered</span> বিশ্লেষণ এবং ট্রেডিং সহায়তা
-        </p>
-        <p class="ai-text-secondary">
-          আরও কিছু দিন আমাদের সাথে থাকুন। শীঘ্রই আসছে অত্যাধুনিক এবং উদ্ভাবনী ফিচার।
-        </p>
-      </div>
-      
-      <!-- Features Preview -->
-      <div 
-        class="features-preview"
-        in:fly={{ y: 30, duration: 600, delay: 1000, easing: cubicOut }}
-      >
-        <div class="feature-item">
-          <div class="feature-icon">🎯</div>
-          <span>Smart Predictions</span>
+      <!-- Header -->
+      <div class="ai-header">
+        <div class="ai-header-left">
+          <div class="ai-icon-small">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <div class="ai-header-text">
+            <h2 id="ai-modal-title" class="ai-title">AI Indicators</h2>
+            <p class="ai-subtitle">Duty AI Advanced Algorithm - Exclusive for Pro Traders</p>
+          </div>
         </div>
-        <div class="feature-item">
-          <div class="feature-icon">📊</div>
-          <span>Pattern Recognition</span>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">⚡</div>
-          <span>Real-time Insights</span>
-        </div>
+        <button class="close-btn" onclick={handleClose} aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
       </div>
       
-      <!-- Loading Bar -->
-      <div 
-        class="loading-bar-container"
-        in:fade={{ duration: 400, delay: 1200 }}
-      >
-        <div class="loading-bar"></div>
+      <!-- Indicators List -->
+      <div class="indicators-list">
+        {#each aiIndicators as ind, index (ind.name)}
+          {@const isSelected = selectedIndicators.has(ind.name)}
+          {@const isLoading = loadingIndicator === ind.name}
+          {@const paneId = ind.is_main ? 'candle_pane' : `pane_${ind.name}`}
+          <div 
+            class="indicator-row {isSelected ? 'indicator-selected' : ''} {isLoading ? 'indicator-loading' : ''}"
+            onclick={() => !isSelected && !isLoading && addIndicator(ind.is_main, ind.name)}
+          >
+            {#if isLoading}
+              <!-- AI Loading State -->
+              <div class="ai-loading-overlay">
+                <!-- Animated Background Particles -->
+                <div class="particles-container">
+                  {#each Array(12) as _, i}
+                    <div class="particle" style="--delay: {i * 0.15}s; --x: {Math.random() * 100}%; --y: {Math.random() * 100}%"></div>
+                  {/each}
+                </div>
+                
+                <!-- Data Stream Effect -->
+                <div class="data-stream">
+                  {#each Array(8) as _, i}
+                    <div class="stream-line" style="--stream-delay: {i * 0.2}s; left: {10 + i * 12}%"></div>
+                  {/each}
+                </div>
+                
+                <div class="loading-content">
+                  <!-- Animated AI Icon with Multiple Rings -->
+                  <div class="ai-loader-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    <div class="ai-pulse-ring ring-1"></div>
+                    <div class="ai-pulse-ring ring-2"></div>
+                    <div class="ai-pulse-ring ring-3"></div>
+                    <div class="ai-glow"></div>
+                  </div>
+                  
+                  <!-- Loading Text with Subtext -->
+                  <div class="loading-text-container">
+                    <div class="loading-text-main">
+                      {currentLoadingPhases[loadingPhase]?.text || ''}
+                    </div>
+                    <div class="loading-text-sub">
+                      {currentLoadingPhases[loadingPhase]?.subtext || ''}
+                    </div>
+                  </div>
+                  
+                  <!-- Progress Bar with Segments -->
+                  <div class="progress-container">
+                    <div class="progress-bar" style="width: {loadingProgress}%">
+                      <div class="progress-glow"></div>
+                    </div>
+                    <div class="progress-segments">
+                      {#each Array(5) as _, i}
+                        <div class="segment" class:active={loadingPhase >= i}></div>
+                      {/each}
+                    </div>
+                  </div>
+                  
+                  <!-- Progress Percentage with Status -->
+                  <div class="progress-info">
+                    <div class="progress-percentage">
+                      {Math.round(loadingProgress)}%
+                    </div>
+                    <div class="progress-status">
+                      Phase {loadingPhase + 1}/5
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {:else}
+              <!-- Normal State -->
+              <!-- Indicator Icon -->
+              <div class="indicator-icon">
+                {ind.icon}
+              </div>
+              
+              <!-- Indicator Info -->
+              <div class="indicator-info">
+                <span class="indicator-name">{ind.title}</span>
+              </div>
+              
+              <!-- Action Buttons for Selected Indicators -->
+              {#if isSelected}
+                <div class="indicator-actions">
+                  <button 
+                    class="action-btn edit-btn"
+                    title="Edit Parameters"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      openEditPopup(paneId, ind.name);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                  </button>
+                  <button 
+                    class="action-btn delete-btn"
+                    title="Remove Indicator"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      delInd(paneId, ind.name);
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      <line x1="10" y1="11" x2="10" y2="17"></line>
+                      <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                  </button>
+                </div>
+              {:else}
+                <div class="add-indicator-hint">
+                  <span>Click to add</span>
+                </div>
+              {/if}
+            {/if}
+          </div>
+        {/each}
       </div>
-      
-      <!-- Close hint -->
-      <p 
-        class="close-hint"
-        in:fade={{ duration: 400, delay: 1400 }}
-      >
-        Click anywhere to close
-      </p>
     </div>
   </div>
 {/if}
 
 <style>
-  /* Backdrop */
+  /* Backdrop - Light and Clean (No Blur) */
   .ai-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.35);
     z-index: 9998;
   }
   
@@ -207,16 +591,16 @@
     left: 50%;
     transform: translate(-50%, -50%);
     width: 90%;
-    max-width: 600px;
+    max-width: 550px;
     max-height: 90vh;
     background: linear-gradient(135deg, 
-      rgba(10, 4, 28, 0.95) 0%, 
+      rgba(10, 4, 28, 0.98) 0%, 
       rgba(26, 15, 46, 0.98) 50%, 
-      rgba(10, 4, 28, 0.95) 100%);
-    border: 2px solid rgba(138, 43, 226, 0.3);
-    border-radius: 24px;
+      rgba(10, 4, 28, 0.98) 100%);
+    border: 2px solid rgba(138, 43, 226, 0.4);
+    border-radius: 20px;
     box-shadow: 
-      0 20px 60px rgba(138, 43, 226, 0.3),
+      0 20px 60px rgba(138, 43, 226, 0.4),
       0 10px 30px rgba(0, 0, 0, 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
     overflow: hidden;
@@ -228,21 +612,21 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
-    opacity: 0.6;
+    opacity: 0.4;
   }
   
   /* Gradient Orbs */
   .orb {
     position: absolute;
     border-radius: 50%;
-    filter: blur(60px);
-    animation: float 8s ease-in-out infinite;
+    filter: blur(80px);
+    animation: float 10s ease-in-out infinite;
   }
   
   .orb-1 {
     width: 300px;
     height: 300px;
-    background: radial-gradient(circle, rgba(138, 43, 226, 0.4) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(138, 43, 226, 0.5) 0%, transparent 70%);
     top: -150px;
     left: -100px;
     animation-delay: 0s;
@@ -251,20 +635,20 @@
   .orb-2 {
     width: 250px;
     height: 250px;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.4) 0%, transparent 70%);
     bottom: -100px;
     right: -80px;
-    animation-delay: 2s;
+    animation-delay: 3s;
   }
   
   .orb-3 {
     width: 200px;
     height: 200px;
-    background: radial-gradient(circle, rgba(168, 85, 247, 0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 70%);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    animation-delay: 4s;
+    animation-delay: 6s;
   }
   
   @keyframes float {
@@ -279,121 +663,583 @@
     }
   }
   
-  /* Particles */
-  .particle {
-    position: absolute;
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 50%;
-    animation: particleFloat 6s ease-in-out infinite;
-  }
-  
-  @keyframes particleFloat {
-    0%, 100% {
-      transform: translate(0, 0);
-      opacity: 0;
-    }
-    10% {
-      opacity: 1;
-    }
-    90% {
-      opacity: 1;
-    }
-    100% {
-      transform: translate(var(--tx, 20px), var(--ty, -50px));
-      opacity: 0;
-    }
-  }
-  
-  /* Neural Network */
-  .neural-network {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0.3;
-  }
-  
-  .network-line {
-    stroke: rgba(138, 43, 226, 0.5);
-    stroke-width: 1;
-    animation: pulse 3s ease-in-out infinite;
-  }
-  
-  .network-node {
-    fill: rgba(138, 43, 226, 0.8);
-    animation: nodePulse 2s ease-in-out infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% {
-      stroke-opacity: 0.3;
-      stroke-width: 1;
-    }
-    50% {
-      stroke-opacity: 0.8;
-      stroke-width: 2;
-    }
-  }
-  
-  @keyframes nodePulse {
-    0%, 100% {
-      opacity: 0.5;
-      r: 3;
-    }
-    50% {
-      opacity: 1;
-      r: 5;
-    }
-  }
-  
   /* Content */
   .ai-content {
     position: relative;
     z-index: 10;
-    padding: 60px 40px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 90vh;
+  }
+  
+  /* Header */
+  .ai-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 28px;
+    border-bottom: 1px solid rgba(138, 43, 226, 0.2);
+    background: rgba(0, 0, 0, 0.2);
+  }
+  
+  .ai-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .ai-icon-small {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(138, 43, 226, 0.2);
+    border: 1px solid rgba(138, 43, 226, 0.4);
+    border-radius: 10px;
+    color: rgba(138, 43, 226, 1);
+  }
+  
+  .ai-icon-small svg {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .ai-header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .ai-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: rgba(220, 200, 255, 0.95);
+    margin: 0;
+    line-height: 1;
+  }
+  
+  .ai-subtitle {
+    font-size: 13px;
+    font-weight: 600;
+    background: linear-gradient(135deg, 
+      rgba(138, 43, 226, 0.9) 0%, 
+      rgba(168, 85, 247, 0.9) 50%,
+      rgba(59, 130, 246, 0.9) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0;
+    line-height: 1.3;
+    animation: subtitleGlow 3s ease-in-out infinite;
+    text-shadow: 0 0 20px rgba(138, 43, 226, 0.5);
+  }
+  
+  @keyframes subtitleGlow {
+    0%, 100% {
+      filter: brightness(1);
+    }
+    50% {
+      filter: brightness(1.2);
+    }
+  }
+  
+  .close-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: rgba(180, 160, 220, 0.7);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .close-btn:hover {
+    background: rgba(138, 43, 226, 0.2);
+    color: rgba(220, 200, 255, 1);
+  }
+  
+  .close-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  /* Indicators List */
+  .indicators-list {
+    padding: 12px;
+    overflow-y: auto;
+    max-height: calc(90vh - 100px);
+  }
+  
+  .indicator-row {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    margin-bottom: 8px;
+    background: rgba(138, 43, 226, 0.05);
+    border: 1px solid rgba(138, 43, 226, 0.15);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 60px;
+  }
+  
+  .indicator-row:hover {
+    background: rgba(138, 43, 226, 0.12);
+    border-color: rgba(138, 43, 226, 0.3);
+    transform: translateX(4px);
+  }
+  
+  .indicator-row.indicator-selected {
+    background: rgba(138, 43, 226, 0.2);
+    border-color: rgba(138, 43, 226, 0.4);
+    cursor: default;
+  }
+  
+  .indicator-row.indicator-selected:hover {
+    transform: none;
+  }
+  
+  .indicator-icon {
+    font-size: 28px;
+    margin-right: 16px;
+    filter: drop-shadow(0 2px 8px rgba(138, 43, 226, 0.4));
+  }
+  
+  .indicator-info {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .indicator-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(220, 200, 255, 0.95);
+    line-height: 1.4;
+  }
+  
+  .indicator-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 12px;
+  }
+  
+  .action-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(138, 43, 226, 0.2);
+    border: 1px solid rgba(138, 43, 226, 0.3);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .action-btn svg {
+    width: 16px;
+    height: 16px;
+    color: rgba(200, 180, 240, 0.9);
+  }
+  
+  .action-btn:hover {
+    transform: scale(1.1);
+  }
+  
+  .edit-btn:hover {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+  
+  .delete-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.5);
+  }
+  
+  .add-indicator-hint {
+    font-size: 13px;
+    color: rgba(160, 140, 200, 0.6);
+    padding: 0 12px;
+  }
+  
+  /* ===== LIGHT MODE STYLES ===== */
+  :global([data-theme="light"]) .ai-modal-backdrop {
+    background: rgba(0, 0, 0, 0.25);
+  }
+  
+  :global([data-theme="light"]) .ai-modal-container {
+    background: linear-gradient(135deg, 
+      rgba(255, 255, 255, 0.98) 0%, 
+      rgba(248, 250, 252, 0.98) 50%, 
+      rgba(255, 255, 255, 0.98) 100%);
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 
+      0 20px 60px rgba(59, 130, 246, 0.15),
+      0 10px 30px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 1);
+  }
+  
+  :global([data-theme="light"]) .ai-background {
+    opacity: 0.15;
+  }
+  
+  :global([data-theme="light"]) .orb-1 {
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
+  }
+  
+  :global([data-theme="light"]) .orb-2 {
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, transparent 70%);
+  }
+  
+  :global([data-theme="light"]) .orb-3 {
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+  }
+  
+  :global([data-theme="light"]) .ai-header {
+    border-bottom-color: rgba(59, 130, 246, 0.15);
+    background: rgba(248, 250, 252, 0.5);
+  }
+  
+  :global([data-theme="light"]) .ai-icon-small {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.25);
+    color: rgba(59, 130, 246, 1);
+  }
+  
+  :global([data-theme="light"]) .ai-title {
+    color: #1e293b;
+  }
+  
+  :global([data-theme="light"]) .ai-subtitle {
+    background: linear-gradient(135deg, 
+      rgba(59, 130, 246, 1) 0%, 
+      rgba(99, 102, 241, 1) 50%,
+      rgba(139, 92, 246, 1) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+  }
+  
+  :global([data-theme="light"]) .close-btn {
+    color: #64748b;
+  }
+  
+  :global([data-theme="light"]) .close-btn:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+  }
+  
+  :global([data-theme="light"]) .indicator-row {
+    background: rgba(59, 130, 246, 0.03);
+    border-color: rgba(59, 130, 246, 0.12);
+  }
+  
+  :global([data-theme="light"]) .indicator-row:hover {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+  
+  :global([data-theme="light"]) .indicator-row.indicator-selected {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+  
+  :global([data-theme="light"]) .indicator-name {
+    color: #1e293b;
+  }
+  
+  :global([data-theme="light"]) .action-btn {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+  
+  :global([data-theme="light"]) .action-btn svg {
+    color: #3b82f6;
+  }
+  
+  :global([data-theme="light"]) .edit-btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.3);
+  }
+  
+  :global([data-theme="light"]) .delete-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+  
+  :global([data-theme="light"]) .delete-btn:hover svg {
+    color: #ef4444;
+  }
+  
+  :global([data-theme="light"]) .add-indicator-hint {
+    color: #94a3b8;
+  }
+  
+  /* ===== AI LOADING OVERLAY ===== */
+  .indicator-row.indicator-loading {
+    cursor: wait;
+    position: relative;
+    overflow: visible;
+    border: 2px solid transparent;
+    background: linear-gradient(135deg, rgba(10, 4, 28, 0.95), rgba(15, 8, 35, 0.98)) padding-box,
+                linear-gradient(135deg, rgba(138, 43, 226, 0.6), rgba(59, 130, 246, 0.4)) border-box;
+    animation: borderGlow 2s ease-in-out infinite;
+    min-height: 220px;
+    padding: 24px 20px;
+    align-items: stretch;
+  }
+  
+  @keyframes borderGlow {
+    0%, 100% {
+      border-color: rgba(138, 43, 226, 0.4);
+      box-shadow: 0 0 20px rgba(138, 43, 226, 0.3);
+    }
+    50% {
+      border-color: rgba(138, 43, 226, 0.8);
+      box-shadow: 0 0 40px rgba(138, 43, 226, 0.6);
+    }
+  }
+  
+  .ai-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, 
+      rgba(138, 43, 226, 0.2) 0%, 
+      rgba(59, 130, 246, 0.15) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    animation: overlayFadeIn 0.4s ease;
+  }
+  
+  @keyframes overlayFadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  
+  /* Particles Animation */
+  .particles-container {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    border-radius: 12px;
+  }
+  
+  .particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: rgba(138, 43, 226, 0.8);
+    border-radius: 50%;
+    left: var(--x);
+    top: var(--y);
+    animation: particleFloat 3s ease-in-out infinite;
+    animation-delay: var(--delay);
+    box-shadow: 0 0 10px rgba(138, 43, 226, 0.8);
+  }
+  
+  @keyframes particleFloat {
+    0%, 100% {
+      transform: translate(0, 0) scale(0.5);
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+      transform: translate(-20px, -30px) scale(1);
+    }
+    80% {
+      opacity: 1;
+      transform: translate(20px, -60px) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(0, -80px) scale(0.5);
+    }
+  }
+  
+  /* Data Stream Effect */
+  .data-stream {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    border-radius: 12px;
+  }
+  
+  .stream-line {
+    position: absolute;
+    width: 2px;
+    height: 40px;
+    top: -40px;
+    background: linear-gradient(180deg, 
+      transparent 0%, 
+      rgba(138, 43, 226, 0.8) 50%, 
+      transparent 100%);
+    animation: streamFlow 2s linear infinite;
+    animation-delay: var(--stream-delay);
+    box-shadow: 0 0 8px rgba(138, 43, 226, 0.6);
+  }
+  
+  @keyframes streamFlow {
+    0% {
+      transform: translateY(0);
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+    }
+    80% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(calc(100% + 80px));
+      opacity: 0;
+    }
+  }
+  
+  .loading-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    text-align: center;
-  }
-  
-  /* AI Icon */
-  .ai-icon-wrapper {
-    position: relative;
-    width: 100px;
-    height: 100px;
-    margin-bottom: 24px;
-  }
-  
-  .ai-icon {
+    gap: 16px;
+    padding: 16px 20px;
     width: 100%;
     height: 100%;
-    color: rgba(138, 43, 226, 1);
-    filter: drop-shadow(0 4px 20px rgba(138, 43, 226, 0.6));
-    animation: iconRotate 10s linear infinite;
+    position: relative;
+    z-index: 2;
+    justify-content: center;
   }
   
-  @keyframes iconRotate {
+  /* AI Loader Icon */
+  .ai-loader-icon {
+    position: relative;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .ai-loader-icon svg {
+    width: 36px;
+    height: 36px;
+    color: rgba(138, 43, 226, 1);
+    filter: drop-shadow(0 0 15px rgba(138, 43, 226, 0.9));
+    animation: aiIconSpin 2.5s ease-in-out infinite;
+    position: relative;
+    z-index: 3;
+  }
+  
+  @keyframes aiIconSpin {
     0% {
-      transform: rotateY(0deg);
+      transform: rotateY(0deg) rotateZ(0deg) scale(1);
+    }
+    25% {
+      transform: rotateY(90deg) rotateZ(10deg) scale(1.1);
+    }
+    50% {
+      transform: rotateY(180deg) rotateZ(0deg) scale(1.15);
+    }
+    75% {
+      transform: rotateY(270deg) rotateZ(-10deg) scale(1.1);
     }
     100% {
-      transform: rotateY(360deg);
+      transform: rotateY(360deg) rotateZ(0deg) scale(1);
     }
   }
   
-  .ai-icon-glow {
+  .ai-pulse-ring {
+    position: absolute;
+    inset: -10px;
+    border: 2px solid rgba(138, 43, 226, 0.6);
+    border-radius: 50%;
+    z-index: 1;
+  }
+  
+  .ring-1 {
+    animation: pulsate1 1.8s ease-out infinite;
+  }
+  
+  .ring-2 {
+    animation: pulsate2 1.8s ease-out infinite 0.6s;
+  }
+  
+  .ring-3 {
+    animation: pulsate3 1.8s ease-out infinite 1.2s;
+  }
+  
+  @keyframes pulsate1 {
+    0% {
+      transform: scale(0.8);
+      opacity: 1;
+      border-color: rgba(138, 43, 226, 0.8);
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+      border-color: rgba(138, 43, 226, 0);
+    }
+  }
+  
+  @keyframes pulsate2 {
+    0% {
+      transform: scale(0.8);
+      opacity: 1;
+      border-color: rgba(168, 85, 247, 0.8);
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+      border-color: rgba(168, 85, 247, 0);
+    }
+  }
+  
+  @keyframes pulsate3 {
+    0% {
+      transform: scale(0.8);
+      opacity: 1;
+      border-color: rgba(59, 130, 246, 0.8);
+    }
+    100% {
+      transform: scale(2);
+      opacity: 0;
+      border-color: rgba(59, 130, 246, 0);
+    }
+  }
+  
+  .ai-glow {
     position: absolute;
     inset: -20px;
-    background: radial-gradient(circle, rgba(138, 43, 226, 0.4) 0%, transparent 70%);
+    background: radial-gradient(circle, 
+      rgba(138, 43, 226, 0.4) 0%, 
+      transparent 70%);
     border-radius: 50%;
     animation: glowPulse 2s ease-in-out infinite;
+    z-index: 0;
   }
   
   @keyframes glowPulse {
     0%, 100% {
-      transform: scale(1);
-      opacity: 0.5;
+      transform: scale(0.8);
+      opacity: 0.4;
     }
     50% {
       transform: scale(1.2);
@@ -401,273 +1247,376 @@
     }
   }
   
-  .pulse-ring {
-    position: absolute;
-    inset: -10px;
-    border: 2px solid rgba(138, 43, 226, 0.5);
-    border-radius: 50%;
-    animation: ringPulse 2s ease-out infinite;
-  }
-  
-  .pulse-ring-2 {
-    animation-delay: 1s;
-  }
-  
-  @keyframes ringPulse {
-    0% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    100% {
-      transform: scale(1.5);
-      opacity: 0;
-    }
-  }
-  
-  /* AI Badge */
-  .ai-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 8px 20px;
-    background: linear-gradient(135deg, rgba(138, 43, 226, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);
-    border: 1px solid rgba(138, 43, 226, 0.4);
-    border-radius: 20px;
-    margin-bottom: 20px;
-    backdrop-filter: blur(10px);
-  }
-  
-  .ai-badge-text {
-    font-size: 14px;
-    font-weight: 600;
-    color: rgba(200, 150, 255, 1);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-  }
-  
-  /* Title */
-  .ai-title {
-    font-size: 48px;
-    font-weight: 800;
-    margin-bottom: 24px;
-    line-height: 1.2;
-  }
-  
-  .gradient-text {
-    background: linear-gradient(135deg, 
-      rgba(138, 43, 226, 1) 0%, 
-      rgba(168, 85, 247, 1) 50%, 
-      rgba(59, 130, 246, 1) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: gradientShift 3s ease-in-out infinite;
-  }
-  
-  @keyframes gradientShift {
-    0%, 100% {
-      filter: hue-rotate(0deg) brightness(1);
-    }
-    50% {
-      filter: hue-rotate(20deg) brightness(1.2);
-    }
-  }
-  
-  /* Description */
-  .ai-description {
-    margin-bottom: 32px;
-  }
-  
-  .ai-text {
-    font-size: 18px;
-    color: rgba(220, 200, 255, 0.95);
-    margin-bottom: 12px;
-    line-height: 1.6;
-  }
-  
-  .ai-text-secondary {
-    font-size: 16px;
-    color: rgba(180, 160, 220, 0.8);
-    line-height: 1.6;
-  }
-  
-  .highlight {
-    color: rgba(138, 43, 226, 1);
-    font-weight: 700;
-    text-shadow: 0 0 10px rgba(138, 43, 226, 0.5);
-  }
-  
-  /* Features Preview */
-  .features-preview {
-    display: flex;
-    gap: 24px;
-    margin-bottom: 32px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  .feature-item {
+  /* Loading Text */
+  .loading-text-container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 16px 20px;
-    background: rgba(138, 43, 226, 0.1);
-    border: 1px solid rgba(138, 43, 226, 0.2);
-    border-radius: 12px;
-    transition: all 0.3s ease;
-    animation: featureFloat 3s ease-in-out infinite;
+    gap: 4px;
+    width: 100%;
   }
   
-  .feature-item:nth-child(1) { animation-delay: 0s; }
-  .feature-item:nth-child(2) { animation-delay: 0.5s; }
-  .feature-item:nth-child(3) { animation-delay: 1s; }
+  .loading-text-main {
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(220, 200, 255, 0.95);
+    text-align: center;
+    line-height: 1.3;
+    animation: textGlow 2s ease-in-out infinite;
+    text-shadow: 0 0 20px rgba(138, 43, 226, 0.6);
+  }
   
-  @keyframes featureFloat {
+  .loading-text-sub {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(180, 160, 220, 0.8);
+    text-align: center;
+    line-height: 1.2;
+    animation: textPulse 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes textGlow {
     0%, 100% {
-      transform: translateY(0);
+      text-shadow: 0 0 15px rgba(138, 43, 226, 0.5);
+      transform: scale(1);
     }
     50% {
-      transform: translateY(-8px);
+      text-shadow: 0 0 30px rgba(138, 43, 226, 0.8);
+      transform: scale(1.02);
     }
   }
   
-  .feature-item:hover {
-    background: rgba(138, 43, 226, 0.2);
-    border-color: rgba(138, 43, 226, 0.4);
-    transform: translateY(-4px);
+  @keyframes textPulse {
+    0%, 100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
   }
   
-  .feature-icon {
-    font-size: 28px;
-    filter: drop-shadow(0 2px 8px rgba(138, 43, 226, 0.4));
-  }
-  
-  .feature-item span {
-    font-size: 13px;
-    font-weight: 600;
-    color: rgba(200, 180, 240, 0.9);
-    white-space: nowrap;
-  }
-  
-  /* Loading Bar */
-  .loading-bar-container {
+  /* Progress Container */
+  .progress-container {
     width: 100%;
-    max-width: 300px;
-    height: 4px;
-    background: rgba(138, 43, 226, 0.2);
-    border-radius: 2px;
-    overflow: hidden;
-    margin-bottom: 20px;
+    position: relative;
+    margin-bottom: 4px;
   }
   
-  .loading-bar {
-    height: 100%;
+  .progress-bar {
+    height: 8px;
     background: linear-gradient(90deg, 
-      rgba(138, 43, 226, 0.6) 0%, 
+      rgba(138, 43, 226, 1) 0%, 
       rgba(168, 85, 247, 1) 50%, 
-      rgba(59, 130, 246, 0.6) 100%);
-    animation: loading 2s ease-in-out infinite;
+      rgba(59, 130, 246, 1) 100%);
+    background-size: 300% 100%;
+    border-radius: 4px;
+    transition: width 0.2s ease-out;
+    animation: progressShimmer 2s linear infinite;
+    box-shadow: 
+      0 0 15px rgba(138, 43, 226, 0.8),
+      0 0 30px rgba(138, 43, 226, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    position: relative;
+    overflow: hidden;
   }
   
-  @keyframes loading {
+  .progress-glow {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.4) 50%,
+      transparent 100%);
+    animation: progressGlowMove 1.5s linear infinite;
+  }
+  
+  @keyframes progressShimmer {
+    0% {
+      background-position: 300% 0;
+    }
+    100% {
+      background-position: -300% 0;
+    }
+  }
+  
+  @keyframes progressGlowMove {
     0% {
       transform: translateX(-100%);
     }
     100% {
-      transform: translateX(100%);
+      transform: translateX(200%);
     }
   }
   
-  /* Close Hint */
-  .close-hint {
-    font-size: 13px;
-    color: rgba(160, 140, 200, 0.6);
-    margin: 0;
-    animation: hintBlink 2s ease-in-out infinite;
+  /* Progress Segments */
+  .progress-segments {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    justify-content: center;
   }
   
-  @keyframes hintBlink {
+  .segment {
+    width: 30px;
+    height: 4px;
+    background: rgba(138, 43, 226, 0.2);
+    border-radius: 2px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .segment.active {
+    background: linear-gradient(90deg, 
+      rgba(138, 43, 226, 1) 0%, 
+      rgba(168, 85, 247, 1) 100%);
+    box-shadow: 0 0 10px rgba(138, 43, 226, 0.8);
+    animation: segmentGlow 1.5s ease-in-out infinite;
+  }
+  
+  .segment.active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.6) 50%,
+      transparent 100%);
+    animation: segmentShine 1s linear infinite;
+  }
+  
+  @keyframes segmentGlow {
     0%, 100% {
-      opacity: 0.4;
+      box-shadow: 0 0 10px rgba(138, 43, 226, 0.6);
     }
     50% {
-      opacity: 1;
+      box-shadow: 0 0 20px rgba(138, 43, 226, 1);
     }
+  }
+  
+  @keyframes segmentShine {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(200%);
+    }
+  }
+  
+  /* Progress Info */
+  .progress-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 4px;
+  }
+  
+  .progress-percentage {
+    font-size: 14px;
+    font-weight: 800;
+    background: linear-gradient(135deg, 
+      rgba(138, 43, 226, 1) 0%, 
+      rgba(168, 85, 247, 1) 50%,
+      rgba(59, 130, 246, 1) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: percentageBounce 0.8s ease-in-out infinite;
+    text-shadow: 0 0 20px rgba(138, 43, 226, 0.8);
+  }
+  
+  .progress-status {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(180, 160, 220, 0.8);
+    background: rgba(138, 43, 226, 0.2);
+    padding: 4px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(138, 43, 226, 0.3);
+    animation: statusPulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes percentageBounce {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+  
+  @keyframes statusPulse {
+    0%, 100% {
+      border-color: rgba(138, 43, 226, 0.3);
+      background: rgba(138, 43, 226, 0.15);
+    }
+    50% {
+      border-color: rgba(138, 43, 226, 0.6);
+      background: rgba(138, 43, 226, 0.3);
+    }
+  }
+  
+  /* ===== LIGHT MODE - LOADING ANIMATION ===== */
+  :global([data-theme="light"]) .indicator-row.indicator-loading {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98)) padding-box,
+                linear-gradient(135deg, rgba(59, 130, 246, 0.4), rgba(99, 102, 241, 0.3)) border-box;
+  }
+  
+  :global([data-theme="light"]) .ai-loading-overlay {
+    background: linear-gradient(135deg, 
+      rgba(59, 130, 246, 0.08) 0%, 
+      rgba(99, 102, 241, 0.06) 100%);
+  }
+  
+  :global([data-theme="light"]) .particle {
+    background: rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+  }
+  
+  :global([data-theme="light"]) .stream-line {
+    background: linear-gradient(180deg, 
+      transparent 0%, 
+      rgba(59, 130, 246, 0.6) 50%, 
+      transparent 100%);
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+  }
+  
+  :global([data-theme="light"]) .ai-loader-icon svg {
+    color: #3b82f6;
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.5));
+  }
+  
+  :global([data-theme="light"]) .ai-pulse-ring {
+    border-color: rgba(59, 130, 246, 0.4);
+  }
+  
+  :global([data-theme="light"]) .ai-glow {
+    background: radial-gradient(circle, 
+      rgba(59, 130, 246, 0.25) 0%, 
+      transparent 70%);
+  }
+  
+  :global([data-theme="light"]) .loading-text-main {
+    color: #1e293b;
+    text-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+  }
+  
+  :global([data-theme="light"]) .loading-text-sub {
+    color: #64748b;
+  }
+  
+  :global([data-theme="light"]) .progress-bar {
+    background: linear-gradient(90deg, 
+      rgba(59, 130, 246, 1) 0%, 
+      rgba(99, 102, 241, 1) 50%, 
+      rgba(139, 92, 246, 1) 100%);
+    box-shadow: 
+      0 0 12px rgba(59, 130, 246, 0.5),
+      0 0 20px rgba(59, 130, 246, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  
+  :global([data-theme="light"]) .segment {
+    background: rgba(59, 130, 246, 0.15);
+  }
+  
+  :global([data-theme="light"]) .segment.active {
+    background: linear-gradient(90deg, 
+      rgba(59, 130, 246, 1) 0%, 
+      rgba(99, 102, 241, 1) 100%);
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+  }
+  
+  :global([data-theme="light"]) .progress-percentage {
+    background: linear-gradient(135deg, 
+      rgba(59, 130, 246, 1) 0%, 
+      rgba(99, 102, 241, 1) 50%,
+      rgba(139, 92, 246, 1) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+  }
+  
+  :global([data-theme="light"]) .progress-status {
+    color: #64748b;
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.2);
   }
   
   /* Mobile Responsiveness */
   @media (max-width: 640px) {
     .ai-modal-container {
       max-width: 95%;
-      border-radius: 20px;
+      border-radius: 16px;
     }
     
-    .ai-content {
-      padding: 40px 24px;
+    .ai-header {
+      padding: 20px 20px;
     }
     
-    .ai-icon-wrapper {
-      width: 80px;
-      height: 80px;
+    .ai-icon-small {
+      width: 36px;
+      height: 36px;
+    }
+    
+    .ai-icon-small svg {
+      width: 20px;
+      height: 20px;
     }
     
     .ai-title {
-      font-size: 36px;
+      font-size: 18px;
     }
     
-    .ai-text {
-      font-size: 16px;
+    .ai-subtitle {
+      font-size: 12px;
     }
     
-    .ai-text-secondary {
+    .indicators-list {
+      padding: 8px;
+    }
+    
+    .indicator-row {
+      padding: 14px 16px;
+    }
+    
+    .indicator-icon {
+      font-size: 24px;
+      margin-right: 12px;
+    }
+    
+    .indicator-name {
       font-size: 14px;
     }
     
-    .features-preview {
-      gap: 12px;
+    .action-btn {
+      width: 28px;
+      height: 28px;
     }
     
-    .feature-item {
-      padding: 12px 16px;
-    }
-    
-    .feature-icon {
-      font-size: 24px;
-    }
-    
-    .feature-item span {
-      font-size: 11px;
+    .action-btn svg {
+      width: 14px;
+      height: 14px;
     }
   }
   
   @media (max-width: 480px) {
-    .ai-content {
-      padding: 32px 20px;
+    .ai-header {
+      padding: 16px;
     }
     
-    .ai-icon-wrapper {
-      width: 70px;
-      height: 70px;
+    .ai-header-left {
+      gap: 12px;
     }
     
-    .ai-title {
-      font-size: 32px;
+    .indicator-row {
+      padding: 12px 14px;
     }
     
-    .ai-badge-text {
+    .add-indicator-hint {
       font-size: 12px;
-    }
-    
-    .features-preview {
-      flex-direction: column;
-      gap: 10px;
-    }
-    
-    .feature-item {
-      flex-direction: row;
-      width: 100%;
-      justify-content: flex-start;
-      padding: 12px;
     }
   }
 </style>

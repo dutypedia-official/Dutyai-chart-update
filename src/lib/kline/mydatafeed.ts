@@ -27,23 +27,26 @@ export default class MyDatafeed implements Datafeed {
     to,
     strategy,
   }: GetKlineArgs): Promise<KData> {
-    // Create cache key for consistent data
+    // Create cache key for consistent data (per symbol + timeframe)
     const cacheKey = `${symbol.ticker}_${period?.timeframe || "1m"}`;
 
-    // Skip cache for daily and weekly timeframes to ensure fresh data after fix
-    const timeframe = period?.timeframe || "1m";
-    const skipCache = timeframe.endsWith("d") || timeframe.endsWith("w");
-
-    // // Check cache first for consistent data (except for daily/weekly)
-    // if (!skipCache && this.dataCache.has(cacheKey)) {
-    //   const cachedData = this.dataCache.get(cacheKey)!;
-    //   // Update current price cache
-    //   if (cachedData.data.length > 0) {
-    //     const latestPrice = cachedData.data[cachedData.data.length - 1].close;
-    //     this.currentPriceCache.set(symbol.ticker, latestPrice);
-    //   }
-    //   return cachedData;
-    // }
+    // Check in‑memory cache first so that once historical data is loaded
+    // for a given symbol + timeframe, switching away and back does NOT
+    // re‑download the same history again. This matches the desired UX:
+    // - Scroll back (e.g. to 2024) once → data is cached.
+    // - Change timeframe and later return → reuse cached data instantly.
+    if (this.dataCache.has(cacheKey)) {
+      const cachedData = this.dataCache.get(cacheKey)!;
+      if (cachedData.data.length > 0) {
+        const latestPrice =
+          cachedData.data[cachedData.data.length - 1].close;
+        this.currentPriceCache.set(symbol.ticker, latestPrice);
+      }
+      console.log(
+        `📦 Using cached history for ${symbol.ticker} (${period?.timeframe})`
+      );
+      return cachedData;
+    }
 
     // Try to fetch data from stocknow.com.bd API
     try {

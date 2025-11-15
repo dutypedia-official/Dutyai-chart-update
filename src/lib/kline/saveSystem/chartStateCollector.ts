@@ -383,7 +383,7 @@ export async function applyGlobalState(
             };
           }
           
-          // Special handling for SUPERTREND (SmartTrend) which uses extendData to style segments
+          // Special handling for SUPERTREND (Smart Trend) which uses extendData to style segments
           if (indicator.type === 'SUPERTREND') {
             const group: any = (indicator as any).superTrendGroup;
             // Build extendData from saved group if present, otherwise use dashed defaults

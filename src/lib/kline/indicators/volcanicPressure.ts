@@ -52,11 +52,15 @@ export const volcanicPressure: IndicatorTemplate = {
       minBreakoutBodyPct: (p?.[10] as number) ?? DEFAULT_SETTINGS.minBreakoutBodyPct,
       breakoutLookback: (p?.[11] as number) ?? DEFAULT_SETTINGS.breakoutLookback,
       minBarsBetweenEruptions: (p?.[12] as number) ?? DEFAULT_SETTINGS.minBarsBetweenEruptions,
-      trendEMAPeriod: (p?.[13] as number) ?? (DEFAULT_SETTINGS as any).trendEMAPeriod ?? 50,
-      requireTrendAlign: (p?.[14] as number) ?? 1,
-      breakoutBufferPct: (p?.[15] as number) ?? 0.001,
-      requireBBBandBreak: (p?.[16] as number) ?? 1,
-      retestWindow: (p?.[17] as number) ?? 2
+      // Use the softer defaults from DEFAULT_SETTINGS so signals are not overly strict
+      trendEMAPeriod: (p?.[13] as number) ?? (DEFAULT_SETTINGS as any).trendEMAPeriod ?? 30,
+      requireTrendAlign:
+        (p?.[14] as number) ?? (DEFAULT_SETTINGS as any).requireTrendAlign ?? 0,
+      breakoutBufferPct:
+        (p?.[15] as number) ?? (DEFAULT_SETTINGS as any).breakoutBufferPct ?? 0.0007,
+      requireBBBandBreak:
+        (p?.[16] as number) ?? (DEFAULT_SETTINGS as any).requireBBBandBreak ?? 0,
+      retestWindow: (p?.[17] as number) ?? (DEFAULT_SETTINGS as any).retestWindow ?? 1
     };
 
     const { pressureSmoothed } = computeVolcanicMove(dataList, settings);

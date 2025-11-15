@@ -1678,7 +1678,7 @@
           class:hover:bg-base-200={activeTab !== 'renko'}
           onclick={() => activeTab = 'renko'}
         >
-          Renko
+          Duty AI Renko
         </button>
         {/if}
       </div>
@@ -1901,7 +1901,7 @@
         </div>
       {:else if activeTab === 'renko'}
         <div class="space-y-6 pb-6">
-          <h4 class="text-lg font-semibold mb-4">Renko Settings</h4>
+          <h4 class="text-lg font-semibold mb-4">Duty AI Renko Settings</h4>
           <div class="space-y-4 p-3 rounded-lg border border-base-300">
             <div class="flex items-center gap-3">
               <label class="flex items-center gap-2">

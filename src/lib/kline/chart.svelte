@@ -110,21 +110,77 @@
     currentLoadToken += 1;
     return currentLoadToken;
   }
-  // Keep a stable resize handler reference for proper removal
+  // Debounce timer for resize handler
+  let resizeDebounceTimer: number | null = null;
+  let resizeRafId: number | null = null;
+  
+  /**
+   * Window resize handler
+   *
+   * IMPORTANT:
+   * - All chart.resize() calls MUST go through the render scheduler
+   *   to keep rendering flicker‑free and DPI‑correct.
+   * - We also reapply saved styles + canvas colors after resize, and
+   *   force a tiny scroll to trigger a crisp canvas redraw.
+   */
   const onWindowResize = () => {
-    $chart?.resize()
+    if (!$chart) return;
     
-    // Apply responsive theme styles on resize for mobile optimization
-    setTimeout(() => {
-      if ($chart) {
-        const responsiveStyles = getThemeStyles($save.theme)
-        _.merge(responsiveStyles, $state.snapshot($save.styles))
-        $chart.setStyles(processLineChartStyles(responsiveStyles))
+    // Clear any pending resize operations
+    if (resizeDebounceTimer) {
+      clearTimeout(resizeDebounceTimer);
+      resizeDebounceTimer = null;
+    }
+    if (resizeRafId) {
+      cancelAnimationFrame(resizeRafId);
+      resizeRafId = null;
+    }
+    
+    // Stage 1: schedule an immediate resize in the next frame
+    resizeRafId = requestAnimationFrame(() => {
+      resizeRafId = null;
+      scheduler.request(() => {
+        if (!$chart) return;
+        $chart.resize();
         
-        // Reapply canvas colors to maintain visual consistency
-        applyCanvasColors()
-      }
-    }, 100)
+        (window as any).__forceApplySavedCanvasColors = true;
+        const responsiveStyles = getThemeStyles($save.theme);
+        _.merge(responsiveStyles, $state.snapshot($save.styles));
+        $chart.setStyles(processLineChartStyles(responsiveStyles));
+        applyCanvasColors();
+      });
+    });
+    
+    // Stage 2: debounced final resize + forced redraw a bit later
+    resizeDebounceTimer = setTimeout(() => {
+      resizeDebounceTimer = null;
+      
+      scheduler.request(() => {
+        if (!$chart) return;
+        
+        // Final resize after layout has fully settled
+        $chart.resize();
+        
+        // Force complete style reapplication using saved styles
+        (window as any).__forceApplySavedCanvasColors = true;
+        const responsiveStyles = getThemeStyles($save.theme);
+        _.merge(responsiveStyles, $state.snapshot($save.styles));
+        $chart.setStyles(processLineChartStyles(responsiveStyles));
+        applyCanvasColors();
+        
+        // Force canvas redraw by nudging scroll to the latest bar
+        // This prevents the "scaled up / blurry" canvas after big resizes
+        const visibleRange = $chart.getVisibleRange?.();
+        if (visibleRange && typeof visibleRange.to === 'number') {
+          // Use a small delay inside scheduler to let resize commit
+          setTimeout(() => {
+            if (!$chart) return;
+            $chart.scrollToDataIndex(visibleRange.to, 0);
+            console.log('🔄 Forced canvas redraw after window resize to prevent blur');
+          }, 30);
+        }
+      });
+    }, 160) as unknown as number;
   };
   
   // Render system integration
@@ -575,7 +631,7 @@
             };
           }
           
-          // Prepare extendData for SUPERTREND (SmartTrend) so per-segment styles are respected
+          // Prepare extendData for SUPERTREND (Smart Trend) so per-segment styles are respected
           let extendData: any | undefined = undefined;
           if (name === 'SUPERTREND') {
             const group: any = (ind as any).superTrendGroup;
@@ -836,6 +892,16 @@
     onDestroy(() => {
       // Stop auto-play if running
       stopAutoPlay();
+      
+      // Cleanup resize timers to prevent memory leaks
+      if (resizeDebounceTimer) {
+        clearTimeout(resizeDebounceTimer);
+        resizeDebounceTimer = null;
+      }
+      if (resizeRafId) {
+        cancelAnimationFrame(resizeRafId);
+        resizeRafId = null;
+      }
       
       window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
       window.removeEventListener('beforeunload', onBeforeUnload);
@@ -1292,6 +1358,18 @@
         await loadSymbolPeriod(token);
       }
     });
+
+    // Restart infinite scrolling when timeframe changes so historical loading
+    // state (e.g. reachedHistoricalStart) is reset for the new timeframe.
+    // Without this, if a previous timeframe had already hit the history start,
+    // new timeframes could stop loading older candles even when you scroll left.
+    if (infiniteScrollCleanup) {
+      try { infiniteScrollCleanup(); } catch {}
+      infiniteScrollCleanup = null;
+    }
+    if ($chart) {
+      infiniteScrollCleanup = setupInfiniteScrolling($chart);
+    }
   })
   
   // 监听币种变化

@@ -285,6 +285,9 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   const isVolcanic = $derived($ctx.editIndName === 'VOLCANIC');
   const isVolcanicSig = $derived($ctx.editIndName === 'VOLCANIC_SIG');
   
+  // Check if current indicator is an AI indicator
+  const isAIIndicator = $derived(isSmartMoney || isTrapHunter || isVolcanic || isVolcanicSig);
+  
   // Realtime updater for Trap Hunter indicator
   function updateTrapHunter() {
     if ($ctx.editIndName !== 'TRAP_HUNTER' || !$chart) return;
@@ -348,7 +351,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     }
   });
   // Human-friendly modal title
-  const editTitle = $derived($ctx.editIndName === 'SUPERTREND' ? 'SmartTrend BuySell' : $ctx.editIndName);
+  const editTitle = $derived($ctx.editIndName === 'SUPERTREND' ? 'Smart Trend' : $ctx.editIndName);
 
   // ZigZag specific style variables
   let zigzagColor = $state('#2962FF');
@@ -5381,7 +5384,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
     };
     
     superTrendGroups = [...superTrendGroups, newGroup];
-    console.log('✅ Added new SmartTrend group:', newGroup);
+    console.log('✅ Added new Smart Trend group:', newGroup);
     rebuildAllSuperTrendOnPane();
   }
 
@@ -14084,18 +14087,18 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       </div>
     </div>
   {:else if isSuperTrend}
-    <!-- SmartTrend BuySell Minimalist UI -->
+    <!-- Smart Trend Minimalist UI -->
     <div class="space-y-2 mt-3">
       {#each superTrendGroups as group, groupIndex}
         <div class="bg-base-50 border border-base-200 rounded-md p-2 sm:p-3 space-y-2 sm:space-y-3">
-          <!-- SmartTrend Header -->
+          <!-- Smart Trend Header -->
           <div class="flex items-center justify-between">
-            <span class="text-xs sm:text-sm font-medium text-base-content/80">SmartTrend BuySell {groupIndex + 1}</span>
+            <span class="text-xs sm:text-sm font-medium text-base-content/80">Smart Trend {groupIndex + 1}</span>
             {#if superTrendGroups.length > 1}
               <button 
                 class="btn btn-xs btn-circle btn-ghost text-error hover:bg-error/10" 
                 onclick={() => removeSuperTrendGroup(group.id)}
-                title="Remove SmartTrend Group"
+                title="Remove Smart Trend Group"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -14104,7 +14107,7 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
             {/if}
           </div>
           
-          <!-- SmartTrend Parameters Row -->
+          <!-- Smart Trend Parameters Row -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
             <div class="flex flex-col gap-1">
               <label class="text-xs text-base-content/60">Period</label>
@@ -14222,12 +14225,12 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
         <button 
           class="btn btn-xs btn-outline btn-primary" 
           onclick={addSuperTrendGroup}
-          title="Add more SmartTrend"
+          title="Add more Smart Trend"
         >
           <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          Add SmartTrend
+          Add Smart Trend
         </button>
       </div>
     </div>
@@ -16000,6 +16003,24 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
       {/if}
     </div>
   {/if}
+  
+  <!-- AI Indicator Branding -->
+  {#if isAIIndicator}
+    <div class="ai-branding-container">
+      <div class="ai-branding-badge">
+        <svg class="ai-branding-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+          <line x1="12" y1="22.08" x2="12" y2="12"></line>
+        </svg>
+        <div class="ai-branding-text">
+          <div class="ai-branding-main">Duty AI Algorithm Included</div>
+          <div class="ai-branding-sub">Powered by Duty AI</div>
+        </div>
+        <div class="ai-branding-glow"></div>
+      </div>
+    </div>
+  {/if}
   </div>
 </Modal>
 
@@ -17380,6 +17401,168 @@ let aoColorPaletteIndex = $state(0); // Track which AO group and color type (0=i
   
   .responsive-modal-content :global(*) {
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* ========================================
+     AI INDICATOR BRANDING
+     ======================================== */
+  .ai-branding-container {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(138, 43, 226, 0.15);
+  }
+  
+  .ai-branding-badge {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, 
+      rgba(138, 43, 226, 0.08) 0%, 
+      rgba(168, 85, 247, 0.06) 50%,
+      rgba(59, 130, 246, 0.05) 100%);
+    border: 1.5px solid rgba(138, 43, 226, 0.25);
+    border-radius: 14px;
+    position: relative;
+    overflow: hidden;
+    animation: brandingGlow 3s ease-in-out infinite;
+  }
+  
+  @keyframes brandingGlow {
+    0%, 100% {
+      border-color: rgba(138, 43, 226, 0.25);
+      box-shadow: 0 0 15px rgba(138, 43, 226, 0.1);
+    }
+    50% {
+      border-color: rgba(138, 43, 226, 0.4);
+      box-shadow: 0 0 25px rgba(138, 43, 226, 0.2);
+    }
+  }
+  
+  .ai-branding-icon {
+    width: 36px;
+    height: 36px;
+    color: rgba(138, 43, 226, 1);
+    filter: drop-shadow(0 4px 12px rgba(138, 43, 226, 0.4));
+    animation: brandingIconSpin 4s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  
+  @keyframes brandingIconSpin {
+    0%, 100% {
+      transform: rotateY(0deg);
+    }
+    50% {
+      transform: rotateY(180deg);
+    }
+  }
+  
+  .ai-branding-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .ai-branding-main {
+    font-size: 15px;
+    font-weight: 700;
+    background: linear-gradient(135deg, 
+      rgba(138, 43, 226, 1) 0%, 
+      rgba(168, 85, 247, 1) 50%,
+      rgba(59, 130, 246, 1) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    line-height: 1.3;
+    animation: textShine 3s ease-in-out infinite;
+  }
+  
+  .ai-branding-sub {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(138, 43, 226, 0.8);
+    line-height: 1.2;
+    animation: subtextPulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes textShine {
+    0%, 100% {
+      filter: brightness(1);
+    }
+    50% {
+      filter: brightness(1.3);
+    }
+  }
+  
+  @keyframes subtextPulse {
+    0%, 100% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  
+  .ai-branding-glow {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg,
+      rgba(138, 43, 226, 0.05) 0%,
+      transparent 50%,
+      rgba(59, 130, 246, 0.05) 100%);
+    animation: glowShift 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  
+  @keyframes glowShift {
+    0%, 100% {
+      opacity: 0.3;
+      transform: translateX(-10%);
+    }
+    50% {
+      opacity: 0.6;
+      transform: translateX(10%);
+    }
+  }
+  
+  /* Light Mode - AI Branding */
+  :global(.modal-container[data-theme="light"]) .ai-branding-container {
+    border-top-color: rgba(59, 130, 246, 0.15);
+  }
+  
+  :global(.modal-container[data-theme="light"]) .ai-branding-badge {
+    background: linear-gradient(135deg, 
+      rgba(59, 130, 246, 0.06) 0%, 
+      rgba(99, 102, 241, 0.05) 50%,
+      rgba(139, 92, 246, 0.04) 100%);
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+  
+  :global(.modal-container[data-theme="light"]) .ai-branding-icon {
+    color: #3b82f6;
+    filter: drop-shadow(0 3px 10px rgba(59, 130, 246, 0.3));
+  }
+  
+  :global(.modal-container[data-theme="light"]) .ai-branding-main {
+    background: linear-gradient(135deg, 
+      rgba(59, 130, 246, 1) 0%, 
+      rgba(99, 102, 241, 1) 50%,
+      rgba(139, 92, 246, 1) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  
+  :global(.modal-container[data-theme="light"]) .ai-branding-sub {
+    color: #3b82f6;
+  }
+  
+  :global(.modal-container[data-theme="light"]) .ai-branding-glow {
+    background: linear-gradient(135deg,
+      rgba(59, 130, 246, 0.04) 0%,
+      transparent 50%,
+      rgba(99, 102, 241, 0.04) 100%);
   }
 </style>
 

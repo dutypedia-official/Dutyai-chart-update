@@ -22,7 +22,7 @@ interface SuperTrendData {
  */
 export const superTrend: IndicatorTemplate = {
   name: 'SUPERTREND',
-  shortName: 'SmartTrend BuySell',
+  shortName: 'Smart Trend',
   precision: 2,
   calcParams: [10, 3], // Default period: 10, multiplier: 3
   shouldOhlc: true, // SuperTrend is overlaid on the main price chart
@@ -36,7 +36,7 @@ export const superTrend: IndicatorTemplate = {
     // SuperTrend line
     {
       key: 'superTrend',
-      title: 'SmartTrend: ',
+      title: 'Smart Trend: ',
       type: 'line'
     }
   ],

@@ -25,19 +25,17 @@
   const renderIntegration = getChartRenderIntegration();
 
   // Static indicator list - base data
+  // Note: AI indicators (SMART_MONEY, TRAP_HUNTER, VOLCANIC, VOLCANIC_SIG) are now in AI modal
   const staticIndicators = [
     // Main indicators (overlay on price chart) - sorted alphabetically
     { name: 'BBI', title: 'BBI (Bull and Bear Index)', is_main: false },
     { name: 'BOLL', title: 'BOLL (Bollinger Bands)', is_main: true },
-    { name: 'VOLCANIC_SIG', title: 'Volcanic Eruptions (Markers) (Main Pane)', is_main: true },
-    { name: 'SMART_MONEY', title: 'Smart Money Footprint', is_main: true },
-    { name: 'TRAP_HUNTER', title: 'Trap Hunter (Bull/Bear Traps)', is_main: true },
     { name: 'EMA', title: 'EMA (Exponential Moving Average)', is_main: true },
     { name: 'ICHIMOKU', title: 'ICHIMOKU (Ichimoku Kinko Hyo)', is_main: true },
     { name: 'MA', title: 'MA (Moving Average)', is_main: true },
     { name: 'SAR', title: 'SAR (Parabolic SAR)', is_main: true },
     { name: 'SMA', title: 'SMA (Simple Moving Average)', is_main: true },
-    { name: 'SUPERTREND', title: 'SmartTrend BuySell', is_main: true },
+    { name: 'SUPERTREND', title: 'Smart Trend', is_main: true },
     { name: 'ZIGZAG', title: 'ZigZag (Trend Reversal Indicator)', is_main: true },
     
     // Sub indicators (separate panes) - sorted alphabetically
@@ -45,7 +43,6 @@
     { name: 'BIAS', title: 'BIAS (Bias)', is_main: false },
     { name: 'CCI', title: 'CCI (Commodity Channel Index)', is_main: false },
     { name: 'CR', title: 'CR (Energy)', is_main: false },
-    { name: 'VOLCANIC', title: 'Volcanic Move (Pressure) (Sub Pane)', is_main: false },
     { name: 'DMI', title: 'DMI (Directional Movement Index)', is_main: false },
     { name: 'EMV', title: 'EMV (Ease of Movement)', is_main: false },
     { name: 'KDJ', title: 'KDJ (KDJ Index)', is_main: false },
@@ -67,6 +64,12 @@
   // Alphabetically sorted indicator list by name
   const sortedIndicators = staticIndicators.slice().sort((a, b) => a.name.localeCompare(b.name));
 
+  // Helper function to get user-friendly indicator name
+  function getFriendlyIndicatorName(name: string): string {
+    const indicator = staticIndicators.find(ind => ind.name === name);
+    return indicator ? indicator.title : name;
+  }
+
   // Track selected indicators (those added to chart)
   // This will automatically sync with save.saveInds to show active indicators
   let selectedIndicators = $derived.by(() => {
@@ -81,7 +84,9 @@
       });
     }
     
-    console.log('🔄 selectedIndicators updated:', Array.from(activeIndicators));
+    // Show user-friendly names in console
+    const friendlyNames = Array.from(activeIndicators).map(name => getFriendlyIndicatorName(name));
+    console.log('🔄 selectedIndicators updated:', friendlyNames);
     return activeIndicators;
   });
 
@@ -188,7 +193,6 @@
   // Function to get specific icon for each indicator
   function getIndicatorIcon(name: string): string {
     const iconMap: Record<string, string> = {
-      'TRAP_HUNTER': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86l-7.6 13.17A1 1 0 003.53 19h16.94a1 1 0 00.84-1.5L13.71 3.86a1 1 0 00-1.73 0z"></path>',
       // Moving Averages - Trend Lines
       'MA': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>',
       'EMA': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>',
@@ -296,7 +300,7 @@
         const ind_id = chartObj.createIndicator({
           name: 'SUPERTREND',
           calcParams: [10, 3.0],
-          // Base style for SmartTrend; per-trend colors/thickness/style come from extendData in draw()
+          // Base style for Smart Trend; per-trend colors/thickness/style come from extendData in draw()
           styles: {
             lines: [{
               color: '#00FF00',
@@ -768,18 +772,18 @@
       console.log('✅ Bulk SAR deletion completed');
     } else if (name === 'SUPERTREND') {
       // For SuperTrend, delete all instances on all panes and clear all saved keys
-      console.log('🗑️ Starting bulk SmartTrend deletion...');
+      console.log('🗑️ Starting bulk Smart Trend deletion...');
       if ($chart) {
         try {
           const indicators = $chart.getIndicators();
           const stIndicators = indicators.filter(ind => ind.name === 'SUPERTREND');
-          console.log('📊 Found SmartTrend indicators on chart:', stIndicators.length);
+          console.log('📊 Found Smart Trend indicators on chart:', stIndicators.length);
           stIndicators.forEach(indicator => {
-            console.log('🗑️ Removing SmartTrend from pane:', indicator.paneId);
+            console.log('🗑️ Removing Smart Trend from pane:', indicator.paneId);
             $chart.removeIndicator({ paneId: indicator.paneId, name: 'SUPERTREND' });
           });
         } catch (error) {
-          console.error('❌ Error removing SmartTrend indicators from chart:', error);
+          console.error('❌ Error removing Smart Trend indicators from chart:', error);
           // Fallback: try common panes
           try { $chart.removeIndicator({ paneId: 'candle_pane', name: 'SUPERTREND' }); } catch (_) {}
           try { $chart.removeIndicator({ paneId: $ctx.editPaneId, name: 'SUPERTREND' }); } catch (_) {}
@@ -795,7 +799,7 @@
         });
         return s;
       });
-      console.log('✅ Bulk SmartTrend deletion completed');
+      console.log('✅ Bulk Smart Trend deletion completed');
     } else if (name === 'CR') {
       // For CR, delete all instances and groups from all sub-panes
       console.log('🗑️ Starting bulk CR deletion...');
