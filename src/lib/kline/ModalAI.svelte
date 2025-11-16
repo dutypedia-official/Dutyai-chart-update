@@ -573,11 +573,9 @@
             {/if}
           </div>
         {/each}
-      </div>
-      
-      <!-- Coming Soon Section -->
-      <div class="coming-soon-section">
-        <div class="coming-soon-item disabled">
+        
+        <!-- Coming Soon Item - Inside Indicator List -->
+        <div class="indicator-row coming-soon-item disabled" onclick={(e) => e.stopPropagation()}>
           <!-- Glitter Animation Background -->
           <div class="coming-soon-glitter-bg"></div>
           
@@ -1658,20 +1656,8 @@
     }
   }
   
-  /* Coming Soon Section */
-  .coming-soon-section {
-    padding: 12px;
-    margin-top: 8px;
-    border-top: 1px solid rgba(138, 43, 226, 0.2);
-  }
-  
+  /* Coming Soon Item - Inside Indicator List */
   .coming-soon-item {
-    display: flex;
-    align-items: center;
-    padding: 16px 20px;
-    background: rgba(138, 43, 226, 0.05);
-    border: 1px solid rgba(138, 43, 226, 0.15);
-    border-radius: 12px;
     opacity: 0.7;
     cursor: not-allowed;
     position: relative;
@@ -1680,6 +1666,12 @@
   
   .coming-soon-item.disabled {
     pointer-events: none;
+  }
+  
+  .coming-soon-item:hover {
+    transform: none !important;
+    background: rgba(138, 43, 226, 0.05) !important;
+    border-color: rgba(138, 43, 226, 0.15) !important;
   }
   
   /* Coming Soon Glitter Animation Background */
@@ -1893,13 +1885,14 @@
   }
   
   /* Light Mode Styles for Coming Soon */
-  :global([data-theme="light"]) .coming-soon-section {
-    border-top-color: rgba(59, 130, 246, 0.15);
+  :global([data-theme="light"]) .coming-soon-item {
+    background: rgba(59, 130, 246, 0.03) !important;
+    border-color: rgba(59, 130, 246, 0.12) !important;
   }
   
-  :global([data-theme="light"]) .coming-soon-item {
-    background: rgba(59, 130, 246, 0.03);
-    border-color: rgba(59, 130, 246, 0.12);
+  :global([data-theme="light"]) .coming-soon-item:hover {
+    background: rgba(59, 130, 246, 0.03) !important;
+    border-color: rgba(59, 130, 246, 0.12) !important;
   }
   
   :global([data-theme="light"]) .coming-soon-item .indicator-icon svg {
