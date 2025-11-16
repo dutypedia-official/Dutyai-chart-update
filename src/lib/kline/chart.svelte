@@ -2478,7 +2478,7 @@
     flex-direction: row;
     min-width: 0; /* Allow flex item to shrink below content size */
     height: 100%;
-    border-left: 3.5px solid var(--border-color);
+    border-left: none;
     transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1); /* Smooth resize transition */
   }
 
@@ -2601,7 +2601,7 @@
     }
     
     .kline-content {
-      border-left-width: 2px; /* Thinner border on mobile */
+      border-left: none; /* No border on mobile */
     }
     
     .kline-widget {
@@ -2626,7 +2626,7 @@
     }
     
     .kline-content {
-      border-left-width: 1px; /* Even thinner border on small mobile */
+      border-left: none; /* No border on small mobile */
     }
     
     .kline-widget {

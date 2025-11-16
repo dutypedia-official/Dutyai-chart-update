@@ -1909,7 +1909,7 @@ let showAIModal = $state(false);
     </div>
     {/if}
 
-    <!-- Symbol Search Section -->
+    <!-- Symbol Search Section - Professional TradingView Style -->
     <div class="symbol-search-section" onclick={() => showSymbolModal = true}>
       <div class="symbol-search-content">
         <div class="symbol-search-icon">
@@ -1917,7 +1917,6 @@ let showAIModal = $state(false);
         </div>
         <span class="symbol-name">{showName}</span>
       </div>
-      <div class="symbol-search-glow"></div>
     </div>
 
     <!-- Timeframe Section -->
@@ -2031,6 +2030,19 @@ let showAIModal = $state(false);
         title="AI Powered Indicators"
         type="button"
       >
+        <!-- Continuous Glitter Animation Background -->
+        <div class="ai-glitter-bg"></div>
+        
+        <!-- Glitter particles -->
+        <div class="ai-glitter-particle ai-glitter-1"></div>
+        <div class="ai-glitter-particle ai-glitter-2"></div>
+        <div class="ai-glitter-particle ai-glitter-3"></div>
+        <div class="ai-glitter-particle ai-glitter-4"></div>
+        <div class="ai-glitter-particle ai-glitter-5"></div>
+        
+        <!-- Shine sweep effect -->
+        <div class="ai-shine-sweep"></div>
+        
         <div class="ai-btn-content">
           <div class="ai-icon-wrapper">
             <svg class="ai-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2042,23 +2054,31 @@ let showAIModal = $state(false);
           <span class="ai-text">AI</span>
           <div class="ai-badge-mini">New</div>
         </div>
-        <div class="ai-btn-glow"></div>
-        <div class="ai-particles">
-          <span class="particle"></span>
-          <span class="particle"></span>
-          <span class="particle"></span>
-        </div>
       </button>
     </div>
 
-    <!-- Chart Type Section -->
+    <!-- Chart Type Section - Professional Style -->
     <div class="chart-type-section">
-      {@render MenuButton(() => showChartTypeModal = true, getCurrentChartType().icon, getCurrentChartType().name)}
+      <button 
+        class="pro-menu-btn" 
+        onclick={() => showChartTypeModal = true}
+        title="Chart Type"
+      >
+        <KlineIcon name={getCurrentChartType().icon} size={16}/>
+        <span class="pro-menu-text">{getCurrentChartType().name}</span>
+      </button>
     </div>
 
-    <!-- Indicator Section -->
+    <!-- Indicator Section - Professional Style -->
     <div class="indicator-section">
-      {@render MenuButton(() => showIndSearchModal = true, "indicator", m.indicator())}
+      <button 
+        class="pro-menu-btn" 
+        onclick={() => showIndSearchModal = true}
+        title="Indicators"
+      >
+        <KlineIcon name="indicator" size={16}/>
+        <span class="pro-menu-text">{m.indicator()}</span>
+      </button>
     </div>
     
     <!-- Undo/Redo Section -->
@@ -2069,7 +2089,6 @@ let showAIModal = $state(false);
         title="Undo (Ctrl+Z)"
       >
         <KlineIcon class="undo-redo-icon" name="undo" size={16}/>
-        <div class="undo-redo-glow"></div>
       </button>
       <button 
         class="undo-redo-btn {!canRedo ? 'undo-redo-disabled' : ''}"
@@ -2077,7 +2096,6 @@ let showAIModal = $state(false);
         title="Redo (Ctrl+Y)"
       >
         <KlineIcon class="undo-redo-icon" name="redo" size={16}/>
-        <div class="undo-redo-glow"></div>
       </button>
     </div>
   </div>
@@ -2098,21 +2116,28 @@ let showAIModal = $state(false);
       on:newLayout={handleNewLayout}
       on:showPopup={handleShowPopup}
     />
-    <!-- Load Chart Button -->
+    <!-- Load Chart Button - Professional Style -->
     <button
-      class="btn btn-secondary btn-sm min-w-[100px] transition-all duration-200"
+      class="pro-menu-btn pro-menu-btn-icon-only"
       onclick={handleShowLoadPopup}
       title="Load Chart Layout"
       type="button"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 8l-3-3m3 3l3-3" />
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 8l-3-3m3 3l3-3" />
       </svg>
-      Load
     </button>
-    <!-- What Next Prediction Button / Speed Controller -->
+    
+    <!-- What Next Prediction Button / Speed Controller - Professional Style -->
     {#if !isPlaying}
-      {@render MenuButton(handleWhatNext, "play", "", 20)}
+      <button 
+        class="pro-menu-btn pro-menu-btn-icon-only"
+        onclick={handleWhatNext}
+        title="Play Prediction"
+        type="button"
+      >
+        <KlineIcon name="play" size={18}/>
+      </button>
     {:else}
       <div class="speed-controller">
         <input 
@@ -2128,7 +2153,7 @@ let showAIModal = $state(false);
         <span class="speed-label">{currentSpeed}x</span>
         <button 
           onclick={handleStop}
-          class="stop-btn"
+          class="pro-menu-btn pro-menu-btn-icon-only stop-btn"
           title="Stop"
           type="button"
         >
@@ -2136,15 +2161,55 @@ let showAIModal = $state(false);
         </button>
       </div>
     {/if}
-    {@render MenuButton(() => showTimezoneModal = true, "timezone", "")}
-    {@render MenuButton(() => showChartSettingModal = true, "setting", "")}
-    {@render MenuButton(clickScreenShot, "screenShot", "", 20)}
-    {@render MenuButton(() => {
-       debugLog('🖱️ Fullscreen button clicked!');
-       toggleFullscreen();
-     }, fullScreen ? "exitFullScreen" : "fullScreen", "", 18)}
-     
-     {@render MenuButton(toggleTheme, "theme", "", 22)}
+    
+    <!-- Professional Icon Buttons -->
+    <button 
+      class="pro-menu-btn pro-menu-btn-icon-only"
+      onclick={() => showTimezoneModal = true}
+      title="Timezone"
+      type="button"
+    >
+      <KlineIcon name="timezone" size={18}/>
+    </button>
+    
+    <button 
+      class="pro-menu-btn pro-menu-btn-icon-only"
+      onclick={() => showChartSettingModal = true}
+      title="Settings"
+      type="button"
+    >
+      <KlineIcon name="setting" size={18}/>
+    </button>
+    
+    <button 
+      class="pro-menu-btn pro-menu-btn-icon-only"
+      onclick={clickScreenShot}
+      title="Screenshot"
+      type="button"
+    >
+      <KlineIcon name="screenShot" size={18}/>
+    </button>
+    
+    <button 
+      class="pro-menu-btn pro-menu-btn-icon-only"
+      onclick={() => {
+        debugLog('🖱️ Fullscreen button clicked!');
+        toggleFullscreen();
+      }}
+      title={fullScreen ? "Exit Fullscreen" : "Fullscreen"}
+      type="button"
+    >
+      <KlineIcon name={fullScreen ? "exitFullScreen" : "fullScreen"} size={18}/>
+    </button>
+    
+    <button 
+      class="pro-menu-btn pro-menu-btn-icon-only"
+      onclick={toggleTheme}
+      title="Toggle Theme"
+      type="button"
+    >
+      <KlineIcon name="theme" size={20}/>
+    </button>
     <!-- Rotate button - only visible on mobile/tablet -->
     <div class="rotate-button-wrapper">
       <button 
@@ -2155,23 +2220,25 @@ let showAIModal = $state(false);
        >
         <div class="menu-btn-content">
           <div class="menu-icon-wrapper">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="20" height="20" viewBox="0 0 448 448" fill="none" xmlns="http://www.w3.org/2000/svg">
               {#if isRotated}
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
+                <!-- Rotate icon - counter-clockwise (exit rotation) -->
+                <path d="M322.402 1.33524C319.002 2.83524 282.402 41.3352 279.802 46.2352C277.602 50.4352 277.602 56.6352 279.802 60.9352C282.102 65.5352 317.402 107.535 320.802 109.735C324.702 112.235 335.002 112.035 338.602 109.335C345.002 104.635 347.402 97.6352 345.002 90.4352C344.302 88.4352 340.902 83.3352 337.402 79.1352C333.902 74.9352 331.302 71.3352 331.502 71.1352C331.702 70.8352 334.802 71.2352 338.202 71.8352C379.802 79.7352 409.802 111.735 415.002 153.835C416.302 163.835 417.802 167.035 422.702 170.435C430.002 175.335 440.902 173.135 445.702 165.735C448.202 162.135 448.302 161.435 447.702 152.135C446.102 124.435 432.902 96.5352 411.102 74.9352C390.202 54.0352 367.102 42.7352 336.702 38.4352L331.902 37.8352L338.402 30.9352C345.302 23.5352 347.002 18.9352 345.502 12.0352C343.502 2.73524 331.702 -2.66476 322.402 1.33524Z" fill="currentColor"/>
+                <path d="M169.504 40.9358C163.204 42.2358 157.004 44.7358 152.004 47.9358C149.504 49.5358 125.204 73.2358 97.8044 100.636C44.9044 153.736 44.8044 153.936 41.4044 167.236C39.3044 175.336 40.0044 188.336 43.0044 196.136C44.1044 199.336 47.1044 204.436 49.4044 207.636C51.8044 210.836 95.8043 255.336 147.104 306.536C217.704 376.836 241.704 400.236 245.604 402.236C259.904 409.736 277.304 409.836 292.304 402.336C296.404 400.336 308.404 388.836 348.304 349.136C393.904 303.636 399.404 297.736 402.504 291.736C406.904 282.936 408.404 275.436 407.704 265.436C407.104 255.636 404.304 247.836 398.604 240.236C396.204 237.036 352.404 192.736 301.404 141.836C200.004 40.8358 204.204 44.5358 189.304 41.4358C181.904 39.8358 175.704 39.7358 169.504 40.9358ZM185.804 74.8358C187.904 75.9358 229.704 117.136 281.704 169.136C363.504 251.136 373.904 261.836 374.504 265.236C376.204 274.436 377.804 272.436 326.204 324.336C299.004 351.536 277.104 372.736 275.304 373.536C270.904 375.436 266.604 375.336 262.204 373.036C257.604 370.636 76.8043 189.636 74.6043 185.236C72.4043 180.936 72.6043 175.636 75.0043 170.936C78.3043 164.336 78.8044 164.436 94.8044 172.336C108.704 179.136 109.704 179.436 117.404 179.736C123.904 180.036 126.704 179.636 131.504 177.936C136.904 175.836 139.304 173.836 156.604 156.536C173.904 139.236 175.904 136.836 178.004 131.436C179.704 126.636 180.104 123.836 179.804 117.336C179.504 109.636 179.204 108.636 172.404 94.7358C164.504 78.8358 164.504 78.3358 170.804 74.9358C175.604 72.4358 181.104 72.4358 185.804 74.8358ZM133.404 133.036L119.404 147.036L112.204 143.736L105.004 140.436L122.804 122.636L140.504 104.936L144.004 111.936L147.504 118.936L133.404 133.036Z" fill="currentColor"/>
+                <path d="M310.402 275.936C308.602 276.336 305.902 277.536 304.402 278.736C299.102 282.436 278.102 304.436 277.102 307.336C275.502 311.236 275.802 318.536 277.502 321.836C280.902 328.436 288.102 331.836 295.802 330.436C298.802 329.836 302.002 327.236 313.902 315.636C321.802 307.836 328.902 300.036 329.602 298.236C334.902 285.836 323.602 272.736 310.402 275.936Z" fill="currentColor"/>
+                <path d="M7.40372 276.837C-0.296283 281.537 -1.79628 290.337 2.00372 309.037C12.9037 362.537 55.5037 401.637 111.304 409.437L116.104 410.037L109.604 416.937C102.704 424.337 101.004 428.937 102.504 435.837C104.504 445.137 116.004 450.537 125.304 446.537C128.904 445.037 165.304 407.037 168.304 401.637C170.504 397.537 170.504 391.337 168.204 386.937C165.904 382.337 130.604 340.337 127.204 338.137C123.304 335.637 113.004 335.837 109.404 338.537C103.004 343.237 100.604 350.237 103.004 357.437C103.704 359.437 107.104 364.537 110.604 368.737C114.104 372.937 116.704 376.537 116.504 376.737C116.304 377.037 113.204 376.637 109.804 376.037C79.4037 370.237 54.9037 351.637 41.9037 324.437C36.6037 313.337 34.4037 305.937 32.9037 293.737C31.7037 284.037 30.2037 280.837 25.3037 277.437C20.5037 274.237 12.1037 273.937 7.40372 276.837Z" fill="currentColor"/>
               {:else}
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-                <path d="M21 3v5h-5"/>
+                <!-- Rotate icon - clockwise (enter rotation) -->
+                <path d="M322.402 1.33524C319.002 2.83524 282.402 41.3352 279.802 46.2352C277.602 50.4352 277.602 56.6352 279.802 60.9352C282.102 65.5352 317.402 107.535 320.802 109.735C324.702 112.235 335.002 112.035 338.602 109.335C345.002 104.635 347.402 97.6352 345.002 90.4352C344.302 88.4352 340.902 83.3352 337.402 79.1352C333.902 74.9352 331.302 71.3352 331.502 71.1352C331.702 70.8352 334.802 71.2352 338.202 71.8352C379.802 79.7352 409.802 111.735 415.002 153.835C416.302 163.835 417.802 167.035 422.702 170.435C430.002 175.335 440.902 173.135 445.702 165.735C448.202 162.135 448.302 161.435 447.702 152.135C446.102 124.435 432.902 96.5352 411.102 74.9352C390.202 54.0352 367.102 42.7352 336.702 38.4352L331.902 37.8352L338.402 30.9352C345.302 23.5352 347.002 18.9352 345.502 12.0352C343.502 2.73524 331.702 -2.66476 322.402 1.33524Z" fill="currentColor"/>
+                <path d="M169.504 40.9358C163.204 42.2358 157.004 44.7358 152.004 47.9358C149.504 49.5358 125.204 73.2358 97.8044 100.636C44.9044 153.736 44.8044 153.936 41.4044 167.236C39.3044 175.336 40.0044 188.336 43.0044 196.136C44.1044 199.336 47.1044 204.436 49.4044 207.636C51.8044 210.836 95.8043 255.336 147.104 306.536C217.704 376.836 241.704 400.236 245.604 402.236C259.904 409.736 277.304 409.836 292.304 402.336C296.404 400.336 308.404 388.836 348.304 349.136C393.904 303.636 399.404 297.736 402.504 291.736C406.904 282.936 408.404 275.436 407.704 265.436C407.104 255.636 404.304 247.836 398.604 240.236C396.204 237.036 352.404 192.736 301.404 141.836C200.004 40.8358 204.204 44.5358 189.304 41.4358C181.904 39.8358 175.704 39.7358 169.504 40.9358ZM185.804 74.8358C187.904 75.9358 229.704 117.136 281.704 169.136C363.504 251.136 373.904 261.836 374.504 265.236C376.204 274.436 377.804 272.436 326.204 324.336C299.004 351.536 277.104 372.736 275.304 373.536C270.904 375.436 266.604 375.336 262.204 373.036C257.604 370.636 76.8043 189.636 74.6043 185.236C72.4043 180.936 72.6043 175.636 75.0043 170.936C78.3043 164.336 78.8044 164.436 94.8044 172.336C108.704 179.136 109.704 179.436 117.404 179.736C123.904 180.036 126.704 179.636 131.504 177.936C136.904 175.836 139.304 173.836 156.604 156.536C173.904 139.236 175.904 136.836 178.004 131.436C179.704 126.636 180.104 123.836 179.804 117.336C179.504 109.636 179.204 108.636 172.404 94.7358C164.504 78.8358 164.504 78.3358 170.804 74.9358C175.604 72.4358 181.104 72.4358 185.804 74.8358ZM133.404 133.036L119.404 147.036L112.204 143.736L105.004 140.436L122.804 122.636L140.504 104.936L144.004 111.936L147.504 118.936L133.404 133.036Z" fill="currentColor"/>
+                <path d="M310.402 275.936C308.602 276.336 305.902 277.536 304.402 278.736C299.102 282.436 278.102 304.436 277.102 307.336C275.502 311.236 275.802 318.536 277.502 321.836C280.902 328.436 288.102 331.836 295.802 330.436C298.802 329.836 302.002 327.236 313.902 315.636C321.802 307.836 328.902 300.036 329.602 298.236C334.902 285.836 323.602 272.736 310.402 275.936Z" fill="currentColor"/>
+                <path d="M7.40372 276.837C-0.296283 281.537 -1.79628 290.337 2.00372 309.037C12.9037 362.537 55.5037 401.637 111.304 409.437L116.104 410.037L109.604 416.937C102.704 424.337 101.004 428.937 102.504 435.837C104.504 445.137 116.004 450.537 125.304 446.537C128.904 445.037 165.304 407.037 168.304 401.637C170.504 397.537 170.504 391.337 168.204 386.937C165.904 382.337 130.604 340.337 127.204 338.137C123.304 335.637 113.004 335.837 109.404 338.537C103.004 343.237 100.604 350.237 103.004 357.437C103.704 359.437 107.104 364.537 110.604 368.737C114.104 372.937 116.704 376.537 116.504 376.737C116.304 377.037 113.204 376.637 109.804 376.037C79.4037 370.237 54.9037 351.637 41.9037 324.437C36.6037 313.337 34.4037 305.937 32.9037 293.737C31.7037 284.037 30.2037 280.837 25.3037 277.437C20.5037 274.237 12.1037 273.937 7.40372 276.837Z" fill="currentColor"/>
               {/if}
             </svg>
           </div>
         </div>
         <div class="menu-btn-glow"></div>
       </button>
-    </div>
-    <!-- Sidebar toggle button - hidden on mobile, shown on desktop at the end -->
-    <div class="sidebar-toggle-wrapper hidden lg:flex">
-      {@render MenuButton(toggleSidebar, "sidebar", "", 18)}
     </div>
   </div>
 </div>
@@ -2233,7 +2300,7 @@ let showAIModal = $state(false);
   width: 100%;
 }
 
-/* Main Container */
+/* Main Container - Transparent Background for Chart Integration */
 .menu-container {
   position: relative;
   display: flex;
@@ -2241,109 +2308,148 @@ let showAIModal = $state(false);
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  height: 56px;
+  height: 44px;
   padding: 0 16px;
   background: var(--menu-bg);
-  border-bottom: 2px solid var(--menu-border);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  border-bottom: 1px solid var(--menu-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   overflow-x: auto;
   overflow-y: hidden;
   box-shadow: var(--menu-shadow);
   scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* CSS Variables for Theming */
+/* CSS Variables for Theming - Transparent Background for Chart Integration */
 :global([data-theme="dark"]) {
-  --menu-bg: linear-gradient(135deg, #0a041c 0%, #1a0f2e 50%, #0a041c 100%);
-  --menu-border: rgba(138, 43, 226, 0.3);
-  --menu-shadow: 0 4px 20px rgba(138, 43, 226, 0.15), 0 2px 8px rgba(0, 0, 0, 0.3);
-  --menu-text: #ffffff;
+  /* Dark Mode - Transparent with subtle tint */
+  --menu-bg: rgba(15, 15, 25, 0.4);
+  --menu-border: rgba(139, 92, 246, 0.15);
+  --menu-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --menu-text: rgba(255, 255, 255, 0.95);
   --menu-text-secondary: rgba(255, 255, 255, 0.7);
-  --menu-hover-bg: rgba(138, 43, 226, 0.2);
-  --menu-active-bg: linear-gradient(135deg, #8a2be2 0%, #9932cc 100%);
-  --menu-glow: rgba(138, 43, 226, 0.4);
-  --menu-btn-bg: rgba(255, 255, 255, 0.05);
-  --menu-btn-border: rgba(138, 43, 226, 0.2);
-  --menu-right-btn-bg: #171923; /* solid to avoid backdrop bleed */
+  --menu-hover-bg: rgba(139, 92, 246, 0.2);
+  --menu-active-bg: rgba(139, 92, 246, 0.25);
+  --menu-glow: rgba(139, 92, 246, 0.4);
+  --menu-btn-bg: rgba(255, 255, 255, 0.06);
+  --menu-btn-border: rgba(139, 92, 246, 0.2);
+  --menu-btn-hover-border: rgba(139, 92, 246, 0.35);
+  --menu-right-btn-bg: rgba(20, 18, 35, 0.5);
+  --menu-accent: #8b5cf6;
+  --menu-accent-hover: #a78bfa;
+  --menu-surface: rgba(30, 27, 45, 0.5);
+  --menu-surface-hover: rgba(40, 35, 55, 0.6);
 }
 
 :global([data-theme="light"]) {
-  --menu-bg: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%);
-  --menu-border: rgba(59, 130, 246, 0.2);
-  --menu-shadow: 0 4px 20px rgba(59, 130, 246, 0.1), 0 2px 8px rgba(0, 0, 0, 0.1);
-  --menu-text: #1f2937;
-  --menu-text-secondary: rgba(31, 41, 55, 0.7);
-  --menu-hover-bg: rgba(59, 130, 246, 0.1);
-  --menu-active-bg: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  --menu-glow: rgba(59, 130, 246, 0.3);
-  --menu-btn-bg: rgba(0, 0, 0, 0.02);
+  /* Light Mode - Transparent with subtle tint */
+  --menu-bg: rgba(255, 255, 255, 0.4);
+  --menu-border: rgba(59, 130, 246, 0.12);
+  --menu-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --menu-text: rgba(17, 24, 39, 0.95);
+  --menu-text-secondary: rgba(17, 24, 39, 0.7);
+  --menu-hover-bg: rgba(59, 130, 246, 0.12);
+  --menu-active-bg: rgba(59, 130, 246, 0.18);
+  --menu-glow: rgba(59, 130, 246, 0.2);
+  --menu-btn-bg: rgba(0, 0, 0, 0.03);
   --menu-btn-border: rgba(59, 130, 246, 0.15);
-  --menu-right-btn-bg: #ffffff; /* solid */
+  --menu-btn-hover-border: rgba(59, 130, 246, 0.3);
+  --menu-right-btn-bg: rgba(255, 255, 255, 0.5);
+  --menu-accent: #3b82f6;
+  --menu-accent-hover: #2563eb;
+  --menu-surface: rgba(249, 250, 251, 0.6);
+  --menu-surface-hover: rgba(243, 244, 246, 0.7);
 }
 
-/* Left Section */
+/* Left Section - Professional Spacing */
 .menu-left-section {
   display: flex;
   align-items: center;
   height: 100%;
   flex-shrink: 0;
-  gap: 12px;
+  gap: 10px;
 }
 
-/* Right Section */
+/* Right Section - Professional Spacing */
 .menu-right-section {
   display: flex;
   align-items: center;
   height: 100%;
   flex-shrink: 0;
   margin-left: auto;
-  gap: 8px;
-  padding-right: 8px;
+  gap: 6px;
+  padding-right: 4px;
 }
 
-/* Ensure save/load buttons are crisp on frosted menubar */
-.menu-right-section .btn {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  background-clip: padding-box;
-  -webkit-font-smoothing: auto;
+/* Professional Save/Load Button Styling */
+:global(.menu-right-section .btn) {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--menu-btn-border);
+  background: var(--menu-btn-bg);
+  color: var(--menu-text);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-.menu-right-section .btn svg {
+
+:global(.menu-right-section .btn:hover) {
+  background: var(--menu-hover-bg);
+  border-color: var(--menu-btn-hover-border);
+  transform: none;
+}
+
+:global(.menu-right-section .btn-primary) {
+  background: var(--menu-active-bg);
+  border-color: var(--menu-accent);
+  color: var(--menu-text);
+}
+
+:global(.menu-right-section .btn-primary:hover) {
+  background: var(--menu-active-bg);
+  border-color: var(--menu-accent-hover);
+  opacity: 0.9;
+}
+
+:global(.menu-right-section .btn svg) {
+  width: 16px;
+  height: 16px;
   shape-rendering: geometricPrecision;
 }
 
-/* Menu Button Styles */
+/* Menu Button Styles - Professional TradingView Style */
 .menu-btn {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  padding: 0 16px;
+  height: 32px;
+  padding: 0 12px;
   background: var(--menu-btn-bg);
   border: 1px solid var(--menu-btn-border);
-  border-radius: 12px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
 .menu-btn:hover {
   background: var(--menu-hover-bg);
-  border-color: var(--menu-glow);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 25px var(--menu-glow);
+  border-color: var(--menu-btn-hover-border);
 }
 
 .menu-btn-active {
   background: var(--menu-active-bg);
-  border-color: var(--menu-glow);
-  color: white;
-  box-shadow: 0 4px 15px var(--menu-glow);
+  border-color: var(--menu-accent);
+  color: var(--menu-text);
 }
 
 .menu-btn-content {
@@ -2366,27 +2472,33 @@ let showAIModal = $state(false);
 }
 
 .menu-text {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--menu-text);
   white-space: nowrap;
-  letter-spacing: 0.025em;
+  letter-spacing: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .menu-btn-glow {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at center, var(--menu-glow) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, var(--menu-glow) 0%, transparent 70%);
   opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .menu-btn:hover .menu-btn-glow {
-  opacity: 0.3;
+  width: 120%;
+  height: 120%;
+  opacity: 0.2;
 }
 
 /* Toggle Button */
@@ -2402,21 +2514,20 @@ let showAIModal = $state(false);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
+  width: 36px;
   height: 32px;
   background: var(--menu-btn-bg);
   border: 1px solid var(--menu-btn-border);
-  border-radius: 12px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .menu-toggle-btn:hover {
   background: var(--menu-hover-bg);
-  border-color: var(--menu-glow);
-  transform: translateY(-1px) scale(1.05);
-  box-shadow: 0 8px 25px var(--menu-glow);
+  border-color: var(--menu-btn-hover-border);
 }
 
 .menu-toggle-icon-wrapper {
@@ -2432,24 +2543,28 @@ let showAIModal = $state(false);
 }
 
 .menu-toggle-btn:hover .menu-toggle-icon {
-  fill: var(--menu-glow);
-  transform: scale(1.1);
+  fill: var(--menu-accent);
+  transform: scale(1.05);
 }
 
 .menu-toggle-glow {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at center, var(--menu-glow) 0%, transparent 70%);
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, var(--menu-glow) 0%, transparent 70%);
   opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  pointer-events: none;
 }
 
 .menu-toggle-btn:hover .menu-toggle-glow {
-  opacity: 0.4;
+  width: 120%;
+  height: 120%;
+  opacity: 0.2;
 }
 
 .rotate {
@@ -2468,8 +2583,8 @@ let showAIModal = $state(false);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
-  padding: 0 20px;
+  height: 32px;
+  padding: 0 16px;
   background: var(--menu-active-bg);
   border: 1px solid var(--menu-glow);
   border-radius: 10px;
@@ -2485,7 +2600,7 @@ let showAIModal = $state(false);
 
 .custom-load-text {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: white;
   letter-spacing: 0.025em;
   z-index: 2;
@@ -2508,74 +2623,69 @@ let showAIModal = $state(false);
   opacity: 1;
 }
 
-/* Symbol Search Section */
+/* Symbol Search Section - Professional TradingView Style */
 .symbol-search-section {
   position: relative;
   display: flex;
   align-items: center;
-  height: 40px;
-  padding: 0 16px;
+  height: 32px;
+  padding: 0 14px;
   background: var(--menu-btn-bg);
   border: 1px solid var(--menu-btn-border);
-  border-radius: 12px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-  min-width: 120px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 140px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .symbol-search-section:hover {
   background: var(--menu-hover-bg);
-  border-color: var(--menu-glow);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 25px var(--menu-glow);
+  border-color: var(--menu-btn-hover-border);
 }
 
 .symbol-search-content {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  z-index: 2;
+  gap: 10px;
+  width: 100%;
 }
 
 .symbol-search-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
+.symbol-search-icon :global(.search-icon) {
+  width: 14px;
+  height: 14px;
+  color: var(--menu-text-secondary);
+  transition: color 0.2s ease;
+}
 
+.symbol-search-section:hover .symbol-search-icon :global(.search-icon) {
+  color: var(--menu-text);
+}
 
 .symbol-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--menu-text);
   white-space: nowrap;
-  letter-spacing: 0.025em;
+  letter-spacing: 0;
+  flex: 1;
+  text-align: left;
 }
 
-.symbol-search-glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at center, var(--menu-glow) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
-}
-
-.symbol-search-section:hover .symbol-search-glow {
-  opacity: 0.3;
-}
-
-/* Timeframe Section */
+/* Timeframe Section - Professional Style */
 .timeframe-section {
   display: flex;
   align-items: center;
-  margin-left: 16px;
+  margin-left: 12px;
 }
 
 .desktop-only {
@@ -2601,11 +2711,11 @@ let showAIModal = $state(false);
 .timeframe-group {
   display: flex;
   align-items: center;
-  gap: 4px;
-  background: var(--menu-btn-bg);
+  gap: 2px;
+  background: var(--menu-surface);
   border: 1px solid var(--menu-btn-border);
-  border-radius: 12px;
-  padding: 4px;
+  border-radius: 6px;
+  padding: 2px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
@@ -2615,36 +2725,35 @@ let showAIModal = $state(false);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
+  min-width: 32px;
   height: 26px;
-  padding: 0 12px;
+  padding: 0 10px;
   background: transparent;
   border: none;
-  border-radius: 8px;
+  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
 
 .timeframe-btn:hover {
   background: var(--menu-hover-bg);
-  transform: translateY(-1px);
 }
 
 .timeframe-btn-active {
   background: var(--menu-active-bg);
-  color: white;
-  box-shadow: 0 4px 12px var(--menu-glow);
+  color: var(--menu-text);
+  font-weight: 600;
 }
 
 .timeframe-text {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--menu-text);
   white-space: nowrap;
-  letter-spacing: 0.025em;
-  z-index: 2;
+  letter-spacing: 0;
   position: relative;
+  z-index: 1;
 }
 
 .timeframe-more-btn .timeframe-text {
@@ -2655,43 +2764,72 @@ let showAIModal = $state(false);
 .timeframe-inline-expand {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 4px;
+  gap: 2px;
+  margin-left: 2px;
 }
 
 .timeframe-btn-active .timeframe-text {
-  color: white;
+  color: var(--menu-text);
+  font-weight: 600;
 }
 
-.timeframe-glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at center, var(--menu-glow) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
-}
-
-.timeframe-btn:hover .timeframe-glow {
-  opacity: 0.3;
-}
-
-/* Chart Type and Indicator Sections */
+/* Chart Type and Indicator Sections - Professional Style */
 .chart-type-section,
 .indicator-section {
   display: flex;
   align-items: center;
-  margin-left: 16px;
+  margin-left: 12px;
 }
 
-/* AI Section */
+/* Professional Menu Button - TradingView Style */
+.pro-menu-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--menu-btn-bg);
+  border: 1px solid var(--menu-btn-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--menu-text);
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.pro-menu-btn:hover {
+  background: var(--menu-hover-bg);
+  border-color: var(--menu-btn-hover-border);
+}
+
+.pro-menu-btn:active {
+  transform: scale(0.98);
+}
+
+.pro-menu-btn-icon-only {
+  padding: 0;
+  width: 32px;
+  min-width: 32px;
+}
+
+.pro-menu-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--menu-text);
+  letter-spacing: 0;
+}
+
+/* AI Section - Professional Style */
 .ai-section {
   display: flex;
   align-items: center;
-  margin-left: 16px;
+  margin-left: 12px;
 }
 
 .ai-btn {
@@ -2699,23 +2837,172 @@ let showAIModal = $state(false);
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 36px;
-  padding: 0 18px;
-  background: linear-gradient(135deg, rgba(138, 43, 226, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
-  border: 1.5px solid rgba(138, 43, 226, 0.4);
-  border-radius: 12px;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--menu-btn-bg);
+  border: 1px solid var(--menu-btn-border);
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  overflow: hidden;
 }
 
 .ai-btn:hover {
-  background: linear-gradient(135deg, rgba(138, 43, 226, 0.25) 0%, rgba(168, 85, 247, 0.25) 100%);
-  border-color: rgba(138, 43, 226, 0.6);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(138, 43, 226, 0.4);
+  background: var(--menu-hover-bg);
+  border-color: var(--menu-btn-hover-border);
+}
+
+/* AI Glitter Animation Background */
+.ai-glitter-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.1) 0%,
+    rgba(59, 130, 246, 0.15) 25%,
+    rgba(139, 92, 246, 0.1) 50%,
+    rgba(59, 130, 246, 0.15) 75%,
+    rgba(139, 92, 246, 0.1) 100%
+  );
+  background-size: 200% 200%;
+  animation: ai-glitter-bg-shift 3s ease-in-out infinite;
+  opacity: 0.6;
+  z-index: 0;
+}
+
+:global([data-theme="light"]) .ai-glitter-bg {
+  background: linear-gradient(
+    135deg,
+    rgba(59, 130, 246, 0.2) 0%,
+    rgba(139, 92, 246, 0.3) 25%,
+    rgba(59, 130, 246, 0.2) 50%,
+    rgba(139, 92, 246, 0.3) 75%,
+    rgba(59, 130, 246, 0.2) 100%
+  );
+  opacity: 0.8;
+}
+
+/* Glitter Particles */
+.ai-glitter-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.8), 0 0 8px rgba(139, 92, 246, 0.6);
+}
+
+:global([data-theme="light"]) .ai-glitter-particle {
+  background: rgba(59, 130, 246, 0.9);
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.9), 0 0 12px rgba(139, 92, 246, 0.8), 0 0 18px rgba(59, 130, 246, 0.6);
+}
+
+.ai-glitter-1 {
+  top: 20%;
+  left: 10%;
+  animation: ai-glitter-float 2.5s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.ai-glitter-2 {
+  top: 60%;
+  left: 30%;
+  animation: ai-glitter-float 3s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
+.ai-glitter-3 {
+  top: 40%;
+  left: 60%;
+  animation: ai-glitter-float 2.8s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+.ai-glitter-4 {
+  top: 15%;
+  left: 80%;
+  animation: ai-glitter-float 3.2s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+.ai-glitter-5 {
+  top: 75%;
+  left: 50%;
+  animation: ai-glitter-float 2.7s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+/* Shine Sweep Effect */
+.ai-shine-sweep {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  animation: ai-shine-sweep 2.5s ease-in-out infinite;
+  z-index: 1;
+}
+
+:global([data-theme="light"]) .ai-shine-sweep {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(59, 130, 246, 0.5) 50%,
+    transparent 100%
+  );
+}
+
+/* Animations */
+@keyframes ai-glitter-bg-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes ai-glitter-float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.4;
+  }
+  25% {
+    transform: translate(8px, -8px) scale(1.2);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-5px, 5px) scale(0.9);
+    opacity: 0.7;
+  }
+  75% {
+    transform: translate(5px, 8px) scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+@keyframes ai-shine-sweep {
+  0% {
+    left: -100%;
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
 }
 
 .ai-btn-content {
@@ -2730,202 +3017,60 @@ let showAIModal = $state(false);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.3s ease;
+  transition: transform 0.2s ease;
 }
 
 .ai-btn:hover .ai-icon-wrapper {
-  transform: scale(1.1) rotate(5deg);
+  transform: scale(1.05);
 }
 
 .ai-icon {
-  width: 18px;
-  height: 18px;
-  color: rgba(138, 43, 226, 1);
-  filter: drop-shadow(0 2px 4px rgba(138, 43, 226, 0.4));
-  transition: all 0.3s ease;
-  animation: aiIconPulse 2s ease-in-out infinite;
-}
-
-@keyframes aiIconPulse {
-  0%, 100% {
-    filter: drop-shadow(0 2px 4px rgba(138, 43, 226, 0.4));
-  }
-  50% {
-    filter: drop-shadow(0 3px 8px rgba(138, 43, 226, 0.6));
-  }
+  width: 16px;
+  height: 16px;
+  color: var(--menu-text);
+  transition: color 0.2s ease;
 }
 
 .ai-btn:hover .ai-icon {
-  color: rgba(168, 85, 247, 1);
+  color: var(--menu-accent);
 }
 
 .ai-text {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(138, 43, 226, 1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--menu-text);
   white-space: nowrap;
-  letter-spacing: 0.5px;
-  text-shadow: 0 0 10px rgba(138, 43, 226, 0.3);
-  transition: all 0.3s ease;
+  letter-spacing: 0;
+  transition: color 0.2s ease;
 }
 
 .ai-btn:hover .ai-text {
-  color: rgba(168, 85, 247, 1);
-  text-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+  color: var(--menu-accent);
 }
 
 .ai-badge-mini {
   font-size: 9px;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, #8a2be2 0%, #9932cc 100%);
-  padding: 2px 6px;
-  border-radius: 6px;
+  background: var(--menu-accent);
+  padding: 2px 5px;
+  border-radius: 4px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 6px rgba(138, 43, 226, 0.4);
-  animation: badgePulse 2s ease-in-out infinite;
+  letter-spacing: 0.3px;
 }
 
-@keyframes badgePulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 2px 6px rgba(138, 43, 226, 0.4);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 3px 10px rgba(138, 43, 226, 0.6);
-  }
-}
-
-.ai-btn-glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at center, rgba(138, 43, 226, 0.4) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
-  animation: glowPulse 3s ease-in-out infinite;
-}
-
-@keyframes glowPulse {
-  0%, 100% {
-    opacity: 0.2;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.ai-btn:hover .ai-btn-glow {
-  opacity: 0.6;
-}
-
-.ai-particles {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.ai-particles .particle {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  background: rgba(138, 43, 226, 0.6);
-  border-radius: 50%;
-  animation: particleFloat 3s ease-in-out infinite;
-}
-
-.ai-particles .particle:nth-child(1) {
-  left: 20%;
-  animation-delay: 0s;
-}
-
-.ai-particles .particle:nth-child(2) {
-  left: 50%;
-  animation-delay: 1s;
-}
-
-.ai-particles .particle:nth-child(3) {
-  left: 80%;
-  animation-delay: 2s;
-}
-
-@keyframes particleFloat {
-  0%, 100% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-  10% {
-    opacity: 1;
-  }
-  90% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-30px);
-    opacity: 0;
-  }
-}
-
-/* Light theme for AI button */
-:global([data-theme="light"]) .ai-btn {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);
-  border-color: rgba(59, 130, 246, 0.3);
-}
-
-:global([data-theme="light"]) .ai-btn:hover {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%);
-  border-color: rgba(59, 130, 246, 0.5);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
-}
-
-:global([data-theme="light"]) .ai-icon {
-  color: rgba(59, 130, 246, 1);
-  filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
-}
-
-:global([data-theme="light"]) .ai-btn:hover .ai-icon {
-  color: rgba(37, 99, 235, 1);
-}
-
-:global([data-theme="light"]) .ai-text {
-  color: rgba(59, 130, 246, 1);
-  text-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
-}
-
-:global([data-theme="light"]) .ai-btn:hover .ai-text {
-  color: rgba(37, 99, 235, 1);
-  text-shadow: 0 0 15px rgba(37, 99, 235, 0.3);
-}
-
-:global([data-theme="light"]) .ai-badge-mini {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
-}
-
-:global([data-theme="light"]) .ai-btn-glow {
-  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.3) 0%, transparent 70%);
-}
-
-:global([data-theme="light"]) .ai-particles .particle {
-  background: rgba(59, 130, 246, 0.5);
-}
-
-/* Undo/Redo Section */
+/* Undo/Redo Section - Professional Style */
 .undo-redo-section {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 16px;
-  background: var(--menu-btn-bg);
+  gap: 2px;
+  margin-left: 12px;
+  background: var(--menu-surface);
   border: 1px solid var(--menu-btn-border);
-  border-radius: 12px;
-  padding: 4px;
+  border-radius: 6px;
+  padding: 2px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .undo-redo-btn {
@@ -2955,21 +3100,6 @@ let showAIModal = $state(false);
 
 
 
-.undo-redo-glow {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: radial-gradient(circle at center, var(--menu-glow) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 1;
-}
-
-.undo-redo-btn:hover:not(.undo-redo-disabled) .undo-redo-glow {
-  opacity: 0.3;
-}
 
 /* Hide scrollbar completely */
 :global(.menu-container::-webkit-scrollbar) {

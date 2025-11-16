@@ -1527,43 +1527,45 @@ export function externalRemoved(overlayId: string) {
 </script>
 
 {#snippet DrawButton(onClick: () => void, icon: string, itemKey: string = '', subItems: {key: string, text: string}[] = [])}
-  <div class="group flex flex-row items-center justify-center relative w-full mt-3 cursor-pointer transition-all duration-300 ease-in-out">
-    <!-- Premium button with hover effects -->
+  <div class="group flex flex-row items-center justify-center relative w-full mt-2.5 cursor-pointer transition-all duration-150 ease-out">
+    <!-- Professional TradingView-Style Button -->
     <div 
-      class="premium-button w-10 h-10 rounded-lg flex items-center justify-center relative overflow-hidden transition-all duration-300 ease-in-out
-             bg-[var(--menu-btn-bg)] border border-[var(--menu-btn-border)]
-             hover:bg-[var(--menu-hover-bg)] hover:border-[var(--menu-btn-hover-border)] hover:shadow-lg
-             group-hover:scale-105 group-hover:translate-y-[-1px]"
+      class="pro-draw-button w-[44px] h-[44px] rounded-[6px] flex items-center justify-center relative overflow-hidden transition-all duration-150 cubic-bezier(0.4, 0, 0.2, 1)
+             isolation-isolate"
+      style="background: var(--menu-btn-bg); border: 1px solid var(--menu-btn-border); backdrop-filter: blur(16px) saturate(160%); -webkit-backdrop-filter: blur(16px) saturate(160%);"
       onclick={onClick}
     >
-      <!-- Button glow effect -->
-      <div class="button-glow absolute inset-0 bg-[var(--menu-glow)] opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-lg"></div>
+      <!-- Professional hover state -->
+      <div class="button-hover-overlay absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded-[6px]" style="background: var(--menu-hover-bg);"></div>
       
-      <!-- Icon with premium styling -->
+      <!-- Icon with professional styling -->
       <KlineIcon 
         name={icon} 
         active={itemKey === 'mode' && mode === modeIcon}
-        class="relative z-10 text-[var(--menu-text)] group-hover:text-[var(--menu-glow)] transition-colors duration-300"
+        size={28}
+        class="relative z-10 transition-all duration-150"
+        style="color: var(--menu-text); opacity: 0.85;"
       />
       
-      <!-- Active state indicator -->
+      <!-- Professional active state indicator -->
       {#if (itemKey === 'mode' && mode === modeIcon) || (itemKey && itemKey === popoverKey)}
-        <div class="active-indicator absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-[var(--menu-glow)] rounded-full"></div>
+        <div class="pro-active-indicator absolute bottom-[3px] left-1/2 transform -translate-x-1/2 w-[3px] h-[3px] rounded-full" style="background: var(--menu-accent);"></div>
       {/if}
     </div>
     
-    <!-- Premium hover arrow for submenus -->
+    <!-- Professional submenu arrow -->
     {#if subItems.length > 0}
       <div 
-        class="premium-arrow flex items-center justify-center absolute top-1/2 right-[2px] transform -translate-y-1/2 
-               w-5 h-5 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-all duration-300 ease-in-out
-               bg-[var(--menu-btn-bg)] border border-[var(--menu-btn-border)] rounded-full shadow-sm
-               hover:bg-[var(--menu-hover-bg)] hover:border-[var(--menu-btn-hover-border)] cursor-pointer z-20"
+        class="pro-submenu-arrow flex items-center justify-center absolute top-1/2 right-0 transform -translate-y-1/2 
+               w-5 h-5 opacity-0 group-hover:opacity-100 hover:opacity-100 transition-all duration-150 cubic-bezier(0.4, 0, 0.2, 1)
+               bg-[var(--menu-btn-bg)] border border-[var(--menu-btn-border)] rounded-full
+               hover:bg-[var(--menu-hover-bg)] hover:border-[var(--menu-btn-hover-border)] cursor-pointer z-20 backdrop-blur-[8px]"
+        style="backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
         onclick={() => clickPopoverKey(itemKey)}
       >
         <svg 
           class:rotate-180={popoverKey === itemKey} 
-          class="w-2 h-2 transition-all duration-300 ease-in-out text-[var(--menu-text)] group-hover:text-[var(--menu-glow)]" 
+          class="w-2.5 h-2.5 transition-all duration-150 cubic-bezier(0.4, 0, 0.2, 1) text-[var(--menu-text)]" 
           viewBox="0 0 8 12"
           fill="currentColor"
         >
@@ -1571,7 +1573,7 @@ export function externalRemoved(overlayId: string) {
         </svg>
       </div>
       
-      <!-- Premium submenu - moved outside overflow container -->
+      <!-- Submenu portal -->
       {#if itemKey === popoverKey}
         <div class="submenu-portal"></div>
       {/if}
@@ -1580,11 +1582,11 @@ export function externalRemoved(overlayId: string) {
 {/snippet}
 
 {#snippet Divider()}
-  <div class="w-full h-px bg-[var(--menu-btn-border)] mt-3 opacity-50"></div>
+  <div class="w-full h-[1px] mt-2.5 opacity-40" style="background: var(--menu-border);"></div>
 {/snippet}
 
 <div class="drawbar-wrapper">
-<div bind:this={drawbarContainerRef} class="drawbar-container w-[52px] h-full box-border border-r border-r-[var(--menu-border)] bg-[var(--menu-bg)] shadow-[var(--menu-shadow)] transition-all duration-300 ease-in-out overflow-y-auto scrollbar-hidden" onclick={(e) => e.stopPropagation()}>
+<div bind:this={drawbarContainerRef} class="drawbar-container w-[56px] h-full box-border border-r border-l-0 transition-all duration-200 ease-in-out overflow-y-auto scrollbar-hidden" style="background: var(--menu-bg); box-shadow: var(--menu-shadow); backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%); border-left: none;" onclick={(e) => e.stopPropagation()}>
   <!-- Premium Crosshair button at the top -->
   {@render DrawButton(resetToCrosshair, 'crosshair')}
   
@@ -1912,33 +1914,48 @@ export function externalRemoved(overlayId: string) {
     height: 100%;
   }
 
-  /* Premium DrawBar CSS Variables - Perfectly matching top menu bar */
+  /* Professional DrawBar - TradingView Style */
   .drawbar-container {
-    --menu-bg: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%);
-    --menu-btn-bg: rgba(0, 0, 0, 0.02);
-    --menu-btn-border: rgba(59, 130, 246, 0.15);
-    --menu-btn-hover-border: rgba(59, 130, 246, 0.3);
-    --menu-hover-bg: rgba(59, 130, 246, 0.1);
-    --menu-text: #1f2937;
-    --menu-text-secondary: rgba(31, 41, 55, 0.7);
-    --menu-glow: rgba(59, 130, 246, 0.3);
-    --menu-active-bg: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    --menu-border: rgba(59, 130, 246, 0.2);
-    --menu-shadow: 0 4px 20px rgba(59, 130, 246, 0.1), 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-right: 1px solid;
+    border-left: none;
+    border-image: linear-gradient(180deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%) 1;
+    padding-left: 6px;
+    padding-right: 6px;
+    padding-top: 8px;
+    --menu-bg: rgba(255, 255, 255, 0.35);
+    --menu-btn-bg: rgba(255, 255, 255, 0.45);
+    --menu-btn-border: rgba(59, 130, 246, 0.12);
+    --menu-btn-hover-border: rgba(59, 130, 246, 0.22);
+    --menu-hover-bg: rgba(59, 130, 246, 0.08);
+    --menu-text: rgba(15, 23, 42, 0.9);
+    --menu-text-secondary: rgba(15, 23, 42, 0.65);
+    --menu-glow: rgba(59, 130, 246, 0.15);
+    --menu-active-bg: rgba(59, 130, 246, 0.15);
+    --menu-border: rgba(59, 130, 246, 0.1);
+    --menu-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --menu-accent: #3b82f6;
+    --menu-accent-hover: #2563eb;
+    --menu-surface: rgba(249, 250, 251, 0.45);
+    --menu-surface-hover: rgba(243, 244, 246, 0.55);
   }
 
   :global([data-theme="dark"]) .drawbar-container {
-    --menu-bg: linear-gradient(135deg, #0a041c 0%, #1a0f2e 50%, #0a041c 100%);
-    --menu-btn-bg: rgba(255, 255, 255, 0.05);
-    --menu-btn-border: rgba(138, 43, 226, 0.2);
-    --menu-btn-hover-border: rgba(138, 43, 226, 0.4);
-    --menu-hover-bg: rgba(138, 43, 226, 0.2);
-    --menu-text: #ffffff;
-    --menu-text-secondary: rgba(255, 255, 255, 0.7);
-    --menu-glow: rgba(138, 43, 226, 0.4);
-    --menu-active-bg: linear-gradient(135deg, #8a2be2 0%, #9932cc 100%);
-    --menu-border: rgba(138, 43, 226, 0.3);
-    --menu-shadow: 0 4px 20px rgba(138, 43, 226, 0.15), 0 2px 8px rgba(0, 0, 0, 0.3);
+    border-image: linear-gradient(180deg, rgba(139, 92, 246, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%) 1;
+    --menu-bg: rgba(15, 15, 25, 0.2);
+    --menu-btn-bg: rgba(30, 27, 45, 0.25);
+    --menu-btn-border: rgba(139, 92, 246, 0.12);
+    --menu-btn-hover-border: rgba(139, 92, 246, 0.22);
+    --menu-hover-bg: rgba(139, 92, 246, 0.1);
+    --menu-text: rgba(255, 255, 255, 0.9);
+    --menu-text-secondary: rgba(255, 255, 255, 0.65);
+    --menu-glow: rgba(139, 92, 246, 0.2);
+    --menu-active-bg: rgba(139, 92, 246, 0.15);
+    --menu-border: rgba(139, 92, 246, 0.1);
+    --menu-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    --menu-accent: #8b5cf6;
+    --menu-accent-hover: #a78bfa;
+    --menu-surface: rgba(30, 27, 45, 0.25);
+    --menu-surface-hover: rgba(40, 35, 55, 0.35);
   }
 
   .arrow-icon path {
@@ -1953,68 +1970,63 @@ export function externalRemoved(overlayId: string) {
     fill: #333333;
   }
   
-  /* Premium Button Animations */
-  .premium-button {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Professional Drawing Button - TradingView Style */
+  .pro-draw-button {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    position: relative;
+    cursor: pointer;
   }
 
-  .premium-button:hover {
-    transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 10px 25px rgba(59, 130, 246, 0.15);
+  .pro-draw-button:hover {
+    border-color: var(--menu-btn-hover-border);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   }
 
-  .premium-arrow {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  .pro-draw-button:active {
+    transform: scale(0.98);
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  .premium-arrow:hover {
-    transform: translateY(-50%) scale(1.1);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  .pro-draw-button:hover :global(svg),
+  .pro-draw-button:hover :global(.kline-icon) {
+    opacity: 1;
+  }
+
+  /* Professional submenu arrow */
+  .pro-submenu-arrow {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .pro-submenu-arrow:hover {
+    transform: translateY(-50%) scale(1.05);
+  }
+
+  /* Professional active indicator */
+  .pro-active-indicator {
+    transition: all 0.15s ease;
   }
 
   .premium-submenu {
-    backdrop-filter: blur(10px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
     border: 1px solid var(--menu-btn-border);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .premium-submenu li {
-    transition: all 0.2s ease-in-out;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .premium-submenu li:hover {
-    transform: translateX(4px);
+    transform: translateX(2px);
+    background: var(--menu-hover-bg) !important;
   }
 
-  /* Active state animation */
-  .active-indicator {
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% {
-      opacity: 1;
-      transform: translateX(-50%) scale(1);
-    }
-    50% {
-      opacity: 0.7;
-      transform: translateX(-50%) scale(1.2);
-    }
-  }
-
-  /* Button glow animation */
-  @keyframes button-glow {
-    0%, 100% {
-      box-shadow: 0 0 5px var(--menu-glow);
-    }
-    50% {
-      box-shadow: 0 0 20px var(--menu-glow), 0 0 30px var(--menu-glow);
-    }
-  }
-
-  .premium-button:hover {
-    animation: button-glow 2s ease-in-out infinite;
+  /* Subtle Active state - no animation for long-term comfort */
+  .luxury-active-indicator {
+    /* Static indicator - no animation to avoid distraction */
   }
 
   /* Emoji size slider styles */

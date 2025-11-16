@@ -574,6 +574,41 @@
           </div>
         {/each}
       </div>
+      
+      <!-- Coming Soon Section -->
+      <div class="coming-soon-section">
+        <div class="coming-soon-item disabled">
+          <!-- Glitter Animation Background -->
+          <div class="coming-soon-glitter-bg"></div>
+          
+          <!-- Glitter particles -->
+          <div class="coming-soon-glitter-particle coming-soon-glitter-1"></div>
+          <div class="coming-soon-glitter-particle coming-soon-glitter-2"></div>
+          <div class="coming-soon-glitter-particle coming-soon-glitter-3"></div>
+          <div class="coming-soon-glitter-particle coming-soon-glitter-4"></div>
+          <div class="coming-soon-glitter-particle coming-soon-glitter-5"></div>
+          
+          <!-- Shine sweep effect -->
+          <div class="coming-soon-shine-sweep"></div>
+          
+          <div class="indicator-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <div class="indicator-info">
+            <span class="indicator-name">AI Trade Entry Finder and more AI algorithms</span>
+            <span class="coming-soon-badge">Coming Soon</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Powered by Footer -->
+      <div class="ai-powered-footer">
+        <span class="powered-by-text">Powered by Duty AI</span>
+      </div>
     </div>
   </div>
 {/if}
@@ -1621,6 +1656,273 @@
     .add-indicator-hint {
       font-size: 12px;
     }
+  }
+  
+  /* Coming Soon Section */
+  .coming-soon-section {
+    padding: 12px;
+    margin-top: 8px;
+    border-top: 1px solid rgba(138, 43, 226, 0.2);
+  }
+  
+  .coming-soon-item {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    background: rgba(138, 43, 226, 0.05);
+    border: 1px solid rgba(138, 43, 226, 0.15);
+    border-radius: 12px;
+    opacity: 0.7;
+    cursor: not-allowed;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .coming-soon-item.disabled {
+    pointer-events: none;
+  }
+  
+  /* Coming Soon Glitter Animation Background */
+  .coming-soon-glitter-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(138, 43, 226, 0.1) 0%,
+      rgba(59, 130, 246, 0.15) 25%,
+      rgba(138, 43, 226, 0.1) 50%,
+      rgba(59, 130, 246, 0.15) 75%,
+      rgba(138, 43, 226, 0.1) 100%
+    );
+    background-size: 200% 200%;
+    animation: coming-soon-glitter-bg-shift 3s ease-in-out infinite;
+    opacity: 0.6;
+    z-index: 0;
+  }
+  
+  :global([data-theme="light"]) .coming-soon-glitter-bg {
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.2) 0%,
+      rgba(139, 92, 246, 0.3) 25%,
+      rgba(59, 130, 246, 0.2) 50%,
+      rgba(139, 92, 246, 0.3) 75%,
+      rgba(59, 130, 246, 0.2) 100%
+    );
+    opacity: 0.8;
+  }
+  
+  /* Coming Soon Glitter Particles */
+  .coming-soon-glitter-particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 1;
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.8), 0 0 8px rgba(138, 43, 226, 0.6);
+  }
+  
+  :global([data-theme="light"]) .coming-soon-glitter-particle {
+    background: rgba(59, 130, 246, 0.9);
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.9), 0 0 12px rgba(139, 92, 246, 0.8), 0 0 18px rgba(59, 130, 246, 0.6);
+  }
+  
+  .coming-soon-glitter-1 {
+    top: 20%;
+    left: 10%;
+    animation: coming-soon-glitter-float 2.5s ease-in-out infinite;
+    animation-delay: 0s;
+  }
+  
+  .coming-soon-glitter-2 {
+    top: 60%;
+    left: 30%;
+    animation: coming-soon-glitter-float 3s ease-in-out infinite;
+    animation-delay: 0.5s;
+  }
+  
+  .coming-soon-glitter-3 {
+    top: 40%;
+    left: 60%;
+    animation: coming-soon-glitter-float 2.8s ease-in-out infinite;
+    animation-delay: 1s;
+  }
+  
+  .coming-soon-glitter-4 {
+    top: 15%;
+    left: 80%;
+    animation: coming-soon-glitter-float 3.2s ease-in-out infinite;
+    animation-delay: 1.5s;
+  }
+  
+  .coming-soon-glitter-5 {
+    top: 75%;
+    left: 50%;
+    animation: coming-soon-glitter-float 2.7s ease-in-out infinite;
+    animation-delay: 2s;
+  }
+  
+  /* Coming Soon Shine Sweep Effect */
+  .coming-soon-shine-sweep {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.3) 50%,
+      transparent 100%
+    );
+    animation: coming-soon-shine-sweep 2.5s ease-in-out infinite;
+    z-index: 1;
+  }
+  
+  :global([data-theme="light"]) .coming-soon-shine-sweep {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(59, 130, 246, 0.5) 50%,
+      transparent 100%
+    );
+  }
+  
+  /* Coming Soon Animations */
+  @keyframes coming-soon-glitter-bg-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
+  
+  @keyframes coming-soon-glitter-float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.4;
+    }
+    25% {
+      transform: translate(8px, -8px) scale(1.2);
+      opacity: 1;
+    }
+    50% {
+      transform: translate(-5px, 5px) scale(0.9);
+      opacity: 0.7;
+    }
+    75% {
+      transform: translate(5px, 8px) scale(1.1);
+      opacity: 0.9;
+    }
+  }
+  
+  @keyframes coming-soon-shine-sweep {
+    0% {
+      left: -100%;
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      left: 100%;
+      opacity: 0;
+    }
+  }
+  
+  .coming-soon-item .indicator-icon {
+    font-size: 28px;
+    margin-right: 16px;
+    opacity: 0.6;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .coming-soon-item .indicator-icon svg {
+    width: 24px;
+    height: 24px;
+    color: rgba(220, 200, 255, 0.5);
+  }
+  
+  .coming-soon-item .indicator-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    z-index: 2;
+  }
+  
+  .coming-soon-item .indicator-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(220, 200, 255, 0.7);
+    line-height: 1.4;
+  }
+  
+  .coming-soon-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(138, 43, 226, 0.9);
+    background: rgba(138, 43, 226, 0.15);
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(138, 43, 226, 0.3);
+    width: fit-content;
+  }
+  
+  /* Powered by Footer */
+  .ai-powered-footer {
+    padding: 16px 20px;
+    text-align: center;
+    border-top: 1px solid rgba(138, 43, 226, 0.2);
+    background: rgba(138, 43, 226, 0.03);
+  }
+  
+  .powered-by-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(220, 200, 255, 0.6);
+    letter-spacing: 0.5px;
+  }
+  
+  /* Light Mode Styles for Coming Soon */
+  :global([data-theme="light"]) .coming-soon-section {
+    border-top-color: rgba(59, 130, 246, 0.15);
+  }
+  
+  :global([data-theme="light"]) .coming-soon-item {
+    background: rgba(59, 130, 246, 0.03);
+    border-color: rgba(59, 130, 246, 0.12);
+  }
+  
+  :global([data-theme="light"]) .coming-soon-item .indicator-icon svg {
+    color: rgba(59, 130, 246, 0.4);
+  }
+  
+  :global([data-theme="light"]) .coming-soon-item .indicator-name {
+    color: rgba(30, 41, 59, 0.6);
+  }
+  
+  :global([data-theme="light"]) .coming-soon-badge {
+    color: rgba(59, 130, 246, 0.9);
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+  
+  :global([data-theme="light"]) .ai-powered-footer {
+    border-top-color: rgba(59, 130, 246, 0.15);
+    background: rgba(59, 130, 246, 0.02);
+  }
+  
+  :global([data-theme="light"]) .powered-by-text {
+    color: rgba(30, 41, 59, 0.5);
   }
 </style>
 

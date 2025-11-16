@@ -53,5 +53,20 @@
 
 
 <style>
-  /* No custom styles needed for the simple save button */
+  /* Force Save button text to stay sharp / non-blurry on all states */
+  button.btn {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    filter: none !important;
+    -webkit-filter: none !important;
+    transform: none !important;
+    -webkit-transform: none !important;
+  }
+
+  button.btn:hover,
+  button.btn:focus,
+  button.btn:active {
+    transform: none !important;
+    -webkit-transform: none !important;
+  }
 </style>
