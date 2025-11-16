@@ -34,7 +34,8 @@ let showDeleteButton = $state(false)
 let showContextMenu = $state(false)
 let selectedOverlay = $state<any>(null)
 let contextMenuStyles = $state({
-  thickness: 3,
+  // Store thickness as string so it binds cleanly to the <select> options
+  thickness: '3',
   style: 'solid',
   color: '#1677FF',
   opacity: 100
@@ -466,7 +467,7 @@ export function addOverlay(data: any){
       // Set current styles from selected overlay
       if (event.overlay.styles?.line) {
         const lineStyles = event.overlay.styles.line
-        contextMenuStyles.thickness = lineStyles.size || 2
+        contextMenuStyles.thickness = String(lineStyles.size || 2)
         contextMenuStyles.color = lineStyles.color || '#1677FF'
         contextMenuStyles.style = lineStyles.style === LineType.Dashed ? 'dashed' : 'solid'
       }
@@ -491,7 +492,7 @@ export function addOverlay(data: any){
           showDeleteButton = false
           // Load current overlay styles
             if (event.overlay.styles && event.overlay.styles.line) {
-              contextMenuStyles.thickness = event.overlay.styles.line.size || 1
+              contextMenuStyles.thickness = String(event.overlay.styles.line.size || 1)
               contextMenuStyles.color = event.overlay.styles.line.color || '#1677FF'
               
               // Determine style based on LineType and dashedValue
@@ -586,9 +587,12 @@ function startOverlay(val: string){
     dashedValue = [2, 6]
   }
   
+  // Ensure numeric thickness for KLineCharts
+  const numericThickness = Number(contextMenuStyles.thickness) || 1
+
   const overlayStyles = {
     line: {
-      size: contextMenuStyles.thickness,
+      size: numericThickness,
       color: contextMenuStyles.color,
       style: lineStyle,
       dashedValue: dashedValue
@@ -738,6 +742,8 @@ export function clickRemove(){
 function updateOverlayStyles() {
   if (!selectedOverlay || !$chart) return
   
+  // Normalize thickness to number
+  const numericThickness = Number(contextMenuStyles.thickness) || 1
   let lineStyle = LineType.Solid
   let dashedValue = [8, 4] // Default dashed pattern
   
@@ -755,7 +761,7 @@ function updateOverlayStyles() {
   
   const newStyles = {
     line: {
-      size: contextMenuStyles.thickness,
+      size: numericThickness,
       color: colorWithOpacity,
       style: lineStyle,
       dashedValue: dashedValue
@@ -988,7 +994,7 @@ function cloneOverlay() {
             // Set current styles from cloned overlay
             if (clonedOverlay.styles?.line) {
               const lineStyles = clonedOverlay.styles.line
-              contextMenuStyles.thickness = lineStyles.size || 2
+              contextMenuStyles.thickness = String(lineStyles.size || 2)
               contextMenuStyles.color = lineStyles.color || '#1677FF'
               contextMenuStyles.style = lineStyles.style === LineType.Dashed ? 'dashed' : 'solid'
             }
@@ -1096,7 +1102,7 @@ function pasteOverlay(event?: KeyboardEvent) {
             // Set current styles from pasted overlay
             if (pastedOverlay.styles?.line) {
               const lineStyles = pastedOverlay.styles.line
-              contextMenuStyles.thickness = lineStyles.size || 2
+              contextMenuStyles.thickness = String(lineStyles.size || 2)
               contextMenuStyles.color = lineStyles.color || '#1677FF'
               contextMenuStyles.style = lineStyles.style === LineType.Dashed ? 'dashed' : 'solid'
             }
@@ -1316,12 +1322,15 @@ clickChart.subscribe(() => {
   // Skip if just selected an overlay (to avoid immediate hide due to event bubbling).
   const now = Date.now()
   if ((now - lastOverlaySelectAt > 150) && !isDragging) {
-    showContextMenu = false
-    showDeleteButton = false
-    showMoreOptions = false
-    selectedOverlayCoords = null
-    selectedOverlay = null
-    selectDraw = ''
+    // Keep floating panel visible while a drawing is selected.
+    // Only hide if there is no active selection; actual deselect logic
+    // is handled by the overlay onDeselected handler.
+    if (!selectDraw && !selectedOverlay) {
+      showContextMenu = false
+      showDeleteButton = false
+      showMoreOptions = false
+      selectedOverlayCoords = null
+    }
   }
 })
 
@@ -1449,7 +1458,8 @@ export function externalSelectOverlay(overlay: any) {
     // Update context menu styles
     if (overlay.styles?.line) {
       const lineStyles = overlay.styles.line
-      contextMenuStyles.thickness = lineStyles.size || 2
+      // Keep thickness as string so it matches <select> option values
+      contextMenuStyles.thickness = String(lineStyles.size || 2)
       contextMenuStyles.color = lineStyles.color || '#1677FF'
       contextMenuStyles.style = lineStyles.style === LineType.Dashed ? 'dashed' : 'solid'
     }
@@ -1472,6 +1482,23 @@ export function externalSelectOverlay(overlay: any) {
     }
   } catch (e) {
     console.warn('externalSelectOverlay failed:', e)
+  }
+}
+
+// External deselect handler for overlays rendered by DrawingManager
+export function externalDeselectOverlay(overlay: any) {
+  try {
+    // Only clear if this overlay is currently selected
+    if (selectDraw === overlay.id || selectedOverlay?.id === overlay.id) {
+      selectDraw = ''
+      showDeleteButton = false
+      showContextMenu = false
+      showMoreOptions = false
+      selectedOverlayCoords = null
+      selectedOverlay = null
+    }
+  } catch (e) {
+    console.warn('externalDeselectOverlay failed:', e)
   }
 }
 

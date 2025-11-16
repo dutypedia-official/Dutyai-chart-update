@@ -37,6 +37,7 @@
   import { TransactionalThemeManager } from '../stores/themeManager.js';
   import SaveSystemIntegration from './saveSystem/SaveSystemIntegration.svelte';
   import { initializeDrawingManager, type DrawingManager } from './drawingManager';
+  import { PaneMaximizer } from './paneMaximizer';
   import { normalizeSymbolKey } from './saveSystem/chartStateCollector';
   import UnsavedChangesModal from '$lib/UnsavedChangesModal.svelte';
   import { hasUnsavedChanges, unsavedChanges } from '$lib/stores/unsavedChanges';
@@ -418,11 +419,10 @@
   // Register applyCanvasColors with global theme manager to preserve colors during theme switches
   globalThemeManager.setApplyCanvasColorsFunction(applyCanvasColors);
   
-  // Create wrapper functions for chart methods that need extra behavior
+  // Create wrapper functions for chart methods that need canvas color reapplication
   let originalChart: kc.Chart | null = null;
   let originalSetStyles: ((styles: any) => any) | null = null;
   let isApplyingCanvasColors = false; // Flag to prevent infinite loop
-  let originalCreateIndicator: ((indicator: any, isStack?: boolean, paneOptions?: any) => any) | null = null;
   
   // Watch for chart changes and wrap its methods
   $effect(() => {
@@ -432,7 +432,6 @@
       // Store original methods
       originalSetStyles = $chart.setStyles.bind($chart);
       const originalResize = $chart.resize.bind($chart);
-      originalCreateIndicator = ($chart as any).createIndicator?.bind($chart) ?? null;
       
       // Wrap setStyles to reapply canvas colors after
       ($chart as any).setStyles = function(styles: any) {
@@ -451,68 +450,6 @@
         scheduler.request(() => applyCanvasColors());
         return result;
       };
-
-      // Wrap createIndicator to slightly increase height of new sub‑panes
-      if (originalCreateIndicator) {
-        ($chart as any).createIndicator = function(indicator: any, isStack?: boolean, paneOptions?: any) {
-          const chartAny: any = this;
-
-          // Capture pane list before creating the indicator
-          let beforePanes: any[] = [];
-          try {
-            const res = chartAny.getPaneOptions?.();
-            if (Array.isArray(res)) {
-              beforePanes = res;
-            }
-          } catch {
-            // ignore, we will just skip before/after diffing
-          }
-
-          const result = originalCreateIndicator!(indicator, isStack as any, paneOptions);
-
-          // Capture pane list after creating the indicator
-          let afterPanes: any[] = [];
-          try {
-            const res = chartAny.getPaneOptions?.();
-            if (Array.isArray(res)) {
-              afterPanes = res;
-            }
-          } catch {
-            return result;
-          }
-
-          try {
-            const beforeIds = new Set(beforePanes.map(p => p?.id).filter(Boolean));
-
-            for (const pane of afterPanes) {
-              const paneId: string | undefined = pane?.id;
-              if (!paneId) continue;
-              // Only care about non‑main, non‑x‑axis panes
-              if (paneId === 'candle_pane' || paneId === 'x_axis_pane') continue;
-              // If this pane didn't exist before, it's a newly created sub‑pane
-              if (!beforeIds.has(paneId)) {
-                // Desktop only: bump new sub‑pane height; keep mobile default
-                if (!isMobileDevice()) {
-                  const baseHeight = typeof pane.height === 'number' && pane.height > 0 ? pane.height : undefined;
-                  if (baseHeight !== undefined) {
-                    const newHeight = baseHeight + 100; // +100px extra height for new sub pane (desktop)
-                    try {
-                      chartAny.setPaneOptions?.({ id: paneId, height: newHeight });
-                      console.log('📏 Increased new sub‑pane height by 100px (desktop only)', { paneId, baseHeight, newHeight });
-                    } catch {
-                      // ignore – non‑fatal
-                    }
-                  }
-                }
-              }
-            }
-          } catch {
-            // Swallow any safety issues so we don't break indicator creation
-          }
-
-          return result;
-        };
-      }
       
       console.log('🔧 Chart methods wrapped to preserve canvas colors');
     }
@@ -1668,98 +1605,6 @@
   let autoPlayInterval: NodeJS.Timeout | null = null
   let playbackSpeed = $state(1) // 0.5x to 3x speed (1 = 2 seconds default)
 
-  /**
-   * Toggle a pane between normal and maximized state.
-   * Uses klinecharts internal pane state handling so that:
-   * - state 'maximize' hides all other panes and makes this one full height
-   * - state 'normal' restores all panes and previous heights
-   */
-  function togglePaneState(paneId: string) {
-    if (!$chart) return;
-    try {
-      const chartObj: any = $chart;
-      const opts = chartObj.getPaneOptions?.(paneId) || null;
-      const currentState: string = opts?.state || 'normal';
-      const nextState: 'normal' | 'maximize' =
-        currentState === 'maximize' ? 'normal' : 'maximize';
-      chartObj.setPaneOptions?.({ id: paneId, state: nextState });
-      console.log('🖱️ Pane double-click toggle', { paneId, from: currentState, to: nextState });
-    } catch (error) {
-      console.warn('⚠️ Failed to toggle pane state', paneId, error);
-    }
-  }
-
-  /**
-   * Desktop: handle double‑click anywhere inside the chart widget.
-   *
-   * Behavior (TradingView style):
-   * - Double‑click on main chart region → maximize `candle_pane` and hide all sub panes.
-   * - Double‑click on any sub‑pane region → maximize that sub pane full height.
-   * - Double‑click again on the maximized pane → restore all panes to previous layout.
-   */
-  function handlePaneDoubleClick(e: MouseEvent) {
-    if (!$chart || !chartRef) return;
-
-    const chartObj: any = $chart;
-
-    // IMPORTANT:
-    // Only enable TradingView-style maximize when there is at least ONE real sub‑pane
-    // (an indicator living on its own pane, not on `candle_pane`).
-    // If there is no sub‑pane yet, double‑click should do NOTHING so that
-    // future sub‑panes are not affected by an old maximize state.
-    try {
-      const indicators = (chartObj.getIndicators?.() ?? []) as Array<{ paneId?: string }>;
-      const hasSubPaneIndicators = indicators.some(ind => ind.paneId && ind.paneId !== 'candle_pane');
-      if (!hasSubPaneIndicators) {
-        return;
-      }
-    } catch {
-      // If anything goes wrong while checking, fail safe: do nothing.
-      return;
-    }
-
-    const drawPanes: any[] | undefined = chartObj._drawPanes;
-
-    // If we can't introspect panes, fall back to toggling main candle pane
-    if (!Array.isArray(drawPanes) || drawPanes.length === 0) {
-      togglePaneState('candle_pane');
-      return;
-    }
-
-    const rect = chartRef.getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-
-    let targetPaneId: string | null = null;
-
-    for (const pane of drawPanes) {
-      if (!pane || typeof pane.getId !== 'function' || typeof pane.getBounding !== 'function') {
-        continue;
-      }
-
-      const paneId = pane.getId();
-      // Ignore the X axis pane – we only care about candle + indicator panes
-      if (paneId === 'x_axis_pane') continue;
-
-      const bounding = pane.getBounding();
-      if (!bounding || typeof bounding.height !== 'number') continue;
-
-      const top = typeof bounding.top === 'number' ? bounding.top : 0;
-      const height = bounding.height;
-
-      if (offsetY >= top && offsetY <= top + height) {
-        targetPaneId = paneId;
-        break;
-      }
-    }
-
-    // If we couldn't map the Y position to a pane, default to main candle pane
-    if (!targetPaneId) {
-      targetPaneId = 'candle_pane';
-    }
-
-    togglePaneState(targetPaneId);
-  }
-
   function handleMouseMove(e: MouseEvent) {
     // Track mouse position for crosshair price calculation
     const chartRect = chartRef?.getBoundingClientRect()
@@ -2352,7 +2197,6 @@
             onkeydown={handleKeyDown} 
             oncontextmenu={handleRightClick} 
             onmousemove={handleMouseMove}
-            ondblclick={handlePaneDoubleClick}
             ontouchstart={handleTouchStart}
             onclick={handleClick}></div>
      </div>

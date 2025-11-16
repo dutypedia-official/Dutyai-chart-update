@@ -366,6 +366,15 @@ export class DrawingManager {
           } catch {}
           return true;
         },
+        onDeselected: (event: any) => {
+          try {
+            const drawBarRef = (typeof window !== 'undefined') ? (window as any).drawBarRef : null;
+            if (drawBarRef?.externalDeselectOverlay) {
+              drawBarRef.externalDeselectOverlay(event.overlay);
+            }
+          } catch {}
+          return true;
+        },
         onPressedMoveEnd: (event: any) => {
           try {
             const drawBarRef = (typeof window !== 'undefined') ? (window as any).drawBarRef : null;

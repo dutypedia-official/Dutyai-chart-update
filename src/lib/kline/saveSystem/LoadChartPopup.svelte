@@ -69,6 +69,15 @@
     handleClose();
   }
 
+  // Prevent re-loading the currently active layout from the list
+  function handleLayoutClick(layoutId: string) {
+    if (layoutId === activeSaveId) {
+      // Already applied layout – ignore click but keep hover for delete button
+      return;
+    }
+    handleLoad(layoutId);
+  }
+
   function handleDelete(event: MouseEvent, layoutId: string) {
     event.stopPropagation();
     dispatch('delete', { layoutId });
@@ -146,7 +155,7 @@
             {#each savedLayouts as layout}
               <div
                 class="group flex items-center justify-between px-3 py-2 hover:bg-base-200 rounded-md transition-colors duration-150 cursor-pointer {layout.id === activeSaveId ? 'bg-primary/10' : ''}"
-                on:click={() => handleLoad(layout.id)}
+                on:click={() => handleLayoutClick(layout.id)}
               >
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">

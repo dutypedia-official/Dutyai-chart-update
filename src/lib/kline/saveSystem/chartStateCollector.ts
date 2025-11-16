@@ -230,20 +230,16 @@ export async function applyGlobalState(
   try {
     console.log('🔄 Applying global state:', globalState);
     
-    // Get current save value
-    const currentSave = get(save);
-    
-    // Clear existing indicators from chart
+    // HARD RESET: clear **all** existing indicators from the chart
+    // This avoids any chance of indicators from previous layouts stacking
     if (chart) {
-      // Remove all existing indicators from the chart
-      Object.entries(currentSave.saveInds).forEach(([key, saveInd]) => {
-        try {
-          chart.removeIndicator({ paneId: saveInd.pane_id, name: saveInd.name });
-          console.log(`Removed existing indicator: ${saveInd.name} from pane: ${saveInd.pane_id}`);
-        } catch (error) {
-          console.warn(`Failed to remove indicator ${saveInd.name}:`, error);
-        }
-      });
+      try {
+        // Empty filter -> remove all indicators on all panes
+        (chart as any).removeIndicator({});
+        console.log('🧹 Removed all existing indicators before applying new layout');
+      } catch (error) {
+        console.warn('Failed to clear existing indicators before applying layout:', error);
+      }
     }
     
     // Prepare new indicators data
@@ -298,20 +294,22 @@ export async function applyGlobalState(
         timeframe: globalState.interval
       };
       // Preserve current user-selected theme; do not override from layout loads
+      // But when loading a layout, completely replace styles/options so the new
+      // layout does NOT stack on top of the previous one.
       
-      // Update styles (canvas/candle/grid colors etc.) from saved layout
-      // Ensure object exists
-      if (!s.styles) s.styles = {};
-      // Shallow merge styles - saved layout styles take precedence
-      s.styles = { ...s.styles, ...(globalState.styles || {}) };
-      // Ensure chart type is preserved from layout
+      // Replace styles (canvas/candle/grid colors etc.) from saved layout
+      s.styles = globalState.styles && typeof globalState.styles === 'object'
+        ? { ...globalState.styles }
+        : {};
+      
+      // Ensure chart type is exactly what the layout specifies
       if (!s.styles.candle) s.styles.candle = {};
       s.styles.candle.type = globalState.chartType;
       
-      // Merge options if present
-      if (globalState.options && typeof globalState.options === 'object') {
-        s.options = { ...(s.options || {}), ...globalState.options };
-      }
+      // Replace options with layout options (no merging with previous layout)
+      s.options = globalState.options && typeof globalState.options === 'object'
+        ? { ...globalState.options }
+        : {};
       
       // Replace saveInds completely
       s.saveInds = newSaveInds;

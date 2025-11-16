@@ -82,10 +82,10 @@ function computeCandleParts(bar: KLineData) {
  * [2] confirmationBars = 3
  * [3] maxTrapBars = 5
  * [4] volumeMAPeriod = 20
- * [5] minVolumeSpike = 1.5
- * [6] minBreakoutFactor = 0.001
- * [7] minWickRatio = 0.4
-	 * [8] minTrapScore = 0.6
+ * [5] minVolumeSpike = 1.3
+ * [6] minBreakoutFactor = 0.0007
+ * [7] minWickRatio = 0.35
+	 * [8] minTrapScore = 0.5
 	 * [9] enableNormalSignal = 1 (0/1)
 	 * [10] normalQuietBars = 5
  */
@@ -111,10 +111,10 @@ export const trapHunter: IndicatorTemplate = {
 		const confirmationBars = Math.max(1, (p[2] as number) ?? 3);
 		const maxTrapBars = Math.max(1, (p[3] as number) ?? 5);
 		const volumeMAPeriod = Math.max(1, (p[4] as number) ?? 20);
-		const minVolumeSpike = (p[5] as number) ?? 1.5;
-		const minBreakoutFactor = (p[6] as number) ?? 0.001;
-		const minWickRatio = (p[7] as number) ?? 0.4;
-		const minTrapScore = (p[8] as number) ?? 0.6;
+		const minVolumeSpike = (p[5] as number) ?? 1.3;
+		const minBreakoutFactor = (p[6] as number) ?? 0.0007;
+		const minWickRatio = (p[7] as number) ?? 0.35;
+		const minTrapScore = (p[8] as number) ?? 0.5;
 		const enableNormalSignal = ((p[9] as number) ?? 1) > 0 ? 1 : 0;
 		const normalQuietBars = Math.max(1, (p[10] as number) ?? 5);
 
@@ -213,9 +213,20 @@ export const trapHunter: IndicatorTemplate = {
 			}
 
 			// ---------------- Bear Trap Candidate ----------------
-			const isBearBreakdown = (bar.low ?? 0) <= recentLow * (1 - minBreakoutFactor);
-			const bearInitOkay = (bar.close ?? 0) < (bar.open ?? 0) || closeNearLow;
-			const bearVolumeOkay = volSpikeFactor >= minVolumeSpike;
+			// Slightly more permissive on the downside so valid bear traps (buy traps)
+			// are not filtered out too aggressively.
+			const bearBreakFactor = minBreakoutFactor * 0.85;
+			const bearMinVolume = minVolumeSpike * 0.9;
+			const isBearBreakdown = (bar.low ?? 0) <= recentLow * (1 - bearBreakFactor);
+			// Bear-init conditions:
+			// - classic breakdown candle (close < open)
+			// - or close near the lows
+			// - or strong lower wick (hammer-style rejection) even if the close is off the lows
+			const bearInitOkay =
+				(bar.close ?? 0) < (bar.open ?? 0) ||
+				closeNearLow ||
+				lowerWickRatio >= minWickRatio;
+			const bearVolumeOkay = volSpikeFactor >= bearMinVolume;
 
 			if (isBearBreakdown && bearInitOkay && bearVolumeOkay) {
 				const jMax = Math.min(data.length - 1, i + confirmationBars);
@@ -247,8 +258,8 @@ export const trapHunter: IndicatorTemplate = {
 						}
 					}
 
-					const breakdownStrength = clamp(((recentLow - bar.low) / Math.max(1e-8, recentLow)) / (minBreakoutFactor * 3), 0, 1);
-					const volumeStrength = clamp(volSpikeFactor / (minVolumeSpike * 2), 0, 1);
+					const breakdownStrength = clamp(((recentLow - bar.low) / Math.max(1e-8, recentLow)) / (bearBreakFactor * 3), 0, 1);
+					const volumeStrength = clamp(volSpikeFactor / (bearMinVolume * 2), 0, 1);
 					const wickStrength = clamp(maxLowerWick, 0, 1);
 					const reversalStrength = clamp(((data[confirmed].close ?? 0) - bar.low) / Math.max(1e-8, (data[confirmed].close ?? 0)), 0, 1);
 

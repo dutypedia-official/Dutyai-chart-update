@@ -222,16 +222,19 @@
       const paneId = 'candle_pane';
       const chartObj = $chart;
       if (chartObj) {
+        // Slightly more relaxed defaults so both bull and bear traps show
+        // a bit more frequently out of the box, without killing accuracy.
+        const params = [20, 20, 3, 5, 20, 1.3, 0.0007, 0.35, 0.5, 1, 5];
         const ind_id = chartObj.createIndicator({
           name: 'TRAP_HUNTER',
-          calcParams: [20, 20, 3, 5, 20, 1.5, 0.001, 0.4, 0.6, 1, 5]
+          calcParams: params
         }, true, {id: paneId});
         
         if (ind_id) {
           const ind = {
             name: 'TRAP_HUNTER',
             pane_id: paneId,
-            params: [20, 20, 3, 5, 20, 1.5, 0.001, 0.4, 0.6, 1, 5]
+            params
           };
           const saveKey = `${paneId}_TRAP_HUNTER`;
           save.update(s => {
