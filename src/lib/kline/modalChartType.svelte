@@ -172,7 +172,7 @@
     if ($save.styles?.candle?._isLineChart) {
       return 'line_chart';
     }
-    const currentType = $save.styles?.candle?.type || 'renko_atr';
+    const currentType = $save.styles?.candle?.type || 'candle_solid';
     return currentType;
   }
 </script>
