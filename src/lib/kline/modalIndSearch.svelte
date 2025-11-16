@@ -71,23 +71,54 @@
   }
 
   // Track selected indicators (those added to chart)
-  // This will automatically sync with save.saveInds to show active indicators
-  let selectedIndicators = $derived.by(() => {
+  // Use $state for better reactivity when modal opens/closes
+  let selectedIndicators = $state<Set<string>>(new Set());
+  
+  // Function to recompute selected indicators from chart or saveInds
+  function updateSelectedIndicators() {
     const activeIndicators = new Set<string>();
     
-    // Get all indicator names from save.saveInds
-    if ($save && $save.saveInds) {
+    // PRIORITY 1: Get indicators from the actual chart (authoritative source)
+    // This ensures indicators show as selected even after refresh when they're restored
+    if ($chart) {
+      try {
+        const chartIndicators = ($chart.getIndicators?.() ?? []) as Array<{ name: string; paneId?: string }>;
+        chartIndicators.forEach(ind => {
+          if (ind && ind.name) {
+            activeIndicators.add(ind.name);
+          }
+        });
+        console.log('📊 Indicator list - from chart.getIndicators:', chartIndicators.map(i => i.name));
+      } catch (e) {
+        console.warn('⚠️ Indicator list - getIndicators failed, falling back to saveInds', e);
+      }
+    }
+    
+    // PRIORITY 2: Fallback to saveInds if chart is not available or empty
+    // This handles cases where chart is not yet initialized
+    if (activeIndicators.size === 0 && $save && $save.saveInds) {
       Object.values($save.saveInds).forEach((indicator: any) => {
         if (indicator && indicator.name) {
           activeIndicators.add(indicator.name);
         }
       });
+      console.log('📊 Indicator list - from saveInds (fallback):', Array.from(activeIndicators));
     }
     
     // Show user-friendly names in console
     const friendlyNames = Array.from(activeIndicators).map(name => getFriendlyIndicatorName(name));
     console.log('🔄 selectedIndicators updated:', friendlyNames);
-    return activeIndicators;
+    selectedIndicators = activeIndicators;
+  }
+  
+  // Recompute selected indicators whenever modal opens or chart/saveInds changes
+  $effect(() => {
+    // Track modal open state, chart, and saveInds changes to update selected indicators
+    const _show = show;
+    const _chart = $chart;
+    const _saveInds = $save?.saveInds;
+    // Update selected indicators - this will run when modal opens, chart changes, or saveInds changes
+    updateSelectedIndicators();
   });
 
   onMount(() => {

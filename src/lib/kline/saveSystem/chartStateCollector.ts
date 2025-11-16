@@ -80,8 +80,12 @@ export function collectGlobalState(
     }
   }
 
-  // Convert SaveInd to SavedIndicator format
+  // CRITICAL FIX: Collect indicators from BOTH chart and saveInds
+  // This ensures ALL indicators on the chart are saved, even if saveInds is out of sync
   const indicators: SavedIndicator[] = [];
+  const indicatorsMap = new Map<string, SavedIndicator>();
+  
+  // STEP 1: First, collect from saveInds (has full data: params, styles, etc.)
   Object.entries(save.saveInds).forEach(([key, saveInd]) => {
     // Convert params array to object format
     const paramsObj: Record<string, any> = {};
@@ -101,7 +105,7 @@ export function collectGlobalState(
       Object.assign(stylesObj, saveInd.styles);
     }
     
-    indicators.push({
+    const savedIndicator: SavedIndicator = {
       id: key,
       type: saveInd.name,
       params: paramsObj,
@@ -114,8 +118,116 @@ export function collectGlobalState(
           !['name', 'pane_id', 'params', 'styles'].includes(k)
         )
       )
-    });
+    };
+    
+    // Use a composite key: name + paneId to avoid duplicates
+    const compositeKey = `${saveInd.name}_${saveInd.pane_id || 'candle_pane'}`;
+    indicatorsMap.set(compositeKey, savedIndicator);
   });
+  
+  // STEP 2: Get actual indicators from chart and ensure they're all included
+  // This is critical: even if saveInds is incomplete, we save ALL indicators on the chart
+  if (chart) {
+    try {
+      const chartIndicators = (chart.getIndicators?.() ?? []) as Array<{ 
+        name: string; 
+        paneId?: string;
+        [key: string]: any;
+      }>;
+      
+      console.log('📊 Collecting indicators from chart:', chartIndicators.length, 'found');
+      
+      chartIndicators.forEach((chartInd) => {
+        if (!chartInd.name) return;
+        
+        const paneId = chartInd.paneId || 'candle_pane';
+        const compositeKey = `${chartInd.name}_${paneId}`;
+        
+        // If we already have this indicator from saveInds, keep that (has more complete data)
+        if (indicatorsMap.has(compositeKey)) {
+          console.log(`✅ Indicator ${chartInd.name} (${paneId}) already in saveInds`);
+          return;
+        }
+        
+        // Indicator exists on chart but not in saveInds - try to find matching saveInd by name+paneId
+        console.log(`⚠️ Indicator ${chartInd.name} (${paneId}) on chart but not in saveInds`);
+        
+        // Try to find a matching saveInd entry by searching all saveInds keys
+        let matchingSaveInd: SaveInd | null = null;
+        let matchingKey: string | null = null;
+        
+        for (const [key, saveInd] of Object.entries(save.saveInds)) {
+          if (saveInd.name === chartInd.name && 
+              (saveInd.pane_id === paneId || (!saveInd.pane_id && paneId === 'candle_pane'))) {
+            matchingSaveInd = saveInd;
+            matchingKey = key;
+            break;
+          }
+        }
+        
+        // If we found a matching saveInd, use it (might have different key format)
+        if (matchingSaveInd && matchingKey) {
+          console.log(`✅ Found matching saveInd for ${chartInd.name} with key: ${matchingKey}`);
+          
+          // Convert the matching saveInd to SavedIndicator format
+          const paramsObj: Record<string, any> = {};
+          if (matchingSaveInd.params && Array.isArray(matchingSaveInd.params)) {
+            matchingSaveInd.params.forEach((param, index) => {
+              paramsObj[`param_${index}`] = param;
+            });
+          }
+          
+          const stylesObj: Record<string, any> = {};
+          if (matchingSaveInd.styles && Array.isArray(matchingSaveInd.styles)) {
+            matchingSaveInd.styles.forEach((style, index) => {
+              stylesObj[`style_${index}`] = style;
+            });
+          } else if (matchingSaveInd.styles && typeof matchingSaveInd.styles === 'object') {
+            Object.assign(stylesObj, matchingSaveInd.styles);
+          }
+          
+          const savedIndicator: SavedIndicator = {
+            id: matchingKey, // Use the original key
+            type: matchingSaveInd.name,
+            params: paramsObj,
+            styles: stylesObj,
+            paneId: matchingSaveInd.pane_id || paneId,
+            visible: true,
+            ...Object.fromEntries(
+              Object.entries(matchingSaveInd).filter(([k]) => 
+                !['name', 'pane_id', 'params', 'styles'].includes(k)
+              )
+            )
+          };
+          
+          indicatorsMap.set(compositeKey, savedIndicator);
+        } else {
+          // No matching saveInd found - create basic entry (params/styles might be missing)
+          console.log(`⚠️ No matching saveInd found for ${chartInd.name}, creating basic entry`);
+          
+          const newKey = `${paneId}_${chartInd.name}`;
+          
+          const savedIndicator: SavedIndicator = {
+            id: newKey,
+            type: chartInd.name,
+            params: undefined, // Will use defaults when loading
+            styles: undefined, // Will use defaults when loading
+            paneId: paneId,
+            visible: true
+          };
+          
+          indicatorsMap.set(compositeKey, savedIndicator);
+        }
+      });
+    } catch (error) {
+      console.warn('⚠️ Failed to get indicators from chart, using saveInds only:', error);
+    }
+  }
+  
+  // Convert map to array
+  indicators.push(...Array.from(indicatorsMap.values()));
+  
+  console.log(`✅ Collected ${indicators.length} indicators for saving (${Object.keys(save.saveInds).length} from saveInds, ${indicators.length - Object.keys(save.saveInds).length} from chart)`);
 
   return {
     timezone: save.timezone,

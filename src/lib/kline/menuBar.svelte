@@ -607,7 +607,7 @@ let showAIModal = $state(false);
     if ($save.styles?.candle?._isLineChart) {
       return chartTypes.find(type => type.id === 'line_chart') || chartTypes[0];
     }
-    const currentType = $save.styles?.candle?.type || 'candle_solid';
+    const currentType = $save.styles?.candle?.type || 'renko_atr';
     const chartType = chartTypes.find(type => type.id === currentType);
     return chartType || chartTypes[0];
   }
